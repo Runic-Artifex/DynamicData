@@ -90,13 +90,13 @@ public static partial class FilterFixture
                 .Subscribe();
             source.AddOrUpdate(people);
 
-            await Assert.That(collection).IsEquivalentTo(people.Where(x => x.Age < average));
+            await Assert.That(collection).IsEquivalentTo(people.Where(x => x.Age < average), TUnit.Assertions.Enums.CollectionOrdering.Matching);
 
             foreach (var person in people)
             {
                 person.Age = person.Age + 1;
             }
-            await Assert.That(collection).IsEquivalentTo(people.Where(x => x.Age < average));
+            await Assert.That(collection).IsEquivalentTo(people.Where(x => x.Age < average), TUnit.Assertions.Enums.CollectionOrdering.Matching);
         }
 
         [Test]
@@ -115,13 +115,13 @@ public static partial class FilterFixture
                 .Subscribe();
             source.AddOrUpdate(people);
 
-            await Assert.That(collection).IsEquivalentTo(people.Where(x => x.Age < average));
+            await Assert.That(collection).IsEquivalentTo(people.Where(x => x.Age < average), TUnit.Assertions.Enums.CollectionOrdering.Matching);
 
             foreach (var person in people)
             {
                 person.Age = person.Age + 1;
             }
-            await Assert.That(collection).IsEquivalentTo(people.Where(x => x.Age < average));
+            await Assert.That(collection).IsEquivalentTo(people.Where(x => x.Age < average), TUnit.Assertions.Enums.CollectionOrdering.Matching);
         }
     }
 

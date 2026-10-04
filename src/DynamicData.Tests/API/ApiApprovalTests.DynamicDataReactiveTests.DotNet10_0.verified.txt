@@ -1,4 +1,4 @@
-﻿[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("DynamicData.Benchmarks")]
+[assembly: System.Runtime.CompilerServices.InternalsVisibleTo("DynamicData.Benchmarks")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("DynamicData.Reactive.Tests")]
 [assembly: System.Runtime.CompilerServices.InternalsVisibleTo("DynamicData.Tests")]
 [assembly: System.Runtime.Versioning.TargetFramework(".NETCoreApp,Version=v10.0", FrameworkDisplayName=".NET 10.0")]
@@ -1144,7 +1144,7 @@ namespace DynamicData.Reactive
         public static System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> Batch<TObject, TKey>(this System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> source, System.TimeSpan timeSpan, System.Reactive.Concurrency.IScheduler? scheduler = null)
             where TObject :  notnull
             where TKey :  notnull { }
-        public static System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> BatchIf<TObject, TKey>(this System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> source, System.IObservable<bool> pauseIfTrueSelector, System.Reactive.Concurrency.IScheduler? scheduler = null)
+        public static System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> BatchIf<TObject, TKey>(this System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> source, System.IObservable<bool> pauseIfTrueSelector, System.Reactive.Concurrency.IScheduler? scheduler = null, System.IObservable<System.Reactive.Unit>? timer = null)
             where TObject :  notnull
             where TKey :  notnull { }
         public static System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> BatchIf<TObject, TKey>(this System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> source, System.IObservable<bool> pauseIfTrueSelector, System.TimeSpan? timeOut, System.Reactive.Concurrency.IScheduler? scheduler = null)
@@ -1156,7 +1156,7 @@ namespace DynamicData.Reactive
         public static System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> BatchIf<TObject, TKey>(this System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> source, System.IObservable<bool> pauseIfTrueSelector, bool initialPauseState, System.IObservable<System.Reactive.Unit>? timer, System.Reactive.Concurrency.IScheduler? scheduler = null)
             where TObject :  notnull
             where TKey :  notnull { }
-        public static System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> BatchIf<TObject, TKey>(this System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> source, System.IObservable<bool> pauseIfTrueSelector, bool initialPauseState = false, System.TimeSpan? timeOut = default, System.Reactive.Concurrency.IScheduler? scheduler = null)
+        public static System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> BatchIf<TObject, TKey>(this System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> source, System.IObservable<bool> pauseIfTrueSelector, bool initialPauseState, System.TimeSpan? timeOut, System.Reactive.Concurrency.IScheduler? scheduler = null)
             where TObject :  notnull
             where TKey :  notnull { }
         public static System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey>> Bind<[System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.All)]  TObject, TKey>(this System.IObservable<DynamicData.Reactive.IChangeSet<TObject, TKey, DynamicData.Reactive.PageContext<TObject>>> source, System.Collections.Generic.IList<TObject> targetList)

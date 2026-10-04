@@ -1,3 +1,18 @@
+# Runic DynamicData (.NET 10)
+
+This Runic-Artifex fork starts from [PR #1116](https://github.com/reactivemarbles/DynamicData/pull/1116)
+and includes the newer upstream operator fixes. It targets .NET 10 and current
+ReactiveUI Primitives, with compatibility checks for ReactiveUI 25's Primitives 8.4.
+The namespaces remain `DynamicData` and `DynamicData.Reactive`; the NuGet IDs are
+`Runic.DynamicData` and `Runic.DynamicData.Reactive`. Keep only one implementation
+of each flavor in an application. The original MIT license and authorship remain.
+
+For build instructions and package assets, see [CONTRIBUTING](CONTRIBUTING.md).
+For Runic model scheduling, collection updates and per-presentation virtualization,
+see the SDK's DynamicData guide. This fork will not be proposed upstream.
+
+---
+
 ![Build](https://github.com/reactivemarbles/DynamicData/workflows/Build/badge.svg) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=reactivemarbles_DynamicData&metric=coverage)](https://sonarcloud.io/summary/new_code?id=reactivemarbles_DynamicData) [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=reactivemarbles_DynamicData&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=reactivemarbles_DynamicData) [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=reactivemarbles_DynamicData&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=reactivemarbles_DynamicData) [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=reactivemarbles_DynamicData&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=reactivemarbles_DynamicData) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=reactivemarbles_DynamicData&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=reactivemarbles_DynamicData)
 <a href="https://reactiveui.net/slack">
         <img src="https://img.shields.io/badge/chat-slack-blue.svg">

@@ -2,7 +2,7 @@ using DynamicData.Tests.Domain;
 
 namespace DynamicData.Tests.Cache;
 
-public class BatchIfFixture : IDisposable
+public partial class BatchIfFixture : IDisposable
 {
     private readonly ReactiveUI.Primitives.Signals.ISignal<bool> _pausingSubject = new ReactiveUI.Primitives.Signals.Signal<bool>();
 

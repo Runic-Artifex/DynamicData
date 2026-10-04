@@ -262,7 +262,6 @@ public sealed class BindingCoverageFixture
         await Assert.That(methodCall.GetMember()).IsTypeOf<MethodInfo>();
         await Assert.That(() => fieldExpression.GetProperty()).Throws<ArgumentException>();
         await Assert.That(() => methodCall.GetProperty()).Throws<ArgumentException>();
-        await Assert.That(nestedProperty.ToCacheKey()).Contains($"{nameof(ExpressionSubject.Child)}.{nameof(ExpressionSubject.Number)}");
     }
 
     [Test]

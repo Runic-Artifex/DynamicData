@@ -88,8 +88,9 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
         // Create an observable that completes when all 3 inputs complete so the downstream can be completed as well
         var subOnComplete = PrimitivesLinqExtensions.SubscribeSafe(
             Observable.Merge(sharedSource.ToUnit(), sharedGroupSelector.ToUnit(), sharedRegrouper).IgnoreElements(),
-            observer.OnError,
-            observer.OnCompleted);
+            onNext: static _ => { },
+            onError: observer.OnError,
+            onCompleted: observer.OnCompleted);
 
         return new CompositeDisposable(
             sharedGroupSelector.Connect(),

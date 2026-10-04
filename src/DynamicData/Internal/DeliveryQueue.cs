@@ -118,6 +118,9 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
             spinner.SpinOnce();
     }
 
+    /// <summary>Whether a downstream observer threw while accepting a notification.</summary>
+    internal bool HasDeliveryFailure { get; private set; }
+
     /// <inheritdoc/>
     public void Dispose() => EnsureDeliveryComplete();
 
@@ -310,6 +313,7 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
             }
             catch
             {
+                HasDeliveryFailure = true;
                 StopDelivery();
                 throw;
             }

@@ -2,6 +2,7 @@
 
 <Project>
   <PropertyGroup>
+    <ReactiveUIPrimitivesVersion Condition="'$(ReactiveUIPrimitivesVersion)' == ''">9.0.0</ReactiveUIPrimitivesVersion>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);1701;1702;1705;VSX1000;CA1510</NoWarn>
     <Platform>AnyCPU</Platform>
@@ -14,10 +15,10 @@
     <Owners>Roland Pheasant</Owners>
     <Copyright>Copyright (c) Roland Pheasant 2011-$([System.DateTime]::Now.ToString(yyyy))</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/reactiveui/DynamicData</PackageProjectUrl>
+    <PackageProjectUrl>https://github.com/Runic-Artifex/DynamicData</PackageProjectUrl>
     <PackageTags>DynamicData;Dynamic;Data;Rx;Reactive;Observable;Cache;Binding;ObservableCache;ObservableList;ObservableCollection;Collection;Linq</PackageTags>
-    <PackageReleaseNotes>https://github.com/reactiveui/DynamicData/releases</PackageReleaseNotes>
-    <RepositoryUrl>https://github.com/reactiveui/DynamicData</RepositoryUrl>
+    <PackageReleaseNotes>https://github.com/Runic-Artifex/DynamicData/releases</PackageReleaseNotes>
+    <RepositoryUrl>https://github.com/Runic-Artifex/DynamicData</RepositoryUrl>
     <RepositoryType>git</RepositoryType>
     <PackageIcon>logo.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
@@ -58,9 +59,6 @@
     <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
   </PropertyGroup>
 
-  <PropertyGroup Condition="$([MSBuild]::IsTargetFrameworkCompatible('$(TargetFramework)', 'net11.0'))">
-    <Features>$(Features);runtime-async=on</Features>
-  </PropertyGroup>
 
   <ItemGroup>
     <None Include="$(MSBuildThisFileDirectory)..\images\logo.png" Pack="true" PackagePath="\"/>

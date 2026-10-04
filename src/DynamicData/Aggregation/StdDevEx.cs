@@ -10,7 +10,7 @@ namespace DynamicData.Aggregation;
 #endif
 
 /// <summary>
-/// Extensions for calculating standard deviation.
+/// Extensions for calculating sample standard deviation.
 /// </summary>
 /// <remarks>
 /// Computes sample standard deviation using incremental central moments. Integral and decimal

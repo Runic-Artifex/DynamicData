@@ -1,75 +1,37 @@
 name: Build
-
 on:
+  push:
+    branches: [main, 'runic/**']
   pull_request:
-    branches: [ main, 'release/*.x' ]
-
-env:
-  configuration: Release
-
+  workflow_dispatch:
+permissions:
+  contents: read
 jobs:
   build:
-    runs-on: windows-latest
-    outputs:
-      nbgv: ${{ steps.nbgv.outputs.SemVer2 }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        primitives: ['8.4.0', '9.0.0']
+    runs-on: ${{ matrix.os }}
     steps:
-
-    - name: Checkout
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 0
-        lfs: true
-
-    - name: Setup .NET (With cache)
-      uses: actions/setup-dotnet@v5.3.0
-      with:
-        dotnet-version: |
-            6.0.x
-            7.0.x
-            8.0.x
-            9.0.x
-            10.0.x
-        global-json-file: global.json
-        cache: true
-        cache-dependency-path: |
-            **/Directory.Packages.props
-            **/*.sln
-            **/*.csproj
-            **/global.json
-            **/nuget.config
-
-    - name: Install (or update) nbgv tool
-      run: dotnet tool update --global nbgv
-
-    - name: Set NBGV cloud variables
-      run: nbgv cloud -a
-
-    - name: Expose NBGV version as step outputs
-      id: nbgv
-      shell: pwsh
-      run: |
-        $ErrorActionPreference = 'Stop'
-        "SemVer2=$env:NBGV_SemVer2" >> $env:GITHUB_OUTPUT
-        "PrereleaseVersion=$env:NBGV_PrereleaseVersion" >> $env:GITHUB_OUTPUT
-
-    - name: NuGet Restore
-      run: dotnet restore DynamicData.sln
-      working-directory: src
-
-    - name: Build
-      run: dotnet build --no-restore --configuration Release DynamicData.sln
-      working-directory: src
-
-    - name: Run Tests
-      run: dotnet test --solution DynamicData.sln --no-build --configuration Release --max-parallel-test-modules 4 --maximum-parallel-tests 8
-      working-directory: src
-
-    - name: Pack
-      run: dotnet pack --no-restore --configuration Release DynamicData.sln
-      working-directory: src
-
-    - name: Create NuGet Artifacts
-      uses: actions/upload-artifact@v4.6.2
-      with:
-        name: nuget
-        path: 'src/**/bin/Release/*.nupkg'
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v5.3.0
+        with:
+          global-json-file: global.json
+      - name: Build .NET 10
+        run: dotnet build src/DynamicData.sln -c Release -p:ReactiveUIPrimitivesVersion=${{ matrix.primitives }}
+      - name: Test Primitives flavor
+        run: dotnet src/DynamicData.Tests/bin/Release/net10.0/DynamicData.Tests.dll --maximum-parallel-tests 8 --results-directory artifacts/tests/primitives
+      - name: Test System.Reactive flavor
+        run: dotnet src/DynamicData.Reactive.Tests/bin/Release/net10.0/DynamicData.Reactive.Tests.dll --maximum-parallel-tests 8 --results-directory artifacts/tests/reactive
+      - name: Pack current Primitives packages
+        if: matrix.primitives == '9.0.0'
+        run: dotnet pack src/DynamicData.sln -c Release --no-build -o artifacts/packages
+      - uses: actions/upload-artifact@v4.6.2
+        if: always()
+        with:
+          name: dynamicdata-${{ matrix.os }}-${{ matrix.primitives }}
+          path: artifacts

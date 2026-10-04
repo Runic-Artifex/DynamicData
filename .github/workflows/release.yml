@@ -1,158 +1,27 @@
-name: Build and Release
-
+name: Package release
 on:
-  push:
-    branches: [ main, 'release/*.x' ]
   workflow_dispatch:
-
-env:
-  configuration: Release
-
-concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: false
-
+permissions:
+  contents: write
 jobs:
   release:
-    runs-on: windows-latest
-    environment:
-      name: release
-    permissions:
-      contents: write
-    outputs:
-      nbgv: ${{ steps.nbgv.outputs.SemVer2 }}
+    runs-on: ubuntu-latest
     steps:
-
-    - name: Checkout
-      uses: actions/checkout@v6
-      with:
-        fetch-depth: 0
-
-    - name: Validate publish branch
-      shell: pwsh
-      env:
-        REF_NAME: ${{ github.ref_name }}
-      run: |
-        $ErrorActionPreference = 'Stop'
-        if ($env:REF_NAME -ne 'main' -and $env:REF_NAME -notmatch '^release/(0|[1-9]\d*)\.x$') {
-          throw "release.yml triggered on '$env:REF_NAME' which is neither 'main' nor 'release/<major>.x'. Refusing to publish."
-        }
-        Write-Host "OK: publishing from '$env:REF_NAME'."
-
-    - name: Setup .NET (With cache)
-      uses: actions/setup-dotnet@v5.3.0
-      with:
-        dotnet-version: |
-            6.0.x
-            7.0.x
-            8.0.x
-            9.0.x
-            10.0.x
-        global-json-file: global.json
-        cache: true
-        cache-dependency-path: |
-            **/Directory.Packages.props
-            **/*.sln
-            **/*.csproj
-            **/global.json
-            **/nuget.config
-
-    - name: Install (or update) nbgv tool
-      run: dotnet tool update --global nbgv
-
-    - name: Set NBGV cloud variables
-      run: nbgv cloud -a
-
-    - name: Expose NBGV version as step outputs
-      id: nbgv
-      shell: pwsh
-      run: |
-        $ErrorActionPreference = 'Stop'
-        "SemVer2=$env:NBGV_SemVer2" >> $env:GITHUB_OUTPUT
-        "PrereleaseVersion=$env:NBGV_PrereleaseVersion" >> $env:GITHUB_OUTPUT
-
-    - name: Verify version matches branch policy
-      shell: pwsh
-      env:
-        SEMVER2: ${{ steps.nbgv.outputs.SemVer2 }}
-        PRERELEASE: ${{ steps.nbgv.outputs.PrereleaseVersion }}
-        REF_NAME: ${{ github.ref_name }}
-      run: |
-        $ErrorActionPreference = 'Stop'
-
-        if ($env:REF_NAME -eq 'main' -and -not $env:PRERELEASE) {
-          throw "Refusing to publish stable '$env:SEMVER2' from main. main must always publish prereleases. Check version.json for an accidental switch to a non-prerelease form."
-        }
-
-        if ($env:PRERELEASE -and $env:REF_NAME -match '^release/(0|[1-9]\d*)\.x$') {
-          throw "Refusing to publish prerelease '$env:SEMVER2' from a release branch ('$env:REF_NAME'). Release branches must only publish stable versions."
-        }
-
-        if (-not $env:PRERELEASE) {
-          Write-Host "Stable release ($env:SEMVER2); skipping prerelease regression check."
-          exit 0
-        }
-        if ($env:SEMVER2 -notmatch '^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)-') {
-          throw "Could not parse SemVer2 '$env:SEMVER2'"
-        }
-        $major = $matches[1]
-        $minor = $matches[2]
-        git fetch --tags --force origin
-        if ($LASTEXITCODE -ne 0) { throw "git fetch --tags failed (exit $LASTEXITCODE); cannot validate prerelease regression." }
-
-        $majorEsc = [regex]::Escape($major)
-        $minorEsc = [regex]::Escape($minor)
-        $stableTags = git tag --list "$major.$minor.*" | Where-Object { $_ -match "^${majorEsc}\.${minorEsc}\.\d+$" }
-        if ($stableTags) {
-          $list = $stableTags -join ', '
-          throw "Stable for $major.$minor has already shipped (tags: $list); cannot publish prerelease '$env:SEMVER2'. Bump main's version.json to the next minor or major preview line."
-        }
-        Write-Host "OK: no stable $major.$minor.* tag exists; '$env:SEMVER2' is safe to publish."
-
-    - name: NuGet Restore
-      run: dotnet restore DynamicData.sln
-      working-directory: src
-
-    - name: Run Tests
-      run: dotnet test --solution DynamicData.sln --no-restore --configuration Release
-      working-directory: src
-
-    - name: Pack
-      run: dotnet pack --no-restore --no-build --configuration Release DynamicData.sln
-      working-directory: src
-
-    - name: NuGet Push
-      env:
-        NUGET_AUTH_TOKEN: ${{ secrets.NUGET_API_KEY }}
-        SOURCE_URL: https://api.nuget.org/v3/index.json
-      shell: pwsh
-      run: |
-        $ErrorActionPreference = 'Stop'
-        $packages = Get-ChildItem -Path src -Recurse -Filter 'DynamicData.*.nupkg' | Where-Object { $_.FullName -like '*\bin\Release\*' }
-        if (-not $packages) { throw "No .nupkg files found under src/**/bin/Release/." }
-        foreach ($pkg in $packages) {
-          dotnet nuget push -s $env:SOURCE_URL -k $env:NUGET_AUTH_TOKEN --skip-duplicate $pkg.FullName
-          if ($LASTEXITCODE -ne 0) { throw "dotnet nuget push failed for $($pkg.Name) (exit $LASTEXITCODE)." }
-        }
-
-    - name: Install GitReleaseNoteGenerator
-      run: dotnet tool install -g GitReleaseNoteGenerator
-
-    - name: Generate release notes
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
-        RELEASE_VERSION: ${{ steps.nbgv.outputs.SemVer2 }}
-      shell: pwsh
-      run: git-release-notes --release-version "$env:RELEASE_VERSION" --output-file release-notes.md
-
-    - name: Create GitHub Release
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        TAG: ${{ steps.nbgv.outputs.SemVer2 }}
-        IS_PRERELEASE: ${{ steps.nbgv.outputs.PrereleaseVersion != '' }}
-      shell: pwsh
-      run: |
-        $ErrorActionPreference = 'Stop'
-        $cmd = @('release', 'create', $env:TAG, '--title', $env:TAG, '--notes-file', 'release-notes.md', '--target', $env:GITHUB_SHA)
-        if ($env:IS_PRERELEASE -eq 'true') { $cmd += '--prerelease' }
-        gh @cmd
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v5.3.0
+        with:
+          global-json-file: global.json
+      - run: dotnet build src/DynamicData.sln -c Release
+      - run: dotnet src/DynamicData.Tests/bin/Release/net10.0/DynamicData.Tests.dll --maximum-parallel-tests 8
+      - run: dotnet src/DynamicData.Reactive.Tests/bin/Release/net10.0/DynamicData.Reactive.Tests.dll --maximum-parallel-tests 8
+      - run: dotnet pack src/DynamicData.sln -c Release --no-build -o artifacts/packages
+      - name: Release NuGet assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          package=$(find artifacts/packages -maxdepth 1 -name 'Runic.DynamicData.*.nupkg' ! -name 'Runic.DynamicData.Reactive.*')
+          version=$(basename "$package" | sed -E 's/^Runic.DynamicData\.(.*)\.nupkg$/\1/')
+          gh release create "v$version" artifacts/packages/*.nupkg --target "$GITHUB_SHA" --title "$version" --prerelease --generate-notes

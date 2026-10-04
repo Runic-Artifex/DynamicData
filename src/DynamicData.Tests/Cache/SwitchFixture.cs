@@ -2,7 +2,7 @@ using DynamicData.Tests.Domain;
 
 namespace DynamicData.Tests.Cache;
 
-public class SwitchFixture
+public partial class SwitchFixture
 {
     [Test]
     public async Task ClearsForNewSource()

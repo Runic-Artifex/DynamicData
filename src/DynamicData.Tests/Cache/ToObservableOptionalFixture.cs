@@ -2,7 +2,7 @@ using System.Diagnostics.CodeAnalysis;
 
 namespace DynamicData.Tests.Cache;
 
-public class ToObservableOptionalFixture : IDisposable
+public partial class ToObservableOptionalFixture : IDisposable
 {
     private const string Key1 = "Key1";
     private const string Key2 = "Key2";

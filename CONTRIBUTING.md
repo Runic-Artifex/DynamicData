@@ -1,43 +1,28 @@
-# Building and testing
+# Building the Runic fork
 
-Install the .NET SDK version recorded in `global.json`. This branch uses .NET 11
-RC1 (`11.0.100-rc.1.26425.128`) for local builds and CI. The SDK selection is
-exact so an installed preview or a newer SDK cannot silently change the build.
-`allowPrerelease` must be enabled because .NET classifies release candidates as
-prerelease SDKs; the version pin selects the RC explicitly.
+Install .NET SDK 10.0.401, pinned in `global.json`. Both libraries and all tests
+target .NET 10 only. On the Runic development desktop, reuse the SDK's locked
+shell: `direnv exec ../runic-sdk dotnet ...`.
 
-From the repository root:
-
-```powershell
-dotnet restore src/DynamicData.sln
-dotnet build src/DynamicData.sln --configuration Release --no-restore
-dotnet test --solution src/DynamicData.sln --configuration Release --no-build
+```sh
+dotnet build src/DynamicData.sln -c Release
+dotnet src/DynamicData.Tests/bin/Release/net10.0/DynamicData.Tests.dll --maximum-parallel-tests 8
+dotnet src/DynamicData.Reactive.Tests/bin/Release/net10.0/DynamicData.Reactive.Tests.dll --maximum-parallel-tests 8
+dotnet pack src/DynamicData.sln -c Release --no-build -o artifacts/packages
 ```
 
-`DynamicData` is the lean ReactiveUI.Primitives package. `DynamicData.Reactive`
-compiles the shared sources with `REACTIVE_SHIM` and preserves the System.Reactive
-API conventions. Changes to shared operators must preserve both variants.
+`Runic.DynamicData` uses ReactiveUI.Primitives directly; `Runic.DynamicData.Reactive`
+compiles the shared implementation with System.Reactive conventions. Preserve both
+flavors when changing shared operators. The default dependency is Primitives 9.0.0
+for current Runic/ReactiveUI. `-p:ReactiveUIPrimitivesVersion=8.4.0` tests the
+ReactiveUI 25 dependency generation on the same .NET 10 target.
 
-Tests use TUnit and Microsoft.Testing.Platform. Use native, awaited TUnit assertions
-and virtual time or explicit synchronization for asynchronous behavior. Collect
-coverage for the shipping assemblies, including their auto-properties, with:
+Use native awaited TUnit assertions, virtual time and explicit synchronization.
+Review public API diffs before changing the .NET 10 approval baselines. Add focused
+regressions for values, completion, errors and subscription disposal when changing
+an operator. Performance work should include a relevant benchmark.
 
-```powershell
-dotnet test --solution src/DynamicData.sln --configuration Release --no-build --coverage --coverage-settings src/coverage.config --coverage-output-format cobertura
-```
-
-The coverage configuration selects the two shipping assemblies. It does not
-exclude obsolete operators or uncovered source files.
-
-Performance changes should include a benchmark for the affected operation and
-regression tests covering observable values, completion, errors, and disposal.
-Run the cache snapshot comparison with:
-
-```powershell
-dotnet run --project src/DynamicData.Benchmarks --configuration Release -- --filter '*ToCollection*'
-```
-
-Public API tests compare generated signatures against the framework-specific files
-in `src/DynamicData.Tests/API`. A mismatch writes a `.received.txt` file next to the
-reviewed `.verified.txt` baseline. Review the API diff before updating a baseline;
-do not accept generated changes just to make the test pass.
+CI builds both flavors on Linux and Windows. The manual release workflow attaches
+the branded NuGet packages to a GitHub release; it does not publish under upstream
+package names. Download the assets into a local NuGet feed when consuming the fork.
+This fork is maintained for Runic and will not be proposed upstream.

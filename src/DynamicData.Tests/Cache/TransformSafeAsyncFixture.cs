@@ -7,7 +7,7 @@ using DynamicData.Tests.Domain;
 
 namespace DynamicData.Tests.Cache;
 
-public class TransformSafeAsyncFixture
+public partial class TransformSafeAsyncFixture
 {
     [Test]
     public async Task ReTransformAll()
