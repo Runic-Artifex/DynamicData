@@ -14,15 +14,19 @@ public static partial class ExpireAfterFixture
             .RecordValues(out var results, scheduler);
         inner.AddOrUpdate(new TestItem { Id = 1 });
         source.Block = true;
-        var advance = Task.Run(() => scheduler.AdvanceBy(TimeSpan.FromMilliseconds(10).Ticks));
+        var advance = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        new Thread(() =>
+        {
+            try { scheduler.AdvanceBy(TimeSpan.FromMilliseconds(10).Ticks); advance.TrySetResult(); }
+            catch (Exception error) { advance.TrySetException(error); }
+        }) { IsBackground = true }.Start();
         try
         {
-            await source.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await source.Entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
             subscription.Dispose();
             inner.Dispose();
         }
-        finally { source.Release.Set(); }
-        await advance.WaitAsync(TimeSpan.FromSeconds(5));
+        finally { source.Release.Set(); await advance.Task.WaitAsync(TimeSpan.FromSeconds(30)); }
         await Assert.That(results.Error).IsNull();
         await Assert.That(results.RecordedValues).IsEmpty();
     }
@@ -48,7 +52,7 @@ public static partial class ExpireAfterFixture
             if (Block)
             {
                 Entered.TrySetResult();
-                Release.Wait(TimeSpan.FromSeconds(5));
+                Release.Wait();
                 throw new ObjectDisposedException(nameof(SourceCache<TestItem, int>));
             }
             inner.Edit(updateAction);

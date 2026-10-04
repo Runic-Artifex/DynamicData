@@ -1,0 +1,7 @@
+<Project>
+  <!-- Keep this independent fork's explicit dependency versions when a
+       consumer checks it out beneath a centrally managed SDK workspace. -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>false</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+</Project>
