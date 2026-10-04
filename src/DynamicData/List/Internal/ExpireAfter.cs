@@ -101,7 +101,7 @@ private abstract class SubscriptionBase
         /// <summary>
         /// The _hasSourceCompleted field.
         /// </summary>
-        private bool _hasSourceCompleted;
+        private volatile bool _hasSourceCompleted;
 
         /// <summary>
         /// The _nextScheduledManagement field.
@@ -151,6 +151,7 @@ private abstract class SubscriptionBase
         {
             lock (SynchronizationGate)
             {
+                _hasSourceCompleted = true;
                 _sourceSubscription.Dispose();
 
                 TryCancelNextScheduledManagement();
@@ -215,7 +216,16 @@ private abstract class SubscriptionBase
             //  - It batches multiple expirations occurring at the same time into one source operation, so it only emits one changeset.
             //  - It eliminates the possibility of our internal state/item caches becoming out-of-sync with _source, by effectively locking _source.
             //  - It eliminates a rare deadlock that I honestly can't fully explain, but was able to reproduce reliably with few hundred iterations of the ThreadPoolSchedulerIsUsedWithoutPolling_ExpirationIsThreadSafe test, on the Cache-equivalent of this operator.
-            _source.Edit(_onEditingSource);
+            try
+            {
+                _source.Edit(_onEditingSource);
+            }
+            catch (ObjectDisposedException) when (_hasSourceCompleted)
+            {
+                // Cancellation may race between the completion check and
+                // entering the source edit. The closed subscription has no
+                // remaining expiration work or observer to notify.
+            }
         }
 
         /// <summary>
@@ -328,6 +338,7 @@ private abstract class SubscriptionBase
         /// </summary>
         private void OnSourceCompleted()
         {
+            _hasSourceCompleted = true;
             // If the source completes, we can no longer remove items from it, so any pending expirations are moot.
             TryCancelNextScheduledManagement();
 
@@ -340,6 +351,7 @@ private abstract class SubscriptionBase
         /// <param name="error">The error value.</param>
         private void OnSourceError(Exception error)
         {
+            _hasSourceCompleted = true;
             TryCancelNextScheduledManagement();
 
             _observer.OnError(error);

@@ -7,6 +7,47 @@ namespace DynamicData.Tests.List;
 public sealed class ExpireAfterFixture
 {
     [Test]
+    public async Task DisposalDuringScheduledEdit_DoesNotEscapeOntoScheduler()
+    {
+        using var inner = new SourceList<TestItem>();
+        using var source = new BlockedEditSource(inner);
+        var scheduler = CreateTestScheduler();
+        using var subscription = source.ExpireAfter(_ => TimeSpan.FromMilliseconds(10), scheduler: scheduler)
+            .RecordValues(out var results, scheduler);
+        inner.Add(new TestItem { Id = 1 });
+        source.Block = true;
+        var advance = Task.Run(() => scheduler.AdvanceBy(TimeSpan.FromMilliseconds(10).Ticks));
+        try
+        {
+            await source.Entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            subscription.Dispose();
+            inner.Dispose();
+        }
+        finally { source.Release.Set(); }
+        await advance.WaitAsync(TimeSpan.FromSeconds(5));
+        await Assert.That(results.Error).IsNull();
+        await Assert.That(results.RecordedValues).IsEmpty();
+    }
+
+    private sealed class BlockedEditSource(SourceList<TestItem> inner) : ISourceList<TestItem>
+    {
+        internal bool Block { get; set; }
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal ManualResetEventSlim Release { get; } = new();
+        public int Count => inner.Count;
+        public IReadOnlyList<TestItem> Items => inner.Items;
+        public IObservable<int> CountChanged => inner.CountChanged;
+        public IObservable<IChangeSet<TestItem>> Connect(Func<TestItem, bool>? predicate = null) => inner.Connect(predicate);
+        public IObservable<IChangeSet<TestItem>> Preview(Func<TestItem, bool>? predicate = null) => inner.Preview(predicate);
+        public void Edit(Action<IExtendedList<TestItem>> updateAction)
+        {
+            if (Block) { Entered.TrySetResult(); Release.Wait(TimeSpan.FromSeconds(5)); }
+            inner.Edit(updateAction);
+        }
+        public void Dispose() { Release.Set(); inner.Dispose(); Release.Dispose(); }
+    }
+
+    [Test]
     public async Task ItemIsRemovedBeforeExpiration_ExpirationIsCancelled()
     {
         using var source = new TestSourceList<TestItem>();
