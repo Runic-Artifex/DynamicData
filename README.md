@@ -9,15 +9,12 @@ of each flavor in an application. The original MIT license and authorship remain
 
 For build instructions and package assets, see [CONTRIBUTING](CONTRIBUTING.md).
 For Runic model scheduling, collection updates and per-presentation virtualization,
-see the SDK's DynamicData guide. This fork will not be proposed upstream.
+see the [SDK DynamicData guide](https://github.com/Runic-Artifex/runic-sdk/blob/feat/dynamicdata-collections/docs/guides/application/guides/dynamicdata.md). This fork will not be proposed upstream.
 
 ---
 
-![Build](https://github.com/reactivemarbles/DynamicData/workflows/Build/badge.svg) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=reactivemarbles_DynamicData&metric=coverage)](https://sonarcloud.io/summary/new_code?id=reactivemarbles_DynamicData) [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=reactivemarbles_DynamicData&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=reactivemarbles_DynamicData) [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=reactivemarbles_DynamicData&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=reactivemarbles_DynamicData) [![Vulnerabilities](https://sonarcloud.io/api/project_badges/measure?project=reactivemarbles_DynamicData&metric=vulnerabilities)](https://sonarcloud.io/summary/new_code?id=reactivemarbles_DynamicData) [![Security Rating](https://sonarcloud.io/api/project_badges/measure?project=reactivemarbles_DynamicData&metric=security_rating)](https://sonarcloud.io/summary/new_code?id=reactivemarbles_DynamicData)
-<a href="https://reactiveui.net/slack">
-        <img src="https://img.shields.io/badge/chat-slack-blue.svg">
-</a>
-[![NuGet Stats](https://img.shields.io/nuget/v/DynamicData.svg)](https://www.nuget.org/packages/DynamicData) ![Downloads](https://img.shields.io/nuget/dt/DynamicData.svg)
+[![Build](https://github.com/Runic-Artifex/DynamicData/actions/workflows/ci-build.yml/badge.svg)](https://github.com/Runic-Artifex/DynamicData/actions/workflows/ci-build.yml)
+[Download NuGet assets](https://github.com/Runic-Artifex/DynamicData/releases)
 <br />
 <br />
 <a href="https://github.com/reactiveui/DynamicData">
