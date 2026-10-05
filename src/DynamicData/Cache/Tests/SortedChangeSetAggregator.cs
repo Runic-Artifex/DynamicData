@@ -46,7 +46,11 @@ public class SortedChangeSetAggregator<TObject, TKey> : IDisposable
         var published = source.Publish();
 
         var error = published.Subscribe(_ => { }, ex => Error = ex);
-        var results = published.Subscribe(updates => Messages.Add(updates));
+        var results = published.Subscribe(updates =>
+        {
+            SortedItems = Array.AsReadOnly(updates.SortedItems.Select(item => item.Value).ToArray());
+            Messages.Add(updates);
+        });
         Data = published.AsObservableCache();
         var summariser = published.CollectUpdateStats().Subscribe(summary => Summary = summary);
 
@@ -78,6 +82,12 @@ public class SortedChangeSetAggregator<TObject, TKey> : IDisposable
     /// The messages.
     /// </value>
     public IList<ISortedChangeSet<TObject, TKey>> Messages { get; } = new List<ISortedChangeSet<TObject, TKey>>();
+
+    /// <summary>
+    /// Gets the latest ordered item snapshot, or an empty list before the first message.
+    /// </summary>
+    /// <remarks>Each message replaces the read-only snapshot. Previously obtained snapshots retain their order.</remarks>
+    public IReadOnlyList<TObject> SortedItems { get; private set; } = Array.Empty<TObject>();
 
     /// <summary>
     /// Gets the aggregated change summary.
