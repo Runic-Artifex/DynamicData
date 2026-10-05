@@ -58,11 +58,18 @@ public sealed class MinMaxRefreshFixture
     public async Task Refresh_UnchangedExtremumRemainsDistinct_AndCompletionPropagates()
     {
         using var source = new TestSourceCache<Row, int>(r => r.Id);
+        using var list = new TestSourceList<Row>();
         var row = new Row(1, 10);
         source.AddOrUpdate(row);
+        list.Add(row);
         using var sub = source.Connect().Maximum(r => r.Value).RecordValues(out var result);
+        using var listSub = list.Connect().Maximum(r => r.Value).RecordValues(out var listResult);
         source.Edit(updater => updater.Refresh(1));
-        source.Complete();
+        list.Refresh(0);
+        source.Complete(); list.Complete();
+        await Assert.That(listResult.RecordedValues).HasCount(1);
+        await Assert.That(listResult.HasCompleted).IsTrue();
+        await Assert.That(listResult.Error).IsNull();
         await Assert.That(result.RecordedValues).HasCount(1);
         await Assert.That(result.HasCompleted).IsTrue();
         await Assert.That(result.Error).IsNull();
