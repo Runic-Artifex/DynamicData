@@ -12,6 +12,10 @@ namespace DynamicData.Aggregation;
 /// <summary>
 /// Maximum and minimum value extensions.
 /// </summary>
+/// <remarks>
+/// Refresh, replacement and removal batches recompute the extremum from the current collection in O(n) time.
+/// Pure additions update the cached extremum incrementally. Unchanged results are suppressed.
+/// </remarks>
 public static class MaxEx
 {
 /// <summary>
@@ -136,52 +140,24 @@ private enum MaxOrMin
             default(TResult?),
             (state, latest) =>
             {
-                var current = state;
-                var requiresReset = false;
+                // Refresh and removal can refer to an object whose selected value has already
+                // changed. Recompute from the current collection instead of comparing that value
+                // with the cached extremum. This costs O(n) for those batches; pure adds stay incremental.
+                if (latest.RequiresReset)
+                {
+                    return latest.Collection.Count == 0
+                        ? default(TResult?)
+                        : maxOrMin == MaxOrMin.Max ? latest.Collection.Max(valueSelector) : latest.Collection.Min(valueSelector);
+                }
 
+                var current = state;
                 foreach (var change in latest.Changes)
                 {
                     var value = valueSelector(change.Item);
-                    current ??= value;
-
-                    if (change.Type == AggregateType.Add)
+                    if (!current.HasValue
+                        || (maxOrMin == MaxOrMin.Max ? value.CompareTo(current.Value) > 0 : value.CompareTo(current.Value) < 0))
                     {
-                        if (maxOrMin is MaxOrMin.Max)
-                        {
-                            if (value.CompareTo(current.Value) > 0)
-                            {
-                                current = value;
-                            }
-                        }
-                        else if (value.CompareTo(current.Value) < 0)
-                        {
-                            current = value;
-                        }
-                    }
-                    else
-                    {
-                        // check whether the max / min has been removed. If so we need to look
-                        // up the latest from the underlying collection
-                        if (value.CompareTo(current.Value) != 0)
-                        {
-                            continue;
-                        }
-
-                        requiresReset = true;
-                        break;
-                    }
-                }
-
-                if (requiresReset)
-                {
-                    var collection = latest.Collection;
-                    if (collection.Count == 0)
-                    {
-                        current = default;
-                    }
-                    else
-                    {
-                        current = maxOrMin == MaxOrMin.Max ? collection.Max(valueSelector) : collection.Min(valueSelector);
+                        current = value;
                     }
                 }
 
@@ -205,9 +181,11 @@ private enum MaxOrMin
         return source.Publish(
             shared =>
             {
-                var changes = shared.ForAggregation();
+                var changes = shared.Select(static c => (
+                    Changes: (IAggregateChangeSet<TObject>)new AggregateEnumerator<TObject, TKey>(c),
+                    RequiresReset: c.Any(static change => change.Reason is ChangeReason.Update or ChangeReason.Remove or ChangeReason.Refresh)));
                 var data = shared.ToCollection();
-                return data.Zip(changes, (d, c) => new ChangesAndCollection<TObject>(c, d));
+                return data.Zip(changes, (d, c) => new ChangesAndCollection<TObject>(c.Changes, d, c.RequiresReset));
             });
     }
 
@@ -225,9 +203,11 @@ private enum MaxOrMin
         return source.Publish(
             shared =>
             {
-                var changes = shared.ForAggregation();
+                var changes = shared.Select(static c => (
+                    Changes: (IAggregateChangeSet<TObject>)new AggregateEnumerator<TObject>(c),
+                    RequiresReset: c.Any(static change => change.Reason is ListChangeReason.Replace or ListChangeReason.Remove or ListChangeReason.RemoveRange or ListChangeReason.Clear or ListChangeReason.Refresh)));
                 var data = shared.ToCollection();
-                return data.Zip(changes, (d, c) => new ChangesAndCollection<TObject>(c, d));
+                return data.Zip(changes, (d, c) => new ChangesAndCollection<TObject>(c.Changes, d, c.RequiresReset));
             });
     }
 
@@ -237,7 +217,8 @@ private enum MaxOrMin
 /// <typeparam name="T">The type of the T value.</typeparam>
 /// <param name="changes">The changes value.</param>
 /// <param name="collection">The collection value.</param>
-private sealed class ChangesAndCollection<T>(IAggregateChangeSet<T> changes, IReadOnlyCollection<T> collection)
+/// <param name="requiresReset">Whether to recompute the extremum from the collection.</param>
+private sealed class ChangesAndCollection<T>(IAggregateChangeSet<T> changes, IReadOnlyCollection<T> collection, bool requiresReset)
     {
         /// <summary>
         /// Gets the Changes value.
@@ -248,5 +229,10 @@ private sealed class ChangesAndCollection<T>(IAggregateChangeSet<T> changes, IRe
         /// Gets the Collection value.
         /// </summary>
         public IReadOnlyCollection<T> Collection { get; } = collection;
+
+        /// <summary>
+        /// Gets a value indicating whether the projected extremum needs recomputation.
+        /// </summary>
+        public bool RequiresReset { get; } = requiresReset;
     }
 }
