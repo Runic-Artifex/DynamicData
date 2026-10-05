@@ -10,10 +10,12 @@ and adaptations that must survive integration.
 
 Keep this repository and its existing upstream and Runic Git history. Runic
 `main` is the maintained integration branch; topic branches carry small logical
-changes with their regressions. Adopt the tested Runic line as `main` without
-rewriting published history. At the documentation baseline, the maintained work
-is on `runic/reactiveui25` at `edd2d175`; adoption into `main` is a separate
-integration action, not something this documentation claims has happened.
+changes with their regressions. On 2026-10-05, Runic adopted the existing fork
+line at `edd2d175` and published maintenance documentation at `5887123c` on
+`main`, preserving its upstream and Runic ancestry. The
+[October integration review](upstream/reviews/2026-10.md) records the subsequent
+pinned upstream merge, topic adaptations and their actual validation status.
+Integrate future tested lines without rewriting published history.
 
 One integration owner controls the target branch, pins upstream inputs, orders
 dependent topics, reviews conflicts and test evidence, and integrates/releases
