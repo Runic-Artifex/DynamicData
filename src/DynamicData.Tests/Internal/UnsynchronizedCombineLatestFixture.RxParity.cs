@@ -29,6 +29,7 @@ public sealed partial class UnsynchronizedCombineLatestFixture
         await Assert.That(actual.HasCompleted).IsEqualTo(expected.HasCompleted);
 #endif
         await Assert.That(actual.RecordedValues).IsEmpty();
+        await Assert.That(actual.Notifications).HasCount(1);
     }
 
     [Test]
@@ -103,6 +104,7 @@ public sealed partial class UnsynchronizedCombineLatestFixture
             second.OnNext(2);
             await Assert.That(results.Error).IsSameReferenceAs(failure);
             await Assert.That(results.RecordedValues).IsEmpty();
+            await Assert.That(results.Notifications).HasCount(1);
         }
         else
         {
@@ -135,6 +137,7 @@ public sealed partial class UnsynchronizedCombineLatestFixture
         await Assert.That(results.Error).IsSameReferenceAs(failure);
         await Assert.That(results.RecordedValues).IsEmpty();
         await Assert.That(results.HasCompleted).IsFalse();
+        await Assert.That(results.Notifications).HasCount(1);
     }
 
     private sealed class OwnedSource<T> : IObservable<T>, IDisposable
