@@ -97,3 +97,113 @@ jobs:
               }
             }
           }
+  acceptance-managed:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Download the matching 9.0 package pair
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dynamicdata-${{ matrix.os }}-9.0.0
+          path: artifacts/input
+          digest-mismatch: error
+      - name: Run managed packaged application acceptance
+        env:
+          EXPECTED_SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          $packages = (Resolve-Path artifacts/input/packages).Path
+          $primary = @(Get-ChildItem $packages -Filter 'Runic.DynamicData.*.nupkg' |
+            Where-Object { $_.Name -notlike 'Runic.DynamicData.Reactive.*' })
+          $reactive = @(Get-ChildItem $packages -Filter 'Runic.DynamicData.Reactive.*.nupkg')
+          if ($primary.Count -ne 1 -or $reactive.Count -ne 1) {
+            throw "Expected one package of each flavor, got $($primary.Count) Primitives and $($reactive.Count) Reactive."
+          }
+          $version = $primary[0].Name -replace '^Runic\.DynamicData\.(.*)\.nupkg$', '$1'
+          if ($reactive[0].Name -ne "Runic.DynamicData.Reactive.$version.nupkg") {
+            throw 'Package flavors have different versions.'
+          }
+          python eng/acceptance/verify-package-acceptance.py managed `
+            --asset-directory $packages --version $version `
+            --primitives-sha256 $((Get-FileHash $primary[0]).Hash.ToLowerInvariant()) `
+            --reactive-sha256 $((Get-FileHash $reactive[0]).Hash.ToLowerInvariant()) `
+            --expected-source-commit $env:EXPECTED_SOURCE_COMMIT
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload managed acceptance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: acceptance-managed-${{ matrix.os }}
+          path: |
+            artifacts/acceptance
+            !artifacts/acceptance/packages/**
+            !artifacts/acceptance/native/**
+          if-no-files-found: error
+  acceptance-native-linux:
+    needs: acceptance-managed
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+      - name: Check native toolchain and space
+        shell: bash
+        run: |
+          df -h . "${TMPDIR:-/tmp}"
+          clang --version
+          pkg-config --modversion zlib
+      - name: Download the matching Linux 9.0 package pair
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dynamicdata-ubuntu-latest-9.0.0
+          path: artifacts/input
+          digest-mismatch: error
+      - name: Run NativeAOT packaged application acceptance
+        env:
+          EXPECTED_SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          $packages = (Resolve-Path artifacts/input/packages).Path
+          $primary = @(Get-ChildItem $packages -Filter 'Runic.DynamicData.*.nupkg' |
+            Where-Object { $_.Name -notlike 'Runic.DynamicData.Reactive.*' })
+          $reactive = @(Get-ChildItem $packages -Filter 'Runic.DynamicData.Reactive.*.nupkg')
+          if ($primary.Count -ne 1 -or $reactive.Count -ne 1) {
+            throw "Expected one package of each flavor, got $($primary.Count) Primitives and $($reactive.Count) Reactive."
+          }
+          $version = $primary[0].Name -replace '^Runic\.DynamicData\.(.*)\.nupkg$', '$1'
+          if ($reactive[0].Name -ne "Runic.DynamicData.Reactive.$version.nupkg") {
+            throw 'Package flavors have different versions.'
+          }
+          python eng/acceptance/verify-package-acceptance.py native --rid linux-x64 `
+            --asset-directory $packages --version $version `
+            --primitives-sha256 $((Get-FileHash $primary[0]).Hash.ToLowerInvariant()) `
+            --reactive-sha256 $((Get-FileHash $reactive[0]).Hash.ToLowerInvariant()) `
+            --expected-source-commit $env:EXPECTED_SOURCE_COMMIT
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Upload NativeAOT acceptance evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: acceptance-native-linux
+          path: |
+            artifacts/acceptance
+            !artifacts/acceptance/packages/**
+            !artifacts/acceptance/native/**
+          if-no-files-found: error

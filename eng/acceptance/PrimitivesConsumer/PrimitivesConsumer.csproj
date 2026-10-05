@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="Runic.DynamicData" Version="$(RunicDynamicDataVersion)" />
+    <PackageReference Include="ReactiveUI.Primitives" Version="$(ReactiveUIPrimitivesVersion)" ExcludeAssets="analyzers" />
+  </ItemGroup>
+</Project>
