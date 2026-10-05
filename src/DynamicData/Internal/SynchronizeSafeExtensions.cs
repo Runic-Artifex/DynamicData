@@ -156,9 +156,10 @@ internal static class SynchronizeSafeExtensions
         });
 
     // Two-input CombineLatest variant that does NOT install a gate. Functionally equivalent
-    // to Observable.CombineLatest: holds the most-recent value from each source, emits a
+    // to Rx CombineLatest in both flavors: holds the most-recent value from each source, emits a
     // resultSelector output whenever either source fires (provided the other has also fired
-    // at least once), the first error terminates, completes when both sources complete.
+    // at least once), selector failures are reported as errors, and completion follows Rx:
+    // both sources completed, or a value arrives after the other completed without a value.
     //
     // Same precondition as UnsynchronizedMerge: delivery from BOTH sources must already be
     // serialized through the same external gate before reaching this operator. In this library
@@ -183,14 +184,17 @@ internal static class SynchronizeSafeExtensions
         where TSecond : notnull =>
         Observable.Create<TResult>(observer =>
         {
-            var firstLatest = ReactiveUI.Primitives.Optional<TFirst>.None;
-            var secondLatest = ReactiveUI.Primitives.Optional<TSecond>.None;
-            var remainingSources = 2;
+            TFirst firstLatest = default!;
+            TSecond secondLatest = default!;
+            var hasFirst = false;
+            var hasSecond = false;
+            var firstCompleted = false;
+            var secondCompleted = false;
             var terminated = 0;
 
             var subscriptions = new CompositeDisposable();
-            subscriptions.Add(first.SubscribeSafe(Observer.Create<TFirst>(OnFirstNext, OnErrorSafe, OnCompletedSafe)));
-            subscriptions.Add(second.SubscribeSafe(Observer.Create<TSecond>(OnSecondNext, OnErrorSafe, OnCompletedSafe)));
+            subscriptions.Add(first.SubscribeSafe(Observer.Create<TFirst>(OnFirstNext, OnErrorSafe, OnFirstCompleted)));
+            subscriptions.Add(second.SubscribeSafe(Observer.Create<TSecond>(OnSecondNext, OnErrorSafe, OnSecondCompleted)));
             return subscriptions;
 
             void OnFirstNext(TFirst value)
@@ -201,10 +205,8 @@ internal static class SynchronizeSafeExtensions
                 }
 
                 firstLatest = value;
-                if (secondLatest.HasValue)
-                {
-                    observer.OnNext(resultSelector(value, secondLatest.Value));
-                }
+                hasFirst = true;
+                EmitLatestOrComplete(secondCompleted);
             }
 
             void OnSecondNext(TSecond value)
@@ -215,9 +217,30 @@ internal static class SynchronizeSafeExtensions
                 }
 
                 secondLatest = value;
-                if (firstLatest.HasValue)
+                hasSecond = true;
+                EmitLatestOrComplete(firstCompleted);
+            }
+
+            void EmitLatestOrComplete(bool otherCompleted)
+            {
+                if (hasFirst && hasSecond)
                 {
-                    observer.OnNext(resultSelector(firstLatest.Value, value));
+                    TResult result;
+                    try
+                    {
+                        result = resultSelector(firstLatest, secondLatest);
+                    }
+                    catch (Exception error)
+                    {
+                        OnErrorSafe(error);
+                        return;
+                    }
+
+                    observer.OnNext(result);
+                }
+                else if (otherCompleted)
+                {
+                    Complete();
                 }
             }
 
@@ -229,9 +252,27 @@ internal static class SynchronizeSafeExtensions
                 }
             }
 
-            void OnCompletedSafe()
+            void OnFirstCompleted()
             {
-                if (Interlocked.Decrement(ref remainingSources) == 0 && Interlocked.Exchange(ref terminated, 1) == 0)
+                firstCompleted = true;
+                if (secondCompleted)
+                {
+                    Complete();
+                }
+            }
+
+            void OnSecondCompleted()
+            {
+                secondCompleted = true;
+                if (firstCompleted)
+                {
+                    Complete();
+                }
+            }
+
+            void Complete()
+            {
+                if (Interlocked.Exchange(ref terminated, 1) == 0)
                 {
                     observer.OnCompleted();
                 }
