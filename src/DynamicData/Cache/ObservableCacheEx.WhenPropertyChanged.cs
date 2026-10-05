@@ -37,7 +37,8 @@ public static partial class ObservableCacheEx
     /// <remarks>
     /// <para>
     /// Per-item subscriptions are created on Add, replaced on Update, disposed on Remove. Errors from individual
-    /// property subscriptions are silently ignored. The output is not a changeset stream. If you only need
+    /// property subscriptions terminate the output with the original error and release all active subscriptions.
+    /// The output is not a changeset stream. If you only need
     /// the value (not the owning item), use <c>WhenValueChanged&lt;TObject, TKey, TValue&gt;</c> instead.
     /// </para>
     /// <list type="table">
@@ -46,7 +47,7 @@ public static partial class ObservableCacheEx
     /// <item><term>Update</term><description>Disposes the old item's property subscription and subscribes to the new item.</description></item>
     /// <item><term>Remove</term><description>Disposes the item's property subscription. No further emissions for this item.</description></item>
     /// <item><term>Refresh</term><description>No effect on subscriptions. The existing property subscription continues.</description></item>
-    /// <item><term>OnError</term><description>Per-item property subscription errors are silently ignored. Source errors terminate the stream.</description></item>
+    /// <item><term>OnError</term><description>An error from a property subscription or the source terminates the stream with the original error and releases all active subscriptions.</description></item>
     /// </list>
     /// </remarks>
     /// <seealso><c>ObservableListEx.WhenPropertyChanged</c></seealso>

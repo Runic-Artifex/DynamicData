@@ -39,7 +39,9 @@ internal sealed class DynamicCombiner<TObject, TKey>(IObservableList<IObservable
 
                 // Transform to a merge container.
                 // This populates a RefTracker when the original source is subscribed to
-                var sourceLists = _source.Connect().SynchronizeSafe(queue).Transform(changeSet => new MergeContainer(changeSet)).AsObservableList();
+                // Child cache mutation must share the output queue too. Cloning before serialization can
+                // apply a later Remove before an earlier queued Add has been combined, losing both deltas.
+                var sourceLists = _source.Connect().SynchronizeSafe(queue).Transform(changeSet => new MergeContainer(changeSet.SynchronizeSafe(queue))).AsObservableList();
 
                 var sharedLists = sourceLists.Connect().Publish();
 
@@ -55,7 +57,9 @@ internal sealed class DynamicCombiner<TObject, TKey>(IObservableList<IObservable
                         {
                             observer.OnNext(notifications);
                         }
-                    });
+                    },
+                    observer.OnError,
+                    observer.OnCompleted);
 
                 // when an list is removed, need to
                 var removedItem = sharedLists.OnItemRemoved(
@@ -75,7 +79,8 @@ internal sealed class DynamicCombiner<TObject, TKey>(IObservableList<IObservable
                         {
                             observer.OnNext(notifications);
                         }
-                    }).Subscribe();
+                    })
+                    .Subscribe(static _ => { }, static _ => { });
 
                 // when an list is added or removed, need to
                 var sourceChanged = sharedLists.WhereReasonsAre(ListChangeReason.Add, ListChangeReason.AddRange).ForEachItemChange(
@@ -93,7 +98,8 @@ internal sealed class DynamicCombiner<TObject, TKey>(IObservableList<IObservable
                         {
                             observer.OnNext(notifications);
                         }
-                    }).Subscribe();
+                    })
+                    .Subscribe(static _ => { }, static _ => { });
 
                 return new CompositeDisposable(sourceLists, allChanges, removedItem, sourceChanged, sharedLists.Connect(), queue);
             });

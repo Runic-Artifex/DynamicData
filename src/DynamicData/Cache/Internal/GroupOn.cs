@@ -33,7 +33,9 @@ internal sealed class GroupOn<TObject, TKey, TGroupKey>(IObservable<IChangeSet<T
     /// <summary>
     /// The _regrouper field.
     /// </summary>
-    private readonly IObservable<Unit> _regrouper = regrouper ?? Observable.Never<Unit>();
+    // An absent regrouper means no regroup signal will ever arrive. Never would say one still might,
+    // which leaves the merge below unable to complete when the source does.
+    private readonly IObservable<Unit> _regrouper = regrouper ?? Observable.Empty<Unit>();
 
     /// <summary>
     /// The _source field.
@@ -50,13 +52,14 @@ internal sealed class GroupOn<TObject, TKey, TGroupKey>(IObservable<IChangeSet<T
                 var queue = new SharedDeliveryQueue();
                 var grouper = new Grouper(_groupSelectorKey);
 
-                var groups = _source.SynchronizeSafe(queue).Finally(observer.OnCompleted).Select(grouper.Update);
+                var groups = _source.SynchronizeSafe(queue).Select(grouper.Update);
 
                 var regroup = _regrouper.SynchronizeSafe(queue).Select(_ => grouper.Regroup());
 
                 var published = groups.UnsynchronizedMerge(regroup).Where(changes => changes.Count != 0).Publish();
                 var subscriber = published.SubscribeSafe(observer);
-                var disposer = published.DisposeMany().Subscribe();
+
+                var disposer = published.DisposeMany().Subscribe(static _ => { }, static _ => { });
 
                 var connected = published.Connect();
 

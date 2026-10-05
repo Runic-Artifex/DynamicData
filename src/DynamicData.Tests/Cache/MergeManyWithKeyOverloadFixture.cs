@@ -74,7 +74,7 @@ public class MergeManyWithKeyOverloadFixture : IDisposable
     }
 
     [Test]
-    public async Task SingleItemFailWillNotFailMergedStream()
+    public async Task SingleItemFailWillFailMergedStream()
     {
         var failed = false;
         var stream = _source.Connect().MergeMany((o, key) => o.Observable).Subscribe(_ => { }, ex => failed = true);
@@ -86,7 +86,7 @@ public class MergeManyWithKeyOverloadFixture : IDisposable
 
         stream.Dispose();
 
-        await Assert.That(failed).IsFalse();
+        await Assert.That(failed).IsTrue();
     }
 
     /// <summary>
@@ -133,10 +133,10 @@ public class MergeManyWithKeyOverloadFixture : IDisposable
     }
 
     /// <summary>
-    /// Stream completes even if one of the children fails.
+    /// A child failure terminates the output with an error, including after parent completion.
     /// </summary>
     [Test]
-    public async Task MergedStreamCompletesIfLastItemFails()
+    public async Task MergedStreamFailsIfLastItemFails()
     {
         var receivedError = default(Exception);
         var streamCompleted = false;
@@ -151,9 +151,9 @@ public class MergeManyWithKeyOverloadFixture : IDisposable
         _source.Dispose();
         item.FailObservable(new Exception("Test exception"));
 
-        await Assert.That(receivedError).IsNull();
+        await Assert.That(receivedError).IsNotNull();
         await Assert.That(sourceCompleted).IsTrue();
-        await Assert.That(streamCompleted).IsTrue();
+        await Assert.That(streamCompleted).IsFalse();
     }
 
     /// <summary>

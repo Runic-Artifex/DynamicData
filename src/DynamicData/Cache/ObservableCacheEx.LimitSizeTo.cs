@@ -67,6 +67,7 @@ public static partial class ObservableCacheEx
     /// <param name="sizeLimit">The maximum number of items allowed. Must be greater than zero.</param>
     /// <param name="scheduler">An optional <see cref="IScheduler"/> for observing changes. Defaults to <see cref="GlobalConfig.DefaultScheduler"/>.</param>
     /// <returns>An observable that emits batches of evicted key-value pairs whenever the cache exceeds the size limit.</returns>
+    /// <remarks>Source errors and completion are delivered on <paramref name="scheduler"/> after queued evictions. Disposing the subscription does not send a terminal notification.</remarks>
     /// <exception cref="ArgumentNullException"><paramref name="source"/> is <see langword="null"/>.</exception>
     /// <exception cref="ArgumentException"><paramref name="sizeLimit"/> is zero or negative.</exception>
     public static IObservable<IEnumerable<KeyValuePair<TKey, TObject>>> LimitSizeTo<TObject, TKey>(this ISourceCache<TObject, TKey> source, int sizeLimit, IScheduler? scheduler = null)
