@@ -66,7 +66,7 @@ private abstract class SubscriptionBase
         /// <summary>
         /// The _expiringItemsBuffer field.
         /// </summary>
-        private readonly List<ExpiringItem> _expiringItemsBuffer;
+        private readonly List<int> _expiringItemsBuffer;
 
         /// <summary>
         /// The _observer field.
@@ -94,6 +94,11 @@ private abstract class SubscriptionBase
         private readonly IDisposable _sourceSubscription;
 
         /// <summary>
+        /// The subscription that wakes management after a nested edit, even if it has no changes.
+        /// </summary>
+        private readonly IDisposable _editCompletionSubscription;
+
+        /// <summary>
         /// The _timeSelector field.
         /// </summary>
         private readonly Func<T, TimeSpan?> _timeSelector;
@@ -107,6 +112,10 @@ private abstract class SubscriptionBase
         /// The _nextScheduledManagement field.
         /// </summary>
         private ScheduledManagement? _nextScheduledManagement;
+
+        // A queued notification can lag the committed list even while Edit holds its lock.
+        private long _sourceVersion;
+        private bool _managementPending;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="SubscriptionBase"/> class.
@@ -133,13 +142,20 @@ private abstract class SubscriptionBase
             _items = new();
             _expiringItemsBuffer = new();
 
+            _editCompletionSubscription = source is SourceList<T> editingSource
+                ? editingSource.EditCompleted.Subscribe(_ => OnSourceEditCompleted(), _ => { })
+                : Disposable.Empty;
+
+            var changes = source is SourceList<T> versionedSource
+                ? versionedSource.ConnectWithVersion()
+                : source.Connect().Select(static changes => (Changes: changes, Version: 0L));
+
             _sourceSubscription = PrimitivesLinqExtensions.SubscribeSafe(
-                source
-                    .Connect()
+                changes
                     // It's important to set this flag outside the context of a lock, because it'll be read outside of lock as well.
                     .Finally(() => _hasSourceCompleted = true)
                     .Synchronize(SynchronizationGate),
-                onNext: OnSourceNext,
+                onNext: update => OnSourceNext(update.Changes, update.Version),
                 onError: OnSourceError,
                 onCompleted: OnSourceCompleted);
         }
@@ -152,6 +168,7 @@ private abstract class SubscriptionBase
             lock (SynchronizationGate)
             {
                 _hasSourceCompleted = true;
+                _editCompletionSubscription.Dispose();
                 _sourceSubscription.Dispose();
 
                 TryCancelNextScheduledManagement();
@@ -242,6 +259,15 @@ private abstract class SubscriptionBase
 
                 _nextScheduledManagement = null;
 
+                if (!IsSourceCurrent(updater))
+                {
+                    // Retain every deadline and wait for delivery to catch up. Re-scheduling an
+                    // already due timer here would spin while another observer blocks the queue.
+                    _managementPending = true;
+                    return;
+                }
+
+                _managementPending = false;
                 var now = Scheduler.Now;
 
                 // One major note here: we are NOT updating our internal state, except to mark items as no longer needing to expire.
@@ -253,7 +279,7 @@ private abstract class SubscriptionBase
                 {
                     if ((_expirationDueTimes[i] is { } dueTime) && (dueTime <= now))
                     {
-                        _expiringItemsBuffer.Add(new ExpiringItem(i, _items[i]));
+                        _expiringItemsBuffer.Add(i);
 
                         // This shouldn't be necessary, but it guarantees we don't accidentally expire an item more than once,
                         // in the event of a race condition or something we haven't predicted.
@@ -265,17 +291,12 @@ private abstract class SubscriptionBase
                 if (_expiringItemsBuffer.Count is not 0)
                 {
                     // Processing removals in reverse-index order eliminates the need for us to adjust index of each .RemoveAt() call, as we go.
-                    _expiringItemsBuffer.Sort(static (x, y) => y.Index.CompareTo(x.Index));
+                    _expiringItemsBuffer.Sort(static (x, y) => y.CompareTo(x));
 
                     var removedItems = new List<T>(_expiringItemsBuffer.Count);
                     for (var i = 0; i < _expiringItemsBuffer.Count; ++i)
                     {
-                        var expiringItem = _expiringItemsBuffer[i];
-                        if (!TryGetCurrentIndex(updater, expiringItem, out var removedIndex))
-                        {
-                            continue;
-                        }
-
+                        var removedIndex = _expiringItemsBuffer[i];
                         removedItems.Add(updater[removedIndex]);
                         updater.RemoveAt(removedIndex);
                     }
@@ -300,6 +321,9 @@ private abstract class SubscriptionBase
         /// </summary>
         private void OnExpirationDueTimesChanged()
         {
+            if (_managementPending || _hasSourceCompleted)
+                return;
+
             // Check if we need to re-schedule the next management operation
             if (GetNextManagementDueTime() is { } nextManagementDueTime)
             {
@@ -334,11 +358,29 @@ private abstract class SubscriptionBase
         }
 
         /// <summary>
+        /// Retries a nested expiration after the outer edit becomes stable. Completion itself
+        /// does not reconcile the shadow: queued changes must still deliver their exact version.
+        /// </summary>
+        private void OnSourceEditCompleted()
+        {
+            lock (SynchronizationGate)
+            {
+                if (!_hasSourceCompleted && _managementPending &&
+                    _source is SourceList<T> source && source.CurrentVersion == _sourceVersion)
+                {
+                    _managementPending = false;
+                    OnExpirationDueTimesChanged();
+                }
+            }
+        }
+
+        /// <summary>
         /// Executes the OnSourceCompleted operation.
         /// </summary>
         private void OnSourceCompleted()
         {
             _hasSourceCompleted = true;
+            _editCompletionSubscription.Dispose();
             // If the source completes, we can no longer remove items from it, so any pending expirations are moot.
             TryCancelNextScheduledManagement();
 
@@ -352,6 +394,7 @@ private abstract class SubscriptionBase
         private void OnSourceError(Exception error)
         {
             _hasSourceCompleted = true;
+            _editCompletionSubscription.Dispose();
             TryCancelNextScheduledManagement();
 
             _observer.OnError(error);
@@ -361,7 +404,8 @@ private abstract class SubscriptionBase
         /// Executes the OnSourceNext operation.
         /// </summary>
         /// <param name="changes">The changes value.</param>
-        private void OnSourceNext(IChangeSet<T> changes)
+        /// <param name="version">The committed version represented by the changes.</param>
+        private void OnSourceNext(IChangeSet<T> changes, long version)
         {
             try
             {
@@ -491,7 +535,13 @@ private abstract class SubscriptionBase
                     }
                 }
 
-                if (haveExpirationDueTimesChanged)
+                _sourceVersion = version;
+                var retryManagement = _managementPending &&
+                    (_source is not SourceList<T> versionedSource || versionedSource.CurrentVersion == version);
+                if (retryManagement)
+                    _managementPending = false;
+
+                if (haveExpirationDueTimesChanged || retryManagement)
                     OnExpirationDueTimesChanged();
             }
             catch (Exception error)
@@ -512,41 +562,32 @@ private abstract class SubscriptionBase
         }
 
         /// <summary>
-        /// Attempts to find the current source index for an item scheduled for expiration.
+        /// Verifies that the shadow indexes still represent committed source occurrences.
         /// </summary>
-        /// <param name="updater">The updater value.</param>
-        /// <param name="expiringItem">The expiringItem value.</param>
-        /// <param name="index">The index value.</param>
-        /// <returns><see langword="true"/> when the item is still present in the source list.</returns>
-        private static bool TryGetCurrentIndex(IExtendedList<T> updater, ExpiringItem expiringItem, out int index)
+        private bool IsSourceCurrent(IExtendedList<T> updater)
         {
-            if (expiringItem.Index >= 0 &&
-                expiringItem.Index < updater.Count &&
-                EqualityComparer<T>.Default.Equals(updater[expiringItem.Index], expiringItem.Item))
-            {
-                index = expiringItem.Index;
-                return true;
-            }
+            if (_source is SourceList<T> versionedSource)
+                return versionedSource.IsCurrentForExpiration(_sourceVersion);
+
+            // Third-party sources do not expose notification versions. Require an identical
+            // ordered snapshot, using reference identity for reference types. This cannot prove
+            // indistinguishable moves of the same reference or equal values in a queued source;
+            // those implementations must deliver their edits synchronously for occurrence safety.
+            if (updater.Count != _items.Count)
+                return false;
 
             for (var i = 0; i < updater.Count; ++i)
             {
-                if (EqualityComparer<T>.Default.Equals(updater[i], expiringItem.Item))
+                if (typeof(T).IsValueType
+                    ? !EqualityComparer<T>.Default.Equals(updater[i], _items[i])
+                    : !ReferenceEquals(updater[i], _items[i]))
                 {
-                    index = i;
-                    return true;
+                    return false;
                 }
             }
 
-            index = -1;
-            return false;
+            return true;
         }
-
-/// <summary>
-/// The source item and index captured when an expiration becomes due.
-/// </summary>
-/// <param name="Index">The Index value.</param>
-/// <param name="Item">The Item value.</param>
-private readonly record struct ExpiringItem(int Index, T Item);
 
 /// <summary>
 /// Represents the ScheduledManagement record.
