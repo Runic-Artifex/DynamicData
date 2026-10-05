@@ -2,14 +2,23 @@ name: Package release
 on:
   workflow_dispatch:
 permissions:
+  actions: read
   contents: write
+concurrency:
+  group: package-release-${{ github.repository }}
+  cancel-in-progress: false
 jobs:
   release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          repository: ${{ github.repository }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
+          persist-credentials: false
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
@@ -17,11 +26,8 @@ jobs:
       - run: dotnet src/DynamicData.Tests/bin/Release/net10.0/DynamicData.Tests.dll --maximum-parallel-tests 8
       - run: dotnet src/DynamicData.Reactive.Tests/bin/Release/net10.0/DynamicData.Reactive.Tests.dll --maximum-parallel-tests 8
       - run: dotnet pack src/DynamicData.sln -c Release --no-build -o artifacts/packages
-      - name: Release NuGet assets
+      - name: Validate and release NuGet assets
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
-        run: |
-          package=$(find artifacts/packages -maxdepth 1 -name 'Runic.DynamicData.*.nupkg' ! -name 'Runic.DynamicData.Reactive.*')
-          version=$(basename "$package" | sed -E 's/^Runic.DynamicData\.(.*)\.nupkg$/\1/')
-          gh release create "v$version" artifacts/packages/*.nupkg --target "$GITHUB_SHA" --title "$version" --prerelease --generate-notes
+        run: bash eng/release/release-assets.sh publish artifacts/packages
