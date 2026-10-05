@@ -1,5 +1,10 @@
 # Building the Runic fork
 
+For branch ownership, monthly upstream syncs, immutable releases and urgent
+ports, follow the [maintenance policy](docs/maintenance.md). Review and update the
+[fork difference register](docs/fork-differences.md) when changing an intentional
+adaptation. Agent/delegation instructions are in [AGENTS.md](AGENTS.md).
+
 Install .NET SDK 10.0.401, pinned in `global.json`. Both libraries and all tests
 target .NET 10 only. On the Runic development desktop, reuse the SDK's locked
 shell: `direnv exec ../runic-sdk dotnet ...`.
