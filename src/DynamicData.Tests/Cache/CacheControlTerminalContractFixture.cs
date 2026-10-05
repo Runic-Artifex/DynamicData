@@ -312,4 +312,30 @@ public class CacheControlTerminalContractFixture
         await Assert.That(events.Count).IsEqualTo(3);
         await Assert.That(events.SequenceEqual(new[] { "block:Add", "transient:Add", "transient:Remove" })).IsTrue();
     }
+
+    [Test]
+    public async Task DynamicCombineRemovedChildReleasesSubscriptionAndDropsLateEvents()
+    {
+        using var parent = new SourceList<IObservable<IChangeSet<Person, string>>>();
+        using var child = new Signal<IChangeSet<Person, string>>();
+        var disposals = 0;
+        var tracked = child.Finally(() => disposals++);
+        var events = new List<ChangeReason>();
+        var completions = 0;
+        Exception? error = null;
+        using var subscription = parent.Or().Subscribe(changes => events.AddRange(changes.Select(change => change.Reason)), ex => error = ex, () => completions++);
+        parent.Add(tracked);
+        var person = new Person("P", 1);
+        var added = new ChangeSet<Person, string>([new Change<Person, string>(ChangeReason.Add, person.Name, person)]);
+        child.OnNext(added);
+        parent.Remove(tracked);
+        await Assert.That(disposals).IsEqualTo(1);
+        child.OnNext(added);
+        child.OnError(new InvalidOperationException("removed child"));
+        subscription.Dispose();
+        parent.Add(Observable.Return<IChangeSet<Person, string>>(added));
+        await Assert.That(events.SequenceEqual(new[] { ChangeReason.Add, ChangeReason.Remove })).IsTrue();
+        await Assert.That(error).IsNull();
+        await Assert.That(completions).IsEqualTo(0);
+    }
 }
