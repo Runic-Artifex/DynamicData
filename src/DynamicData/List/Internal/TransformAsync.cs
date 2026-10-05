@@ -62,6 +62,35 @@ internal sealed class TransformAsync<TSource, TDestination>
     public IObservable<IChangeSet<TDestination>> Run() => Observable.Defer(RunImpl);
 
     /// <summary>
+    /// Removes one source occurrence, preferring its identity over an equal value.
+    /// </summary>
+    /// <param name="transformed">The transformed items.</param>
+    /// <param name="source">The source occurrence to remove.</param>
+    private static void RemoveOccurrence(ChangeAwareList<Transformer<TSource, TDestination>.TransformedItemContainer> transformed, TSource source)
+    {
+        if (!typeof(TSource).IsValueType)
+        {
+            for (var index = 0; index < transformed.Count; index++)
+            {
+                if (ReferenceEquals(transformed[index].Source, source))
+                {
+                    transformed.RemoveAt(index);
+                    return;
+                }
+            }
+        }
+
+        for (var index = 0; index < transformed.Count; index++)
+        {
+            if (EqualityComparer<TSource>.Default.Equals(transformed[index].Source, source))
+            {
+                transformed.RemoveAt(index);
+                return;
+            }
+        }
+    }
+
+    /// <summary>
     /// Executes the RunImpl operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
@@ -217,12 +246,7 @@ internal sealed class TransformAsync<TSource, TDestination>
                         }
                         else
                         {
-                            var toRemove = transformed.FirstOrDefault(t => ReferenceEquals(t.Source, change.Current));
-
-                            if (toRemove is not null)
-                            {
-                                transformed.Remove(toRemove);
-                            }
+                            RemoveOccurrence(transformed, change.Current);
                         }
 
                         break;
@@ -236,8 +260,10 @@ internal sealed class TransformAsync<TSource, TDestination>
                         }
                         else
                         {
-                            var toRemove = transformed.Where(t => item.Range.Any(current => ReferenceEquals(t.Source, current))).ToArray();
-                            transformed.RemoveMany(toRemove);
+                            foreach (var source in item.Range)
+                            {
+                                RemoveOccurrence(transformed, source);
+                            }
                         }
 
                         break;
