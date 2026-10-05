@@ -44,6 +44,8 @@ public sealed class ViewportContractFixture
         await Assert.That(results.Messages.Last().Context.Response.StartIndex).IsEqualTo(2);
         await Assert.That(results.Messages.Last().Context.Response.Size).IsEqualTo(0);
         await Assert.That(results.Messages.Last().Context.Response.TotalSize).IsEqualTo(4);
+        requests.OnNext(new VirtualRequest(2, 1));
+        await Assert.That(results.Data.Items.Single()).IsEqualTo(3);
     }
 
     [Test]
@@ -101,6 +103,7 @@ public sealed class ViewportContractFixture
         requests.OnNext(new VirtualRequest(1, 0));
         await Assert.That(results.Data.Count).IsEqualTo(0);
         await Assert.That(results.Messages.Last().Response.Size).IsEqualTo(0);
+        requests.OnNext(null!);
         source.AddOrUpdate(new Person("c", 3));
         await Assert.That(results.Messages.Last().Response.TotalSize).IsEqualTo(3);
         requests.OnNext(new VirtualRequest(1, 1));

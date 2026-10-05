@@ -133,10 +133,11 @@ internal sealed class SortAndVirtualize<TObject, TKey>
                         return ApplyVirtualChanges();
                     });
 
-                var paramsChanged = _virtualRequests.SynchronizeSafe(queue)
-                    .DistinctUntilChanged()
-                    // exclude dodgy params
+                var paramsChanged = _virtualRequests
+                    // Validate before enqueueing: a null request must not become a terminal notification.
                     .Where(parameters => parameters is { StartIndex: >= 0, Size: >= 0 })
+                    .SynchronizeSafe(queue)
+                    .DistinctUntilChanged()
                     .Select(request =>
                     {
                         virtualParams = request;

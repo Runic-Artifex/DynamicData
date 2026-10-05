@@ -40,7 +40,7 @@ internal sealed class Virtualise<TObject, TKey>(IObservable<ISortedChangeSet<TOb
                 var virtualiser = new Virtualiser();
                 var queue = new SharedDeliveryQueue();
 
-                var request = _virtualRequests.SynchronizeSafe(queue).Select(virtualiser.Virtualise);
+                var request = _virtualRequests.Where(parameters => parameters is not null).SynchronizeSafe(queue).Select(virtualiser.Virtualise);
                 var dataChange = _source.SynchronizeSafe(queue).Select(virtualiser.Update);
 
                 return new CompositeDisposable(request.UnsynchronizedMerge(dataChange)

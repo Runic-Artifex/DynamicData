@@ -41,8 +41,9 @@ internal sealed class Virtualiser<T>(IObservable<IChangeSet<T>> source, IObserva
             IVirtualRequest parameters = VirtualRequest.Default;
             IVirtualResponse previousResponse = new VirtualResponse(parameters.Size, parameters.StartIndex, 0);
 
-            var requestStream = _requests.SynchronizeSafe(queue)
+            var requestStream = _requests
                 .Where(request => request is { StartIndex: >= 0, Size: >= 0 })
+                .SynchronizeSafe(queue)
                 .DistinctUntilChanged(VirtualRequest.StartIndexSizeComparer)
                 .Select(request =>
                 {

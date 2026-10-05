@@ -23,6 +23,8 @@ public sealed class VirtualisationContractFixture
         await Assert.That(messages.Last().Response.StartIndex).IsEqualTo(4);
         await Assert.That(messages.Last().Response.TotalSize).IsEqualTo(11);
         requests.OnNext(new VirtualRequest(4, 2));
+        await Assert.That(messages.Last().Response.Size).IsEqualTo(2);
+        await Assert.That(messages.Last().Count).IsEqualTo(2);
         await Assert.That(rows).IsEquivalentTo(new[] { 4, 5 }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
         requests.OnNext(new VirtualRequest(4, 0));
         await Assert.That(rows.Count).IsEqualTo(0);
