@@ -94,6 +94,11 @@ private abstract class SubscriptionBase
         private readonly IDisposable _sourceSubscription;
 
         /// <summary>
+        /// The subscription that wakes management after a nested edit, even if it has no changes.
+        /// </summary>
+        private readonly IDisposable _editCompletionSubscription;
+
+        /// <summary>
         /// The _timeSelector field.
         /// </summary>
         private readonly Func<T, TimeSpan?> _timeSelector;
@@ -137,6 +142,10 @@ private abstract class SubscriptionBase
             _items = new();
             _expiringItemsBuffer = new();
 
+            _editCompletionSubscription = source is SourceList<T> editingSource
+                ? editingSource.EditCompleted.Subscribe(_ => OnSourceEditCompleted(), _ => { })
+                : Disposable.Empty;
+
             var changes = source is SourceList<T> versionedSource
                 ? versionedSource.ConnectWithVersion()
                 : source.Connect().Select(static changes => (Changes: changes, Version: 0L));
@@ -159,6 +168,7 @@ private abstract class SubscriptionBase
             lock (SynchronizationGate)
             {
                 _hasSourceCompleted = true;
+                _editCompletionSubscription.Dispose();
                 _sourceSubscription.Dispose();
 
                 TryCancelNextScheduledManagement();
@@ -348,11 +358,29 @@ private abstract class SubscriptionBase
         }
 
         /// <summary>
+        /// Retries a nested expiration after the outer edit becomes stable. Completion itself
+        /// does not reconcile the shadow: queued changes must still deliver their exact version.
+        /// </summary>
+        private void OnSourceEditCompleted()
+        {
+            lock (SynchronizationGate)
+            {
+                if (!_hasSourceCompleted && _managementPending &&
+                    _source is SourceList<T> source && source.CurrentVersion == _sourceVersion)
+                {
+                    _managementPending = false;
+                    OnExpirationDueTimesChanged();
+                }
+            }
+        }
+
+        /// <summary>
         /// Executes the OnSourceCompleted operation.
         /// </summary>
         private void OnSourceCompleted()
         {
             _hasSourceCompleted = true;
+            _editCompletionSubscription.Dispose();
             // If the source completes, we can no longer remove items from it, so any pending expirations are moot.
             TryCancelNextScheduledManagement();
 
@@ -366,6 +394,7 @@ private abstract class SubscriptionBase
         private void OnSourceError(Exception error)
         {
             _hasSourceCompleted = true;
+            _editCompletionSubscription.Dispose();
             TryCancelNextScheduledManagement();
 
             _observer.OnError(error);
@@ -538,7 +567,7 @@ private abstract class SubscriptionBase
         private bool IsSourceCurrent(IExtendedList<T> updater)
         {
             if (_source is SourceList<T> versionedSource)
-                return versionedSource.CurrentVersion == _sourceVersion;
+                return versionedSource.IsCurrentForExpiration(_sourceVersion);
 
             // Third-party sources do not expose notification versions. Require an identical
             // ordered snapshot, using reference identity for reference types. This cannot prove

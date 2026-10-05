@@ -47,6 +47,11 @@ public sealed class SourceList<T> : ISourceList<T>
     private readonly Lazy<Signal<int>> _countChanged = new(() => new Signal<int>());
 
     /// <summary>
+    /// Internal edit completion controls are delivered by the same queue, outside the source lock.
+    /// </summary>
+    private readonly Lazy<Signal<Unit>> _editCompleted = new(() => new Signal<Unit>());
+
+    /// <summary>
     /// The _locker field.
     /// </summary>
     private readonly Lock _locker = new();
@@ -150,6 +155,18 @@ public sealed class SourceList<T> : ISourceList<T>
     internal long CurrentVersion => Volatile.Read(ref _currentVersion);
 
     /// <summary>
+    /// Gets outer edit completion notifications, including edits that produce no changes.
+    /// </summary>
+    internal IObservable<Unit> EditCompleted => _editCompleted.Value;
+
+    /// <summary>
+    /// Checks occurrence stability from inside expiration's edit delegate.
+    /// </summary>
+    /// <param name="version">The committed version represented by the expiration shadow.</param>
+    /// <returns>Whether this is the outermost edit and its committed version matches.</returns>
+    internal bool IsCurrentForExpiration(long version) => _editLevel == 1 && _currentVersion == version;
+
+    /// <summary>
     /// Connects with the exact version represented by each snapshot or delivered change set.
     /// </summary>
     internal IObservable<(IChangeSet<T> Changes, long Version)> ConnectWithVersion()
@@ -231,6 +248,11 @@ public sealed class SourceList<T> : ISourceList<T>
         _notifications.Dispose();
         _changesPreview.Dispose();
         _changes.Dispose();
+        if (_editCompleted.IsValueCreated)
+        {
+            _editCompleted.Value.Dispose();
+        }
+
         if (_countChanged.IsValueCreated)
         {
             _countChanged.Value.Dispose();
@@ -281,6 +303,13 @@ public sealed class SourceList<T> : ISourceList<T>
             if (_isEditInProgress.IsValueCreated && (_editLevel is 0))
             {
                 _isEditInProgress.Value.OnNext(false);
+            }
+
+            if (_editCompleted.IsValueCreated && _editCompleted.Value.HasObservers && (_editLevel is 0))
+            {
+                // Even a no-change edit must wake a nested expiration. Keep this control
+                // outside public changes/count streams and deliver it after releasing the lock.
+                notifications.EnqueueNext(new ListUpdate(null, 0, IsEditCompletion: true));
             }
         }
     }
@@ -374,12 +403,13 @@ public sealed class SourceList<T> : ISourceList<T>
     }
 
     /// <summary>
-    /// The notification payload for list delivery. Null Changes = count-only notification.
+    /// The notification payload for list delivery, including private edit completion controls.
     /// </summary>
     /// <param name="Changes">The Changes value.</param>
     /// <param name="Count">The Count value.</param>
     /// <param name="Version">The Version value.</param>
-    private readonly record struct ListUpdate(IChangeSet<T>? Changes, int Count, long Version = 0);
+    /// <param name="IsEditCompletion">Whether this is an internal edit completion control.</param>
+    private readonly record struct ListUpdate(IChangeSet<T>? Changes, int Count, long Version = 0, bool IsEditCompletion = false);
 
     /// <summary>
     /// Observer that dispatches <see cref="ListUpdate"/> items to the list's downstream subjects.
@@ -393,6 +423,12 @@ public sealed class SourceList<T> : ISourceList<T>
         /// <param name="value">The value value.</param>
         public void OnNext(ListUpdate value)
         {
+            if (value.IsEditCompletion)
+            {
+                sourceList._editCompleted.Value.OnNext(Unit.Default);
+                return;
+            }
+
             if (value.Changes is not null)
             {
                 Volatile.Write(ref sourceList._currentDeliveryVersion, value.Version);
@@ -413,6 +449,10 @@ public sealed class SourceList<T> : ISourceList<T>
         {
             sourceList._changesPreview.OnError(error);
             sourceList._changes.OnError(error);
+            if (sourceList._editCompleted.IsValueCreated)
+            {
+                sourceList._editCompleted.Value.OnError(error);
+            }
 
             if (sourceList._isEditInProgress.IsValueCreated)
             {
@@ -432,6 +472,10 @@ public sealed class SourceList<T> : ISourceList<T>
         {
             sourceList._changesPreview.OnCompleted();
             sourceList._changes.OnCompleted();
+            if (sourceList._editCompleted.IsValueCreated)
+            {
+                sourceList._editCompleted.Value.OnCompleted();
+            }
 
             if (sourceList._isEditInProgress.IsValueCreated)
             {
