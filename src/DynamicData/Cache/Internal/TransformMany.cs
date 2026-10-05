@@ -168,7 +168,7 @@ internal sealed class TransformMany<TDestination, TDestinationKey, TSource, TSou
 
                 var subsequent = transformed.MergeMany(x => x.Changes).SynchronizeSafe(queue);
 
-                var allChanges = initial.Merge(subsequent).Select(
+                var allChanges = initial.UnsynchronizedMerge(subsequent).Select(
                     changes =>
                     {
                         result.Clone(changes);
