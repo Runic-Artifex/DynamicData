@@ -65,7 +65,7 @@ function assertCommit(repo, sha, label) {
 function previousUpstreamPin(repo, base) {
   const upstreamMain = gitResult(repo, ['rev-parse', '--verify', 'refs/remotes/upstream/main^{commit}']);
   if (!upstreamMain.ok) return { status: 'not-found', reason: 'No fetched refs/remotes/upstream/main ref.' };
-  const merges = git(repo, ['rev-list', '--first-parent', '--merges', '--parents', base]).split('\n').filter(Boolean);
+  const merges = git(repo, ['rev-list', '--merges', '--parents', base]).split('\n').filter(Boolean);
   const candidates = [];
   for (const line of merges) {
     const [merge, firstParent, ...additionalParents] = line.split(' ');

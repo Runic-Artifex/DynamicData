@@ -44,9 +44,9 @@ try {
   git(['switch', '-c', 'runic-main', initial], provenanceRepo);
   writeFileSync(join(provenanceRepo, 'runic.txt'), 'base\n');
   commit(provenanceRepo, 'runic base');
+  git(['switch', '-c', 'integration'], provenanceRepo);
   git(['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'merge', '--no-ff', 'upstream-main', '-m', 'real upstream merge'], provenanceRepo);
   const importedMerge = git(['rev-parse', 'HEAD'], provenanceRepo);
-  git(['switch', '-c', 'integration'], provenanceRepo);
   writeFileSync(join(provenanceRepo, 'integration.txt'), 'review\n');
   commit(provenanceRepo, 'integration work');
   git(['switch', 'runic-main'], provenanceRepo);
