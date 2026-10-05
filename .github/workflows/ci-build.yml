@@ -14,24 +14,86 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         primitives: ['8.4.0', '9.0.0']
     runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: pwsh
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@v5.3.0
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
       - name: Build .NET 10
+        id: build
         run: dotnet build src/DynamicData.sln -c Release -p:ReactiveUIPrimitivesVersion=${{ matrix.primitives }}
       - name: Test Primitives flavor
-        run: dotnet src/DynamicData.Tests/bin/Release/net10.0/DynamicData.Tests.dll --maximum-parallel-tests 8 --results-directory artifacts/tests/primitives
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          New-Item -ItemType Directory -Force artifacts/tests/primitives | Out-Null
+          dotnet src/DynamicData.Tests/bin/Release/net10.0/DynamicData.Tests.dll --maximum-parallel-tests 8 --results-directory artifacts/tests/primitives 2>&1 | Tee-Object artifacts/tests/primitives/console.log
+          exit $LASTEXITCODE
       - name: Test System.Reactive flavor
-        run: dotnet src/DynamicData.Reactive.Tests/bin/Release/net10.0/DynamicData.Reactive.Tests.dll --maximum-parallel-tests 8 --results-directory artifacts/tests/reactive
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
+        run: |
+          New-Item -ItemType Directory -Force artifacts/tests/reactive | Out-Null
+          dotnet src/DynamicData.Reactive.Tests/bin/Release/net10.0/DynamicData.Reactive.Tests.dll --maximum-parallel-tests 8 --results-directory artifacts/tests/reactive 2>&1 | Tee-Object artifacts/tests/reactive/console.log
+          exit $LASTEXITCODE
       - name: Pack current Primitives packages
         if: matrix.primitives == '9.0.0'
         run: dotnet pack src/DynamicData.sln -c Release --no-build -o artifacts/packages
-      - uses: actions/upload-artifact@v4.6.2
+      - name: Upload tests and packages
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: dynamicdata-${{ matrix.os }}-${{ matrix.primitives }}
           path: artifacts
+          if-no-files-found: error
+      - name: Download uploaded artifact
+        if: ${{ !cancelled() && steps.upload.outcome == 'success' }}
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dynamicdata-${{ matrix.os }}-${{ matrix.primitives }}
+          path: ${{ runner.temp }}/dynamicdata-artifact
+          digest-mismatch: error
+      - name: Verify artifact contents
+        if: ${{ !cancelled() && steps.upload.outcome == 'success' }}
+        env:
+          ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
+          ARTIFACT_DOWNLOAD_PATH: ${{ runner.temp }}/dynamicdata-artifact
+          PRIMITIVES_VERSION: ${{ matrix.primitives }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:ARTIFACT_ID)) {
+            throw 'Upload returned no artifact ID.'
+          }
+          $source = (Resolve-Path artifacts).Path
+          $download = (Resolve-Path $env:ARTIFACT_DOWNLOAD_PATH).Path
+          $expected = @(Get-ChildItem $source -File -Recurse)
+          $actual = @(Get-ChildItem $download -File -Recurse)
+          if ($expected.Count -eq 0 -or $expected.Count -ne $actual.Count) {
+            throw "Artifact file count differs: expected $($expected.Count), downloaded $($actual.Count)."
+          }
+          foreach ($file in $expected) {
+            $relative = [System.IO.Path]::GetRelativePath($source, $file.FullName)
+            $restored = Join-Path $download $relative
+            if (!(Test-Path -LiteralPath $restored -PathType Leaf) -or
+                (Get-FileHash -LiteralPath $file.FullName).Hash -ne (Get-FileHash -LiteralPath $restored).Hash) {
+              throw "Artifact content differs: $relative"
+            }
+          }
+          foreach ($flavor in @('primitives', 'reactive')) {
+            $log = Join-Path $download "tests/$flavor/console.log"
+            if (!(Test-Path -LiteralPath $log) -or (Get-Item -LiteralPath $log).Length -eq 0) {
+              throw "Missing test output for $flavor."
+            }
+          }
+          if ($env:PRIMITIVES_VERSION -eq '9.0.0') {
+            foreach ($id in @('Runic.DynamicData', 'Runic.DynamicData.Reactive')) {
+              $packages = @(Get-ChildItem (Join-Path $download packages) -Filter "$id.*.nupkg" |
+                Where-Object { $id -ne 'Runic.DynamicData' -or $_.Name -notlike 'Runic.DynamicData.Reactive.*' })
+              if ($packages.Count -ne 1) {
+                throw "Expected one $id package, downloaded $($packages.Count)."
+              }
+            }
+          }

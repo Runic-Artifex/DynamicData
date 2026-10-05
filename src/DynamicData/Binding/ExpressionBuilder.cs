@@ -19,17 +19,20 @@ internal static class ExpressionBuilder
 {
     internal static Func<object, IObservable<Unit>> CreatePropertyChangedFactory(this Expression source)
     {
-        if ((source is not MemberExpression { Member: PropertyInfo property })
-            || !typeof(INotifyPropertyChanged).IsAssignableFrom(property.DeclaringType))
+        if (source is not MemberExpression { Member: PropertyInfo property })
         {
             return static _ => Observable.Never<Unit>();
         }
 
-        return target => Observable.FromEventPattern<PropertyChangedEventHandler, PropertyChangedEventArgs>(
-                addHandler: handler => ((INotifyPropertyChanged)target).PropertyChanged += handler,
-                removeHandler: handler => ((INotifyPropertyChanged)target).PropertyChanged -= handler)
-            .Where(pattern => pattern.EventArgs.PropertyName == property.Name)
-            .Select(static _ => Unit.Default);
+        // An interface or base class can declare the property without declaring notifications.
+        // The current chain target owns the handler, including after an intermediate replacement.
+        return target => target is INotifyPropertyChanged notifier
+            ? Observable.FromEventPattern<PropertyChangedEventHandler, PropertyChangedEventArgs>(
+                    addHandler: handler => notifier.PropertyChanged += handler,
+                    removeHandler: handler => notifier.PropertyChanged -= handler)
+                .Where(pattern => string.IsNullOrEmpty(pattern.EventArgs.PropertyName) || pattern.EventArgs.PropertyName == property.Name)
+                .Select(static _ => Unit.Default)
+            : Observable.Never<Unit>();
     }
 
     /// <summary>

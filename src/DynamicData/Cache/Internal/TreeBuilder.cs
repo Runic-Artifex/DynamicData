@@ -6,6 +6,8 @@
 namespace DynamicData.Reactive.Cache.Internal;
 #else
 
+using DynamicData.Internal;
+
 namespace DynamicData.Cache.Internal;
 #endif
 
@@ -51,7 +53,9 @@ internal sealed class TreeBuilder<TObject, TKey>(IObservable<IChangeSet<TObject,
                 var queue = new SharedDeliveryQueue();
                 var reFilterObservable = new StateSignal<Unit>(Unit.Default);
 
-                var allData = _source.SynchronizeSafe(queue).AsObservableCache();
+                // Wire the complete graph before a synchronous source can deliver its initial snapshot or terminal.
+                var sharedSource = _source.SynchronizeSafe(queue).Publish();
+                var allData = sharedSource.Do(static _ => { }, observer.OnError, observer.OnCompleted).AsObservableCache();
 
                 // for each object we need a node which provides
                 // a structure to set the parent and children
@@ -219,11 +223,14 @@ internal sealed class TreeBuilder<TObject, TKey>(IObservable<IChangeSet<TObject,
                         }
 
                         reFilterObservable.OnNext(Unit.Default);
-                    }).DisposeMany().Subscribe();
+                    }).DisposeMany().Subscribe(static _ => { }, static _ => { });
 
-                var filter = _predicateChanged.SynchronizeSafe(queue).CombineLatest(reFilterObservable, (predicate, _) => predicate);
+                // Both inputs are routed through the same SharedDeliveryQueue so their delivery is
+                // serialized; UnsynchronizedCombineLatest avoids the ABBA-prone gate that
+                // Observable.CombineLatest would hold across downstream delivery.
+                var filter = _predicateChanged.SynchronizeSafe(queue).UnsynchronizedCombineLatest(reFilterObservable.SynchronizeSafe(queue), (predicate, _) => predicate);
                 var result = allNodes.Connect().Filter(filter).SubscribeSafe(observer);
 
-                return new CompositeDisposable(result, parentSetter, allData, allNodes, groupedByPivot, Disposable.Create(() => reFilterObservable.OnCompleted()), queue);
+                return new CompositeDisposable(sharedSource.Connect(), result, parentSetter, allData, allNodes, groupedByPivot, Disposable.Create(() => reFilterObservable.OnCompleted()), queue);
             });
 }

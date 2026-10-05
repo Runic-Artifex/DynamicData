@@ -16,8 +16,8 @@ namespace DynamicData.List.Internal;
 /// <param name="sourceList">The sourceList value.</param>
 /// <param name="sizeLimit">The sizeLimit value.</param>
 /// <param name="scheduler">The scheduler value.</param>
-/// <param name="locker">The locker value.</param>
-internal sealed class LimitSizeTo<T>(ISourceList<T> sourceList, int sizeLimit, IScheduler scheduler, object locker)
+/// <param name="queue">The serialization queue.</param>
+internal sealed class LimitSizeTo<T>(ISourceList<T> sourceList, int sizeLimit, IScheduler scheduler, SharedDeliveryQueue queue)
     where T : notnull
 {
     /// <summary>
@@ -39,7 +39,7 @@ internal sealed class LimitSizeTo<T>(ISourceList<T> sourceList, int sizeLimit, I
         var emptyResult = new List<T>();
         long orderItemWasAdded = -1;
 
-        return _sourceList.Connect().ObserveOn(_scheduler).Synchronize(locker).Transform(t => new ExpirableItem<T>(t, _scheduler.Now.UtcDateTime, Interlocked.Increment(ref orderItemWasAdded))).ToCollection().Select(
+        return _sourceList.Connect().ObserveOn(_scheduler).SynchronizeSafe(queue).Transform(t => new ExpirableItem<T>(t, _scheduler.Now.UtcDateTime, Interlocked.Increment(ref orderItemWasAdded))).ToCollection().Select(
             list =>
             {
                 var numberToExpire = list.Count - sizeLimit;

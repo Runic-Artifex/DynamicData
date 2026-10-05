@@ -40,9 +40,13 @@ internal sealed class Virtualise<TObject, TKey>(IObservable<ISortedChangeSet<TOb
                 var virtualiser = new Virtualiser();
                 var queue = new SharedDeliveryQueue();
 
-                var request = _virtualRequests.SynchronizeSafe(queue).Select(virtualiser.Virtualise).Where(x => x is not null).Select(x => x!);
-                var dataChange = _source.SynchronizeSafe(queue).Select(virtualiser.Update).Where(x => x is not null).Select(x => x!);
-                return new CompositeDisposable(request.Merge(dataChange).Where(updates => updates is not null).SubscribeSafe(observer), queue);
+                var request = _virtualRequests.Where(parameters => parameters is not null).SynchronizeSafe(queue).Select(virtualiser.Virtualise);
+                var dataChange = _source.SynchronizeSafe(queue).Select(virtualiser.Update);
+
+                return new CompositeDisposable(request.UnsynchronizedMerge(dataChange)
+                    .Where(updates => updates is not null)
+                    .Select(x => x!)
+                    .SubscribeSafe(observer), queue);
             });
 
 /// <summary>
@@ -90,7 +94,7 @@ private sealed class Virtualiser(VirtualRequest? request = null)
         /// <returns>The result of the operation.</returns>
         public IVirtualChangeSet<TObject, TKey>? Virtualise(IVirtualRequest? parameters)
         {
-            if (parameters is null || parameters.StartIndex < 0 || parameters.Size < 1)
+            if (parameters is null || parameters.StartIndex < 0 || parameters.Size < 0)
             {
                 return null;
             }

@@ -34,7 +34,10 @@ public static partial class ObservableCacheEx
     /// <param name="groupSelector">The <c>Func&lt;TObject, TGroupKey&gt;</c> group selector factory.</param>
     /// <param name="resultGroupSource">An <c>IObservable&lt;IDistinctChangeSet&lt;TGroupKey&gt;&gt;</c> of <c>IDistinctChangeSet&lt;TGroupKey&gt;</c> used to determine which groups appear in the result.</param>
     /// <remarks>
-    /// Useful for parent-child collection when the parent and child are soured from different streams.
+    /// <para>Useful for parent-child collections when the parent and child come from different streams.</para>
+    /// <para>The result completes when either <paramref name="source"/> or <paramref name="resultGroupSource"/> completes,
+    /// and an error from either input terminates the result immediately. Both input subscriptions and owned groups are
+    /// released when the result terminates or is disposed. Synchronous initial snapshots are delivered before completion.</para>
     /// </remarks>
     /// <returns>An observable which will emit group change sets.</returns>
     public static IObservable<IGroupChangeSet<TObject, TKey, TGroupKey>> Group<TObject, TKey, TGroupKey>(this IObservable<IChangeSet<TObject, TKey>> source, Func<TObject, TGroupKey> groupSelector, IObservable<IDistinctChangeSet<TGroupKey>> resultGroupSource)
@@ -101,7 +104,12 @@ public static partial class ObservableCacheEx
     /// <param name="groupSelectorKey">A <c>Func&lt;T, TResult&gt;</c> that extracts the group key from each item.</param>
     /// <param name="regrouper">An <c>IObservable&lt;Unit&gt;</c> that, when it emits, all items are re-evaluated against the group selector, potentially moving items between groups.</param>
     /// <returns>An observable that emits group changesets.</returns>
-    /// <remarks>This overload adds a <paramref name="regrouper"/> signal. When it fires, every item in the cache is re-grouped using the current selector, which is useful when the grouping depends on mutable item state.</remarks>
+    /// <remarks>
+    /// <para>When <paramref name="regrouper"/> fires, every cached item is re-grouped using the current selector.</para>
+    /// <para>The result completes after both the source and supplied regrouper complete. A live regrouper can still regroup
+    /// retained items after source completion. An error from either input terminates the result and releases both subscriptions
+    /// and owned groups. The overload without a regrouper completes with its source.</para>
+    /// </remarks>
     public static IObservable<IGroupChangeSet<TObject, TKey, TGroupKey>> Group<TObject, TKey, TGroupKey>(this IObservable<IChangeSet<TObject, TKey>> source, Func<TObject, TGroupKey> groupSelectorKey, IObservable<Unit> regrouper)
         where TObject : notnull
         where TKey : notnull

@@ -9,6 +9,8 @@ namespace DynamicData.Tests.Internal;
 [NotInParallel]
 public class SharedDeliveryQueueFixture
 {
+    private readonly Bogus.Randomizer _randomizer = new(0x1162_5EED);
+
     private readonly Lock _gate = new();
 
     [Test]
@@ -314,6 +316,198 @@ public class SharedDeliveryQueueFixture
         await Assert.That(drainer.Wait(TimeSpan.FromSeconds(5))).IsTrue();
 
         await Assert.That(delivered).IsEquivalentTo(new[] { "int:0" }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+    }
+
+    [Test]
+    [Timeout(10_000)]
+    public async Task ReentrantNotificationIsDeliveredBeforeNotificationsQueuedByOtherThreads(CancellationToken cancellationToken)
+    {
+        // Arrange
+        var (first, second, childValue) = (_randomizer.Int(), _randomizer.Int(), _randomizer.Word());
+        var queue = new SharedDeliveryQueue(_gate);
+        var delivered = new List<string>();
+        var parked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        var isFirst = true;
+        DeliverySubQueue<string>? child = null;
+
+        var parent = queue.CreateQueue(new TestObserver<int>(value =>
+        {
+            Record(delivered, $"parent:{value}:start");
+
+            if (isFirst)
+            {
+                isFirst = false;
+                parked.SetResult();
+                release.Wait(cancellationToken);
+                child!.OnNext(childValue);
+            }
+
+            Record(delivered, $"parent:{value}:end");
+        }));
+
+        child = queue.CreateQueue(new TestObserver<string>(value => Record(delivered, $"child:{value}")));
+
+        var drainer = Task.Run(() => parent.OnNext(first), cancellationToken);
+        await parked.Task.WaitAsync(cancellationToken);
+        parent.OnNext(second);
+
+        // Act
+        release.Set();
+        await drainer.WaitAsync(cancellationToken);
+
+        // Assert
+        await Assert.That(delivered).IsEquivalentTo(new[] { $"parent:{first}:start", $"child:{childValue}", $"parent:{first}:end", $"parent:{second}:start", $"parent:{second}:end" }, TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("a notification raised during a delivery is delivered inline, and one queued by another thread waits for that delivery to finish");
+    }
+
+    [Test]
+    [Timeout(10_000)]
+    public async Task ReentrantNotificationForTheDeliveringSourceWaitsForItsTurn(CancellationToken cancellationToken)
+    {
+        // Arrange
+        var (first, second, third) = (_randomizer.Int(), _randomizer.Int(), _randomizer.Int());
+        var queue = new SharedDeliveryQueue(_gate);
+        var delivered = new List<string>();
+        var parked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        var isFirst = true;
+        DeliverySubQueue<int>? source = null;
+
+        source = queue.CreateQueue(new TestObserver<int>(value =>
+        {
+            Record(delivered, $"{value}:start");
+
+            if (isFirst)
+            {
+                isFirst = false;
+                parked.SetResult();
+                release.Wait(cancellationToken);
+                source!.OnNext(third);
+            }
+
+            Record(delivered, $"{value}:end");
+        }));
+
+        var drainer = Task.Run(() => source.OnNext(first), cancellationToken);
+        await parked.Task.WaitAsync(cancellationToken);
+        source.OnNext(second);
+
+        // Act
+        release.Set();
+        await drainer.WaitAsync(cancellationToken);
+
+        // Assert
+        await Assert.That(delivered).IsEquivalentTo(new[] { $"{first}:start", $"{first}:end", $"{second}:start", $"{second}:end", $"{third}:start", $"{third}:end" }, TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("an observer is never re-entered, so its own reentrant notification is delivered in the order it was received");
+    }
+
+    [Test]
+    [Timeout(10_000)]
+    public async Task InlineDeliveryKeepsTheSourcesEarlierNotificationsFirst(CancellationToken cancellationToken)
+    {
+        // Arrange
+        var (first, second) = (_randomizer.Int(), _randomizer.Int());
+        var (queuedChildValue, reentrantChildValue) = (_randomizer.Word(), _randomizer.Word());
+        var queue = new SharedDeliveryQueue(_gate);
+        var delivered = new List<string>();
+        var parked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        var isFirst = true;
+        DeliverySubQueue<string>? child = null;
+
+        var parent = queue.CreateQueue(new TestObserver<int>(value =>
+        {
+            Record(delivered, $"parent:{value}:start");
+
+            if (isFirst)
+            {
+                isFirst = false;
+                parked.SetResult();
+                release.Wait(cancellationToken);
+                child!.OnNext(reentrantChildValue);
+            }
+
+            Record(delivered, $"parent:{value}:end");
+        }));
+
+        child = queue.CreateQueue(new TestObserver<string>(value => Record(delivered, $"child:{value}")));
+
+        var drainer = Task.Run(() => parent.OnNext(first), cancellationToken);
+        await parked.Task.WaitAsync(cancellationToken);
+        parent.OnNext(second);
+        child.OnNext(queuedChildValue);
+
+        // Act
+        release.Set();
+        await drainer.WaitAsync(cancellationToken);
+
+        // Assert
+        await Assert.That(delivered).IsEquivalentTo(new[] { $"parent:{first}:start", $"child:{queuedChildValue}", $"child:{reentrantChildValue}", $"parent:{first}:end", $"parent:{second}:start", $"parent:{second}:end" }, TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("a source's notifications stay in the order it raised them, even when the later one is delivered inline");
+    }
+
+    [Test]
+    [Timeout(10_000)]
+    public async Task InlineDeliveryDoesNotLetLaterNotificationsJumpTheQueue(CancellationToken cancellationToken)
+    {
+        // Arrange
+        var (first, second, third) = (_randomizer.Int(), _randomizer.Int(), _randomizer.Int());
+        var (queuedChildValue, reentrantChildValue, laterChildValue) = (_randomizer.Word(), _randomizer.Word(), _randomizer.Word());
+        var queue = new SharedDeliveryQueue(_gate);
+        var delivered = new List<string>();
+        var parked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var parkedAgain = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        using var releaseAgain = new ManualResetEventSlim();
+        var isFirst = true;
+        DeliverySubQueue<string>? child = null;
+
+        var parent = queue.CreateQueue(new TestObserver<int>(value =>
+        {
+            Record(delivered, $"parent:{value}:start");
+
+            if (isFirst)
+            {
+                isFirst = false;
+                parked.SetResult();
+                release.Wait(cancellationToken);
+                child!.OnNext(reentrantChildValue);
+                parkedAgain.SetResult();
+                releaseAgain.Wait(cancellationToken);
+            }
+
+            Record(delivered, $"parent:{value}:end");
+        }));
+
+        child = queue.CreateQueue(new TestObserver<string>(value => Record(delivered, $"child:{value}")));
+
+        // The child's first two notifications are delivered inline, leaving their places in the receipt order
+        // behind. The child's next notification has to wait for its own place, after the parent's third.
+        var drainer = Task.Run(() => parent.OnNext(first), cancellationToken);
+        await parked.Task.WaitAsync(cancellationToken);
+        parent.OnNext(second);
+        child.OnNext(queuedChildValue);
+        parent.OnNext(third);
+        release.Set();
+        await parkedAgain.Task.WaitAsync(cancellationToken);
+        child.OnNext(laterChildValue);
+
+        // Act
+        releaseAgain.Set();
+        await drainer.WaitAsync(cancellationToken);
+
+        // Assert
+        await Assert.That(delivered).IsEquivalentTo(new[]
+            {
+                $"parent:{first}:start", $"child:{queuedChildValue}", $"child:{reentrantChildValue}", $"parent:{first}:end",
+                $"parent:{second}:start", $"parent:{second}:end", $"parent:{third}:start", $"parent:{third}:end", $"child:{laterChildValue}",
+            }, TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("notifications delivered inline must not hand their places in the receipt order to later ones");
+    }
+
+    private static void Record(List<string> delivered, string entry)
+    {
+        lock (delivered)
+        {
+            delivered.Add(entry);
+        }
     }
 
     private sealed class TestObserver<T>(Action<T> onNext) : IObserver<T>

@@ -6,6 +6,8 @@
 namespace DynamicData.Reactive.Cache.Internal;
 #else
 
+using DynamicData.Internal;
+
 namespace DynamicData.Cache.Internal;
 #endif
 
@@ -85,9 +87,12 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
             },
             onError: observer.OnError);
 
-        // Create an observable that completes when all 3 inputs complete so the downstream can be completed as well
+        // All three inputs are routed through the same SharedDeliveryQueue so their notifications
+        // are already serialized; the merge is only here to coalesce their completion into a single
+        // downstream OnCompleted. UnsynchronizedMerge avoids the ABBA-prone gate that Observable.Merge
+        // would hold across the downstream observer.OnCompleted/observer.OnError call.
         var subOnComplete = PrimitivesLinqExtensions.SubscribeSafe(
-            Observable.Merge(sharedSource.ToUnit(), sharedGroupSelector.ToUnit(), sharedRegrouper).IgnoreElements(),
+            sharedSource.ToUnit().UnsynchronizedMerge(sharedGroupSelector.ToUnit(), sharedRegrouper).IgnoreElements(),
             onNext: static _ => { },
             onError: observer.OnError,
             onCompleted: observer.OnCompleted);

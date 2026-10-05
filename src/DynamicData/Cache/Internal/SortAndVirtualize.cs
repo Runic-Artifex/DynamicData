@@ -109,6 +109,7 @@ internal sealed class SortAndVirtualize<TObject, TKey>
                 // a sorted list of key value pairs, maintained by
                 var sortedList = new List<KeyValuePair<TKey, TObject>>(_options.InitialCapacity);
                 var virtualItems = new List<KeyValuePair<TKey, TObject>>(virtualParams.Size);
+                VirtualContext<TObject>? previousContext = null;
 
                 IComparer<TObject>? comparer = null;
                 KeyValueComparer<TObject, TKey>? keyValueComparer = null;
@@ -132,10 +133,11 @@ internal sealed class SortAndVirtualize<TObject, TKey>
                         return ApplyVirtualChanges();
                     });
 
-                var paramsChanged = _virtualRequests.SynchronizeSafe(queue)
+                var paramsChanged = _virtualRequests
+                    // Validate before enqueueing: a null request must not become a terminal notification.
+                    .Where(parameters => parameters is { StartIndex: >= 0, Size: >= 0 })
+                    .SynchronizeSafe(queue)
                     .DistinctUntilChanged()
-                    // exclude dodgy params
-                    .Where(parameters => parameters is { StartIndex: >= 0, Size: > 0 })
                     .Select(request =>
                     {
                         virtualParams = request;
@@ -165,9 +167,8 @@ internal sealed class SortAndVirtualize<TObject, TKey>
 
                 return new CompositeDisposable(
                     comparerChanged
-                        .Merge(paramsChanged)
-                        .Merge(dataChange)
-                        .Where(changes => changes.Count is not 0)
+                        .UnsynchronizedMerge(paramsChanged, dataChange)
+                        .Where(changes => !ReferenceEquals(changes, Empty))
                         .SubscribeSafe(observer), queue);
 
                 ChangeSet<TObject, TKey, VirtualContext<TObject>> ApplyVirtualChanges(IChangeSet<TObject, TKey>? changeSet = null)
@@ -186,7 +187,12 @@ internal sealed class SortAndVirtualize<TObject, TKey>
 
                     virtualItems = currentVirtualItems;
 
-                    return virtualChanges;
+                    // A hidden or unchanged window still needs updated scroll extent and comparer metadata.
+                    var contextChanged = previousContext is null
+                        ? !VirtualRequest.StartIndexSizeComparer.Equals(virtualParams, VirtualRequest.Default)
+                        : previousContext != context;
+                    previousContext = context;
+                    return virtualChanges.Count != 0 || contextChanged ? virtualChanges : Empty;
                 }
             });
     // Calculates any changes within the virtualized range.

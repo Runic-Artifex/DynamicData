@@ -136,6 +136,6 @@ public class VirtualisationFixture : IDisposable
             .Clone(result)
             .Subscribe();
 
-        await Assert.That(result.Count).IsEqualTo(1);
+        await Assert.That(result.Count).IsEqualTo(3);
     }
 }

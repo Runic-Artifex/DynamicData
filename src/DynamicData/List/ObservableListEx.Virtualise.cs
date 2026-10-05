@@ -33,7 +33,7 @@ public static partial class ObservableListEx
     /// <remarks>
     /// <para>
     /// Like <c>Page&lt;T&gt;(IObservable&lt;IChangeSet&lt;T&gt;&gt;, IObservable&lt;IPageRequest&gt;)</c> but uses absolute start index and size instead of page number and page size.
-    /// Internally maintains the full source list and recalculates the window on each change or request.
+    /// Internally maintains every source occurrence, including duplicates, and recalculates the window on each change or request. The initial window starts at zero with a requested size of 25. A zero size empties the window. Null requests and negative start indexes or sizes are ignored without changing the last valid window. Responses report the requested size and source count, even when no rows change.
     /// </para>
     /// </remarks>
     /// <seealso><c>Page&lt;T&gt;(IObservable&lt;IChangeSet&lt;T&gt;&gt;, IObservable&lt;IPageRequest&gt;)</c></seealso>

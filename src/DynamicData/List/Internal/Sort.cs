@@ -25,12 +25,12 @@ internal sealed class Sort<T>(IObservable<IChangeSet<T>> source, IComparer<T>? c
     /// <summary>
     /// The _comparerObservable field.
     /// </summary>
-    private readonly IObservable<IComparer<T>> _comparerObservable = comparerObservable ?? Observable.Never<IComparer<T>>();
+    private readonly IObservable<IComparer<T>> _comparerObservable = comparerObservable ?? Observable.Empty<IComparer<T>>();
 
     /// <summary>
     /// The _resort field.
     /// </summary>
-    private readonly IObservable<Unit> _resort = resort ?? Observable.Never<Unit>();
+    private readonly IObservable<Unit> _resort = resort ?? Observable.Empty<Unit>();
 
     /// <summary>
     /// The _source field.
@@ -49,11 +49,11 @@ internal sealed class Sort<T>(IObservable<IChangeSet<T>> source, IComparer<T>? c
     public IObservable<IChangeSet<T>> Run() => Observable.Create<IChangeSet<T>>(
             observer =>
             {
-                var locker = InternalEx.NewMonitorGate();
+                var queue = new SharedDeliveryQueue();
                 var original = new List<T>();
                 var target = new ChangeAwareList<T>();
 
-                var dataChanged = _source.Synchronize(locker).Select(
+                var dataChanged = _source.SynchronizeSafe(queue).Select(
                     changes =>
                     {
                         if (resetThreshold > 1)
@@ -63,10 +63,11 @@ internal sealed class Sort<T>(IObservable<IChangeSet<T>> source, IComparer<T>? c
 
                         return changes.TotalChanges > resetThreshold ? Reset(original, target) : Process(target, changes);
                     });
-                var resortSync = _resort.Synchronize(locker).Select(_ => Reorder(target));
-                var changeComparer = _comparerObservable.Synchronize(locker).Select(comparer => ChangeComparer(target, comparer));
+                var resortSync = _resort.SynchronizeSafe(queue).Select(_ => Reorder(target));
+                var changeComparer = _comparerObservable.SynchronizeSafe(queue).Select(comparer => ChangeComparer(target, comparer));
 
-                return changeComparer.Merge(resortSync).Merge(dataChanged).Where(changes => changes.Count != 0).SubscribeSafe(observer);
+                var publisher = changeComparer.UnsynchronizedMerge(resortSync, dataChanged).Where(changes => changes.Count != 0).SubscribeSafe(observer);
+                return new CompositeDisposable(publisher, queue);
             });
 
     /// <summary>
@@ -309,6 +310,13 @@ internal sealed class Sort<T>(IObservable<IChangeSet<T>> source, IComparer<T>? c
     /// <returns>The result of the operation.</returns>
     private IChangeSet<T> Reorder(ChangeAwareList<T> target)
     {
+        // A single mutable outlier needs one move, rather than moving every intervening row.
+        // Prove that the remainder is sorted before changing any indexes; otherwise use the general path.
+        if (TryReorderSingleOutlier(target))
+        {
+            return target.CaptureChanges();
+        }
+
         var index = -1;
         foreach (var item in target.OrderBy(t => t, _comparer).ToList())
         {
@@ -317,17 +325,88 @@ internal sealed class Sort<T>(IObservable<IChangeSet<T>> source, IComparer<T>? c
             var existing = target[index];
 
             // if item is in the same place,
-            if (ReferenceEquals(item, existing))
+            if (IsSameItem(item, existing))
             {
                 continue;
             }
 
             // Cannot use binary search as Resort is implicit of a mutable change
-            var old = target.IndexOf(item);
+            // The prefix is already placed. Search only the remaining occurrences, including duplicates.
+            var old = index + 1;
+            while (old < target.Count && !IsSameItem(item, target[old]))
+            {
+                old++;
+            }
+
             target.Move(old, index);
         }
 
         return target.CaptureChanges();
+    }
+
+    private bool IsSameItem(T left, T right) => typeof(T).IsValueType
+        ? EqualityComparer<T>.Default.Equals(left, right) && _comparer.Compare(left, right) == 0
+        : ReferenceEquals(left, right);
+
+    private bool TryReorderSingleOutlier(ChangeAwareList<T> target)
+    {
+        var inversion = -1;
+        for (var i = 1; i < target.Count; i++)
+        {
+            if (_comparer.Compare(target[i - 1], target[i]) <= 0)
+            {
+                continue;
+            }
+
+            if (inversion != -1)
+            {
+                return false;
+            }
+
+            inversion = i;
+        }
+
+        return inversion == -1 || TryMoveOutlier(target, inversion - 1) || TryMoveOutlier(target, inversion);
+    }
+
+    private bool TryMoveOutlier(ChangeAwareList<T> target, int oldIndex)
+    {
+        var item = target[oldIndex];
+        var previous = -1;
+        var newIndex = 0;
+        var foundInsertion = false;
+        for (var i = 0; i < target.Count; i++)
+        {
+            if (i == oldIndex)
+            {
+                continue;
+            }
+
+            if (previous != -1 && _comparer.Compare(target[previous], target[i]) > 0)
+            {
+                return false;
+            }
+
+            previous = i;
+            var comparison = _comparer.Compare(target[i], item);
+            // Stable ties retain the original order, just as OrderBy does in the general path.
+            if (!foundInsertion && (comparison < 0 || (comparison == 0 && i < oldIndex)))
+            {
+                newIndex++;
+            }
+            else
+            {
+                foundInsertion = true;
+            }
+        }
+
+        if (newIndex == oldIndex)
+        {
+            return false;
+        }
+
+        target.Move(oldIndex, newIndex);
+        return true;
     }
 
     /// <summary>

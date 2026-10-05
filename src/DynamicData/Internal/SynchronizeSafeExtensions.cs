@@ -90,4 +90,192 @@ internal static class SynchronizeSafeExtensions
             // Queue first: ensures in-flight deliveries complete before teardown side effects run
             return new CompositeDisposable(queue, source.SubscribeSafe(queue));
         });
+
+    // Merges every input into a single observable without taking any synchronization gate.
+    // Functionally equivalent to Observable.Merge: completes only after every source completes,
+    // the first error terminates, subscription occurs in argument order.
+    //
+    // The caller MUST ensure that delivery from every source is already serialized. In this
+    // library the precondition is satisfied by routing every source through the same
+    // SharedDeliveryQueue via SynchronizeSafe(queue). The shared queue's drain loop guarantees
+    // that at most one notification is in flight to the downstream observer at a time, so the
+    // additional gate that Observable.Merge would install is redundant.
+    //
+    // The gate omission matters in cross-cache pipelines: Observable.Merge holds its private
+    // _gate for the entire duration of downstream delivery, and when downstream delivery walks
+    // into another cache's writer lock, two such gates on two operators form an ABBA cycle that
+    // the queue-drain design is meant to prevent.
+    //
+    // Without the external serialization precondition, concurrent OnNext calls into the shared
+    // observer will race. Do not use as a general-purpose Observable.Merge replacement.
+    public static IObservable<T> UnsynchronizedMerge<T>(this IObservable<T> first, params IObservable<T>[] others) =>
+        Observable.Create<T>(observer =>
+        {
+            var remainingSources = others.Length + 1;
+            var subscriptions = new CompositeDisposable();
+            var terminated = 0;
+
+            subscriptions.Add(first.SubscribeSafe(CreateInner()));
+            foreach (var source in others)
+            {
+                subscriptions.Add(source.SubscribeSafe(CreateInner()));
+            }
+
+            return subscriptions;
+
+            // Each source needs its own inner observer instance because Rx's ObserverBase sets
+            // a one-shot stopped flag on the first OnCompleted or OnError. A single shared
+            // observer would silently drop terminal notifications from every source after the
+            // first. The OnNext/OnError/OnCompleted actions close over the shared remainingSources
+            // and terminated counters so cross-source coordination still works.
+            IObserver<T> CreateInner() => Observer.Create<T>(OnNextSafe, OnErrorSafe, OnCompletedSafe);
+
+            void OnNextSafe(T value)
+            {
+                if (Volatile.Read(ref terminated) == 0)
+                {
+                    observer.OnNext(value);
+                }
+            }
+
+            void OnErrorSafe(Exception error)
+            {
+                if (Interlocked.Exchange(ref terminated, 1) == 0)
+                {
+                    observer.OnError(error);
+                }
+            }
+
+            void OnCompletedSafe()
+            {
+                if (Interlocked.Decrement(ref remainingSources) == 0 && Interlocked.Exchange(ref terminated, 1) == 0)
+                {
+                    observer.OnCompleted();
+                }
+            }
+        });
+
+    // Two-input CombineLatest variant that does NOT install a gate. Functionally equivalent
+    // to Rx CombineLatest in both flavors: holds the most-recent value from each source, emits a
+    // resultSelector output whenever either source fires (provided the other has also fired
+    // at least once), selector failures are reported as errors, and completion follows Rx:
+    // both sources completed, or a value arrives after the other completed without a value.
+    //
+    // Same precondition as UnsynchronizedMerge: delivery from BOTH sources must already be
+    // serialized through the same external gate before reaching this operator. In this library
+    // that is satisfied by routing both inputs through the same SharedDeliveryQueue via
+    // SynchronizeSafe(queue). Under that precondition no two OnNext calls overlap, so the
+    // latest-value state needs no internal locking, and the gate that
+    // Observable.CombineLatest installs becomes redundant.
+    //
+    // The Rx gate matters here for the same reason as Merge: Observable.CombineLatest holds
+    // its private _gate for the entire downstream delivery, and any operator-level lock held
+    // across a cross-cache write reconstructs the ABBA cycle the queue-drain design is meant
+    // to prevent.
+    //
+    // Without the external serialization precondition, concurrent OnNext calls would race the
+    // latest-value state and could produce torn reads. Do not use as a general-purpose
+    // Observable.CombineLatest replacement.
+    public static IObservable<TResult> UnsynchronizedCombineLatest<TFirst, TSecond, TResult>(
+        this IObservable<TFirst> first,
+        IObservable<TSecond> second,
+        Func<TFirst, TSecond, TResult> resultSelector)
+        where TFirst : notnull
+        where TSecond : notnull =>
+        Observable.Create<TResult>(observer =>
+        {
+            TFirst firstLatest = default!;
+            TSecond secondLatest = default!;
+            var hasFirst = false;
+            var hasSecond = false;
+            var firstCompleted = false;
+            var secondCompleted = false;
+            var terminated = 0;
+
+            var subscriptions = new CompositeDisposable();
+            subscriptions.Add(first.SubscribeSafe(Observer.Create<TFirst>(OnFirstNext, OnErrorSafe, OnFirstCompleted)));
+            subscriptions.Add(second.SubscribeSafe(Observer.Create<TSecond>(OnSecondNext, OnErrorSafe, OnSecondCompleted)));
+            return subscriptions;
+
+            void OnFirstNext(TFirst value)
+            {
+                if (Volatile.Read(ref terminated) != 0)
+                {
+                    return;
+                }
+
+                firstLatest = value;
+                hasFirst = true;
+                EmitLatestOrComplete(secondCompleted);
+            }
+
+            void OnSecondNext(TSecond value)
+            {
+                if (Volatile.Read(ref terminated) != 0)
+                {
+                    return;
+                }
+
+                secondLatest = value;
+                hasSecond = true;
+                EmitLatestOrComplete(firstCompleted);
+            }
+
+            void EmitLatestOrComplete(bool otherCompleted)
+            {
+                if (hasFirst && hasSecond)
+                {
+                    TResult result;
+                    try
+                    {
+                        result = resultSelector(firstLatest, secondLatest);
+                    }
+                    catch (Exception error)
+                    {
+                        OnErrorSafe(error);
+                        return;
+                    }
+
+                    observer.OnNext(result);
+                }
+                else if (otherCompleted)
+                {
+                    Complete();
+                }
+            }
+
+            void OnErrorSafe(Exception error)
+            {
+                if (Interlocked.Exchange(ref terminated, 1) == 0)
+                {
+                    observer.OnError(error);
+                }
+            }
+
+            void OnFirstCompleted()
+            {
+                firstCompleted = true;
+                if (secondCompleted)
+                {
+                    Complete();
+                }
+            }
+
+            void OnSecondCompleted()
+            {
+                secondCompleted = true;
+                if (firstCompleted)
+                {
+                    Complete();
+                }
+            }
+
+            void Complete()
+            {
+                if (Interlocked.Exchange(ref terminated, 1) == 0)
+                {
+                    observer.OnCompleted();
+                }
+            }
+        });
 }

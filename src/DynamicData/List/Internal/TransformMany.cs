@@ -159,20 +159,19 @@ internal sealed class TransformMany<TSource, TDestination>(IObservable<IChangeSe
             observer =>
             {
                 var result = new ChangeAwareList<TDestination>();
+                var queue = new SharedDeliveryQueue();
 
-                var transformed = _source.Transform(
+                var transformed = _source.SynchronizeSafe(queue).Transform(
                     t =>
                     {
-                        var locker = InternalEx.NewMonitorGate();
                         var collection = manySelector(t);
-                        var changes = childChanges(t).Synchronize(locker).Skip(1);
+                        var changes = childChanges(t).SynchronizeSafe(queue).Skip(1);
                         return new ManyContainer(collection, changes);
                     }).Publish();
 
-                var outerLock = InternalEx.NewMonitorGate();
-                var initial = transformed.Synchronize(outerLock).Select(changes => new ChangeSet<TDestination>(new DestinationEnumerator(changes, _equalityComparer)));
+                var initial = transformed.SynchronizeSafe(queue).Select(changes => new ChangeSet<TDestination>(new DestinationEnumerator(changes, _equalityComparer)));
 
-                var subsequent = transformed.MergeMany(x => x.Changes).Synchronize(outerLock);
+                var subsequent = transformed.MergeMany(x => x.Changes).SynchronizeSafe(queue);
 
                 var init = initial.Select(
                     changes =>
@@ -188,9 +187,9 @@ internal sealed class TransformMany<TSource, TDestination>(IObservable<IChangeSe
                         return result.CaptureChanges();
                     });
 
-                var allChanges = init.Merge(subsequentSelection);
+                var allChanges = init.UnsynchronizedMerge(subsequentSelection);
 
-                return new CompositeDisposable(allChanges.SubscribeSafe(observer), transformed.Connect());
+                return new CompositeDisposable(allChanges.SubscribeSafe(observer), transformed.Connect(), queue);
             });
     }
     // make this an instance
@@ -237,10 +236,10 @@ internal sealed class TransformMany<TSource, TDestination>(IObservable<IChangeSe
                             var currentItems = change.Item.Current.Destination.AsArray();
                             var previousItems = change.Item.Previous.Value.Destination.AsArray();
 
-                            var adds = currentItems.Except(previousItems, equalityComparer);
+                            var adds = ExceptOccurrences(currentItems, previousItems, equalityComparer);
 
                             // I am not sure whether it is possible to translate the original change into a replace
-                            foreach (var destination in previousItems.Except(currentItems, equalityComparer))
+                            foreach (var destination in ExceptOccurrences(previousItems, currentItems, equalityComparer))
                             {
                                 yield return new Change<TDestination>(ListChangeReason.Remove, destination);
                             }
@@ -278,6 +277,35 @@ internal sealed class TransformMany<TSource, TDestination>(IObservable<IChangeSe
         /// </summary>
         /// <returns>The result of the operation.</returns>
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        /// <summary>
+        /// Excludes one matching occurrence per item instead of applying set difference.
+        /// </summary>
+        /// <param name="items">The items to inspect in their original order.</param>
+        /// <param name="exclusions">The occurrences to exclude.</param>
+        /// <param name="comparer">The destination equality comparer.</param>
+        /// <returns>The unmatched occurrences.</returns>
+        private static IEnumerable<TDestination> ExceptOccurrences(IEnumerable<TDestination> items, IEnumerable<TDestination> exclusions, IEqualityComparer<TDestination> comparer)
+        {
+            var remaining = new Dictionary<TDestination, int>(comparer);
+            foreach (var item in exclusions)
+            {
+                remaining.TryGetValue(item, out var count);
+                remaining[item] = count + 1;
+            }
+
+            foreach (var item in items)
+            {
+                if (remaining.TryGetValue(item, out var count) && count > 0)
+                {
+                    remaining[item] = count - 1;
+                }
+                else
+                {
+                    yield return item;
+                }
+            }
+        }
     }
 
     /// <summary>
