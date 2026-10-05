@@ -90,7 +90,7 @@ private sealed class Virtualiser(VirtualRequest? request = null)
         /// <returns>The result of the operation.</returns>
         public IVirtualChangeSet<TObject, TKey>? Virtualise(IVirtualRequest? parameters)
         {
-            if (parameters is null || parameters.StartIndex < 0 || parameters.Size < 1)
+            if (parameters is null || parameters.StartIndex < 0 || parameters.Size < 0)
             {
                 return null;
             }

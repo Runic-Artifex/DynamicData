@@ -172,8 +172,10 @@ public abstract class SortAndVirtualizeFixtureBase : IDisposable
         var person = new Person("X_Last", 100);
         Source.AddOrUpdate(person);
 
-        // only the initials message should have been received
-        await Assert.That(Aggregator.Messages.Count).IsEqualTo(1);
+        // The row set is unchanged, but the source count is updated.
+        await Assert.That(Aggregator.Messages.Count).IsEqualTo(2);
+        await Assert.That(Aggregator.Messages[1].Count).IsEqualTo(0);
+        await Assert.That(Aggregator.Messages[1].Context.Response.TotalSize).IsEqualTo(101);
 
         people.Add(person);
         var expectedResult = people.OrderBy(p => p, Comparer).Take(25).ToList();
@@ -301,8 +303,10 @@ public abstract class SortAndVirtualizeFixtureBase : IDisposable
         var person = new Person("P050", 50);
         Source.Remove(person);
 
-        // only the initials message should have been received
-        await Assert.That(Aggregator.Messages.Count).IsEqualTo(1);
+        // The row set is unchanged, but the source count is updated.
+        await Assert.That(Aggregator.Messages.Count).IsEqualTo(2);
+        await Assert.That(Aggregator.Messages[1].Count).IsEqualTo(0);
+        await Assert.That(Aggregator.Messages[1].Context.Response.TotalSize).IsEqualTo(99);
 
         var expectedResult = people.OrderBy(p => p, Comparer).Take(25).ToList();
         var actualResult = Aggregator.Data.Items.OrderBy(p => p, Comparer);
