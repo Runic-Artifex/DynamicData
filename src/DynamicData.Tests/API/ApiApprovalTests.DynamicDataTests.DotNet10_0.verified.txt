@@ -223,6 +223,56 @@ namespace DynamicData.Aggregation
         public static System.IObservable<long> Sum<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Func<TObject, long?> valueSelector)
             where TObject :  notnull
             where TKey :  notnull { }
+        public static System.IObservable<decimal> SumImmutable<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, System.Func<T, decimal> valueSelector)
+            where T :  notnull { }
+        public static System.IObservable<decimal> SumImmutable<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, System.Func<T, decimal?> valueSelector)
+            where T :  notnull { }
+        public static System.IObservable<double> SumImmutable<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, System.Func<T, double> valueSelector)
+            where T :  notnull { }
+        public static System.IObservable<double> SumImmutable<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, System.Func<T, double?> valueSelector)
+            where T :  notnull { }
+        public static System.IObservable<float> SumImmutable<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, System.Func<T, float> valueSelector)
+            where T :  notnull { }
+        public static System.IObservable<float> SumImmutable<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, System.Func<T, float?> valueSelector)
+            where T :  notnull { }
+        public static System.IObservable<int> SumImmutable<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, System.Func<T, int> valueSelector)
+            where T :  notnull { }
+        public static System.IObservable<int> SumImmutable<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, System.Func<T, int?> valueSelector)
+            where T :  notnull { }
+        public static System.IObservable<long> SumImmutable<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, System.Func<T, long> valueSelector)
+            where T :  notnull { }
+        public static System.IObservable<long> SumImmutable<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, System.Func<T, long?> valueSelector)
+            where T :  notnull { }
+        public static System.IObservable<decimal> SumImmutable<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Func<TObject, decimal> valueSelector)
+            where TObject :  notnull
+            where TKey :  notnull { }
+        public static System.IObservable<decimal> SumImmutable<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Func<TObject, decimal?> valueSelector)
+            where TObject :  notnull
+            where TKey :  notnull { }
+        public static System.IObservable<double> SumImmutable<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Func<TObject, double> valueSelector)
+            where TObject :  notnull
+            where TKey :  notnull { }
+        public static System.IObservable<double> SumImmutable<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Func<TObject, double?> valueSelector)
+            where TObject :  notnull
+            where TKey :  notnull { }
+        public static System.IObservable<float> SumImmutable<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Func<TObject, float> valueSelector)
+            where TObject :  notnull
+            where TKey :  notnull { }
+        public static System.IObservable<float> SumImmutable<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Func<TObject, float?> valueSelector)
+            where TObject :  notnull
+            where TKey :  notnull { }
+        public static System.IObservable<int> SumImmutable<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Func<TObject, int> valueSelector)
+            where TObject :  notnull
+            where TKey :  notnull { }
+        public static System.IObservable<int> SumImmutable<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Func<TObject, int?> valueSelector)
+            where TObject :  notnull
+            where TKey :  notnull { }
+        public static System.IObservable<long> SumImmutable<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Func<TObject, long> valueSelector)
+            where TObject :  notnull
+            where TKey :  notnull { }
+        public static System.IObservable<long> SumImmutable<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Func<TObject, long?> valueSelector)
+            where TObject :  notnull
+            where TKey :  notnull { }
     }
 }
 namespace DynamicData.Alias
@@ -1869,6 +1919,9 @@ namespace DynamicData
         public static System.IObservable<DynamicData.IChangeSet<TObject, TKey>> Switch<TObject, TKey>(this System.IObservable<System.IObservable<DynamicData.IChangeSet<TObject, TKey>>> sources)
             where TObject :  notnull
             where TKey :  notnull { }
+        public static System.IObservable<DynamicData.IChangeSet<TObject, TKey>> Switch<TObject, TKey>(this System.IObservable<System.IObservable<DynamicData.IChangeSet<TObject, TKey, DynamicData.VirtualContext<TObject>>>> sources)
+            where TObject :  notnull
+            where TKey :  notnull { }
         public static System.IObservable<System.Collections.Generic.IReadOnlyCollection<TObject>> ToCollection<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source)
             where TObject :  notnull
             where TKey :  notnull { }
@@ -1882,6 +1935,9 @@ namespace DynamicData
             where TObject :  notnull
             where TKey :  notnull { }
         public static System.IObservable<ReactiveUI.Primitives.Optional<TObject>> ToObservableOptional<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, TKey key, bool initialOptionalWhenMissing, System.Collections.Generic.IEqualityComparer<TObject>? equalityComparer = null)
+            where TObject :  notnull
+            where TKey :  notnull { }
+        public static System.IObservable<System.Collections.Generic.IReadOnlyCollection<TObject>> ToSortedCollection<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source)
             where TObject :  notnull
             where TKey :  notnull { }
         public static System.IObservable<System.Collections.Generic.IReadOnlyCollection<TObject>> ToSortedCollection<TObject, TKey>(this System.IObservable<DynamicData.IChangeSet<TObject, TKey>> source, System.Collections.Generic.IComparer<TObject> comparer)
@@ -2273,6 +2329,8 @@ namespace DynamicData
             where TObject : System.ComponentModel.INotifyPropertyChanged { }
         public static System.IObservable<DynamicData.IChangeSet<TObject>> AutoRefreshOnObservable<TObject, TAny>(this System.IObservable<DynamicData.IChangeSet<TObject>> source, System.Func<TObject, System.IObservable<TAny>> reevaluator, System.TimeSpan? changeSetBuffer = default, ReactiveUI.Primitives.Concurrency.ISequencer? scheduler = null)
             where TObject :  notnull { }
+        public static System.IObservable<DynamicData.IChangeSet<TObject>> Batch<TObject>(this System.IObservable<DynamicData.IChangeSet<TObject>> source, System.TimeSpan timeSpan, ReactiveUI.Primitives.Concurrency.ISequencer? scheduler = null)
+            where TObject :  notnull { }
         public static System.IObservable<DynamicData.IChangeSet<T>> Bind<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, DynamicData.Binding.IObservableCollection<T> targetCollection, DynamicData.Binding.BindingOptions options)
             where T :  notnull { }
         public static System.IObservable<DynamicData.IChangeSet<T>> Bind<T>(this System.IObservable<DynamicData.IChangeSet<T>> source, DynamicData.Binding.IObservableCollection<T> targetCollection, int resetThreshold = 25)
@@ -2461,6 +2519,8 @@ namespace DynamicData
             where T :  notnull { }
         public static System.IObservable<DynamicData.IChangeSet<T>> ToObservableChangeSet<T>(this System.IObservable<T> source, System.Func<T, System.TimeSpan?>? expireAfter, int limitSizeTo, ReactiveUI.Primitives.Concurrency.ISequencer? scheduler = null)
             where T :  notnull { }
+        public static System.IObservable<System.Collections.Generic.IReadOnlyCollection<TObject>> ToSortedCollection<TObject>(this System.IObservable<DynamicData.IChangeSet<TObject>> source)
+            where TObject :  notnull { }
         public static System.IObservable<System.Collections.Generic.IReadOnlyCollection<TObject>> ToSortedCollection<TObject>(this System.IObservable<DynamicData.IChangeSet<TObject>> source, System.Collections.Generic.IComparer<TObject> comparer)
             where TObject :  notnull { }
         public static System.IObservable<System.Collections.Generic.IReadOnlyCollection<TObject>> ToSortedCollection<TObject, TSortKey>(this System.IObservable<DynamicData.IChangeSet<TObject>> source, System.Func<TObject, TSortKey> sort, DynamicData.Binding.SortDirection sortOrder = 0)
@@ -3036,6 +3096,7 @@ namespace DynamicData.Tests
         public DynamicData.IObservableCache<TObject, TKey> Data { get; }
         public System.Exception? Error { get; }
         public System.Collections.Generic.IList<DynamicData.ISortedChangeSet<TObject, TKey>> Messages { get; }
+        public System.Collections.Generic.IReadOnlyList<TObject> SortedItems { get; }
         public DynamicData.Diagnostics.ChangeSummary Summary { get; }
         public void Dispose() { }
         protected virtual void Dispose(bool isDisposing) { }
