@@ -41,12 +41,12 @@ internal sealed class FilterOnObservable<TObject>(IObservable<IChangeSet<TObject
 
                 var allItems = new List<ObjWithFilterValue>();
 
-                var shared = _source.Synchronize(locker).Transform(v => new ObjWithFilterValue(v, true)) // we default to true (include all items)
+                var shared = _source.Synchronize(locker).Transform(v => new ObjWithFilterValue(v, false))
                     .Clone(allItems) // clone all items so we can look up the index when a change has been made
                     .Publish();
 
                 // monitor each item observable and create change, carry the value of the observable property
-                var itemHasChanged = shared.MergeMany(v => _filter(v.Obj).Select(prop => new ObjWithFilterValue(v.Obj, prop)));
+                var itemHasChanged = shared.MergeMany(v => ObserveFilter(v.Obj));
 
                 // create a change set, either buffered or one item at the time
                 var itemsChanged = buffer is null ?
@@ -66,6 +66,30 @@ internal sealed class FilterOnObservable<TObject>(IObservable<IChangeSet<TObject
 
                 return new CompositeDisposable(publisher, shared.Connect());
             });
+
+    private IObservable<ObjWithFilterValue> ObserveFilter(TObject item)
+    {
+        // Keep factory exceptions on the source path, as before.
+        var filter = _filter(item);
+        ArgumentExceptionHelper.ThrowIfNull(filter);
+        return Observable.Create<ObjWithFilterValue>(observer =>
+        {
+            // Connect before observing so only the latest synchronous initialization value is committed.
+            // Subsequent predicate values remain live, and MergeMany owns both child subscriptions.
+            var replay = filter.Replay(1);
+            var connection = replay.Connect();
+            try
+            {
+                var subscription = replay.Select(value => new ObjWithFilterValue(item, value)).Subscribe(observer);
+                return new CompositeDisposable(subscription, connection);
+            }
+            catch
+            {
+                connection.Dispose();
+                throw;
+            }
+        });
+    }
 
     /// <summary>
     /// Executes the IndexOfMany operation.
