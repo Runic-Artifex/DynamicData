@@ -21,6 +21,7 @@ FLAVORS = (
     ("Primitives", "Runic.DynamicData", "ReactiveUI.Primitives"),
     ("Reactive", "Runic.DynamicData.Reactive", "ReactiveUI.Primitives.Reactive"),
 )
+NUGET_ORG = "https://api.nuget.org/v3/index.json"
 
 
 def digest(path: Path) -> str:
@@ -46,6 +47,37 @@ def fetch_asset(tag: str, package: str, version: str, expected: str, feed: Path)
     if actual != expected:
         raise ValueError(f"Hash mismatch for {destination.name}: expected {expected}, got {actual}")
     return destination
+
+
+def write_nuget_config(feed: Path) -> Path:
+    """Write and verify a portable, isolated restore configuration."""
+    path = OUTPUT / "acceptance.nuget.config"
+    local_source = feed.resolve().as_uri()
+    configuration = ET.Element("configuration")
+    sources = ET.SubElement(configuration, "packageSources")
+    ET.SubElement(sources, "clear")
+    ET.SubElement(sources, "add", key="acceptance-assets", value=local_source)
+    ET.SubElement(sources, "add", key="nuget.org", value=NUGET_ORG)
+    mappings = ET.SubElement(configuration, "packageSourceMapping")
+    local_mapping = ET.SubElement(mappings, "packageSource", key="acceptance-assets")
+    ET.SubElement(local_mapping, "package", pattern="Runic.DynamicData*")
+    public_mapping = ET.SubElement(mappings, "packageSource", key="nuget.org")
+    ET.SubElement(public_mapping, "package", pattern="*")
+    ET.indent(configuration, space="  ")
+    ET.ElementTree(configuration).write(path, encoding="utf-8", xml_declaration=True)
+
+    restored = ET.parse(path).getroot()
+    restored_sources = [(node.get("key"), node.get("value")) for node in restored.findall("./packageSources/add")]
+    restored_mappings = {
+        node.get("key"): [package.get("pattern") for package in node.findall("package")]
+        for node in restored.findall("./packageSourceMapping/packageSource")
+    }
+    if restored_sources != [("acceptance-assets", local_source), ("nuget.org", NUGET_ORG)] or restored_mappings != {
+        "acceptance-assets": ["Runic.DynamicData*"],
+        "nuget.org": ["*"],
+    }:
+        raise ValueError(f"NuGet configuration serialization changed its isolated sources or mappings: {path}")
+    return path
 
 
 def inspect_package(path: Path, expected_id: str, version: str) -> str:
@@ -152,15 +184,17 @@ def main() -> None:
     if commits != {args.expected_source_commit}:
         raise ValueError(f"The package pair does not match the expected source commit {args.expected_source_commit}: {sorted(commits)}")
 
+    config = write_nuget_config(feed)
     report["assets"] = assets
     report["expected_source_commit"] = args.expected_source_commit
+    report["nuget_config"] = str(config)
     report_path.write_text(json.dumps(report, indent=2) + "\n")
     versions = ("9.0.0",)
     for primitives_version in versions:
         for flavor, package, primitives in FLAVORS:
             project = ACCEPTANCE / f"{flavor}Consumer" / f"{flavor}Consumer.csproj"
             prefix = f"{args.mode}-{flavor}-{primitives_version}"
-            restore = ["dotnet", "restore", project, "--source", feed, "--source", "https://api.nuget.org/v3/index.json",
+            restore = ["dotnet", "restore", project, "--configfile", config,
                        "-p:RestorePackagesPath=" + str(OUTPUT / "packages"), "-p:RunicDynamicDataVersion=" + args.version,
                        "-p:ReactiveUIPrimitivesVersion=" + primitives_version, "-p:RestoreIgnoreFailedSources=false"]
             common = ["-c", "Release", "--no-restore", "-m:2", "-warnaserror",
