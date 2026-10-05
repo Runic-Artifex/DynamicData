@@ -166,8 +166,7 @@ internal sealed class SortAndVirtualize<TObject, TKey>
 
                 return new CompositeDisposable(
                     comparerChanged
-                        .Merge(paramsChanged)
-                        .Merge(dataChange)
+                        .UnsynchronizedMerge(paramsChanged, dataChange)
                         .Where(changes => !ReferenceEquals(changes, Empty))
                         .SubscribeSafe(observer), queue);
 
