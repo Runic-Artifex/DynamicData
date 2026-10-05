@@ -32,7 +32,7 @@ public partial class AvgFixture
 
                 await Assert.That(results.Error).IsNull();
                 await Assert.That(results.HasCompleted).IsFalse();
-                // Initial-empty behavior is covered separately by the known-defect test.
+                // Initial-empty behavior is covered separately by the configured fallback test.
                 var initialValueCount = results.RecordedValues.Count;
 
                 source.AddRange(values[..itemCount]);
@@ -112,7 +112,6 @@ public partial class AvgFixture
             }
 
             [Test]
-[Skip("Existing defect: Avg does not emit emptyValue when the source is initially empty. Re-enable once the operator has been rewritten and fixed.")]
             public async Task SourceIsEmpty_ConfiguredEmptyValueIsEmitted()
             {
                 using var source = new TestSourceList<int>();
@@ -145,7 +144,6 @@ public partial class AvgFixture
             }
 
             [Test]
-[Skip("Existing defect: the legacy aggregate adapter discards Refresh details. Re-enable once the operator has been rewritten and fixed.")]
             public async Task ItemIsRefreshed_AverageReevaluatesMutatedValue()
             {
                 using var source = new TestSourceList<Person>();
@@ -287,7 +285,6 @@ public partial class AvgFixture
             }
 
             [Test]
-[Skip("Existing defect: Avg does not emit emptyValue when the source is initially empty. Re-enable once the operator has been rewritten and fixed.")]
             [Arguments(StreamCompletionStrategy.Asynchronous)]
             [Arguments(StreamCompletionStrategy.Immediate)]
             public async Task EmptySourceCompletes_ConfiguredEmptyValueAndCompletionPropagate(StreamCompletionStrategy completionStrategy)
