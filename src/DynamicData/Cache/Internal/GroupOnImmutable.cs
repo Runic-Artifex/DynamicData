@@ -31,7 +31,9 @@ internal sealed class GroupOnImmutable<TObject, TKey, TGroupKey>(IObservable<ICh
     /// <summary>
     /// The _regrouper field.
     /// </summary>
-    private readonly IObservable<Unit> _regrouper = regrouper ?? Observable.Never<Unit>();
+    // An absent regrouper means no regroup signal will ever arrive. Never would say one still might,
+    // which leaves the merge below unable to complete when the source does.
+    private readonly IObservable<Unit> _regrouper = regrouper ?? Observable.Empty<Unit>();
 
     /// <summary>
     /// The _source field.

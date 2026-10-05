@@ -11,9 +11,8 @@ namespace DynamicData.Internal;
 
 /// <summary>
 /// A lightweight notification struct for delivery queues. Discriminates
-/// OnNext, OnError, and OnCompleted using <c>Optional&lt;T&gt;.HasValue</c>
-/// and the error field, avoiding null discrimination on <c>T?</c> which
-/// is broken for value types in generic struct fields on .NET 9.
+/// OnNext, OnError, and OnCompleted with an explicit kind independent of
+/// the payload, preserving null references, nullable values and value-type defaults.
 /// </summary>
 /// <typeparam name="T">The type of the T value.</typeparam>
 internal readonly struct Notification<T>
@@ -21,7 +20,10 @@ internal readonly struct Notification<T>
     /// <summary>
     /// The _value field.
     /// </summary>
-    private readonly ReactiveUI.Primitives.Optional<T> _value;
+    private readonly T? _value;
+
+    /// <summary>The notification kind, independent of its payload.</summary>
+    private readonly NotificationKind _kind;
 
     /// <summary>
     /// The _error field.
@@ -33,16 +35,18 @@ internal readonly struct Notification<T>
     /// </summary>
     /// <param name="value">The value value.</param>
     /// <param name="error">The error value.</param>
-    private Notification(ReactiveUI.Primitives.Optional<T> value, Exception? error)
+    /// <param name="kind">The notification kind.</param>
+    private Notification(T? value, Exception? error, NotificationKind kind)
     {
         _value = value;
         _error = error;
+        _kind = kind;
     }
 
     /// <summary>Creates an OnNext notification.</summary>
     /// <param name="value">The value value.</param>
     /// <returns>The result of the operation.</returns>
-    public static Notification<T> CreateNext(T value) => new(value, null);
+    public static Notification<T> CreateNext(T value) => new(value, null, NotificationKind.Next);
 
     /// <summary>Creates an OnError notification (terminal).</summary>
     /// <param name="error">The error value.</param>
@@ -50,34 +54,41 @@ internal readonly struct Notification<T>
     public static Notification<T> CreateError(Exception error)
     {
         ArgumentExceptionHelper.ThrowIfNull(error);
-        return new(ReactiveUI.Primitives.Optional<T>.None, error);
+        return new(default, error, NotificationKind.Error);
     }
 
     /// <summary>Creates an OnCompleted notification (terminal).</summary>
     /// <returns>The result of the operation.</returns>
-    public static Notification<T> CreateCompleted() => new(ReactiveUI.Primitives.Optional<T>.None, null);
+    public static Notification<T> CreateCompleted() => new(default, null, NotificationKind.Completed);
 
     /// <summary>Gets whether this is an OnError notification.</summary>
-    public bool IsError => _error is not null;
+    public bool IsError => _kind == NotificationKind.Error;
 
     /// <summary>Gets whether this is a terminal notification (OnError or OnCompleted).</summary>
-    public bool IsTerminal => !_value.HasValue;
+    public bool IsTerminal => _kind != NotificationKind.Next;
 
     /// <summary>Delivers this notification to the specified observer.</summary>
     /// <param name="observer">The observer value.</param>
     public void Accept(IObserver<T> observer)
     {
-        if (_value.HasValue)
+        if (_kind == NotificationKind.Next)
         {
-            observer.OnNext(_value.Value);
+            observer.OnNext(_value!);
         }
-        else if (_error is not null)
+        else if (_kind == NotificationKind.Error)
         {
-            observer.OnError(_error);
+            observer.OnError(_error!);
         }
         else
         {
             observer.OnCompleted();
         }
+    }
+
+    private enum NotificationKind : byte
+    {
+        Completed,
+        Next,
+        Error,
     }
 }

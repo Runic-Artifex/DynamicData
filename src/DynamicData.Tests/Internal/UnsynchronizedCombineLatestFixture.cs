@@ -11,9 +11,9 @@ namespace DynamicData.Tests.Internal;
 /// Focused behavioural tests for <see cref="SynchronizeSafeExtensions.UnsynchronizedCombineLatest{TFirst, TSecond, TResult}(IObservable{TFirst}, IObservable{TSecond}, Func{TFirst, TSecond, TResult})"/>.
 /// Covers the contract the helper has to honour as a drop-in <see cref="Observable.CombineLatest{TFirst, TSecond, TResult}(IObservable{TFirst}, IObservable{TSecond}, Func{TFirst, TSecond, TResult})"/>
 /// replacement: emits only after both sources have produced at least one value, then on every subsequent OnNext from either side; first error terminates;
-/// completes only after both sources complete.
+/// completes after both sources complete or no pair can be produced when a live source emits.
 /// </summary>
-public sealed class UnsynchronizedCombineLatestFixture
+public sealed partial class UnsynchronizedCombineLatestFixture
 {
     [Test]
     public async Task OnNext_DoesNotEmit_UntilBothSourcesHaveProduced()

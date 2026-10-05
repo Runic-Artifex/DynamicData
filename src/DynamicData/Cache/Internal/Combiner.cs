@@ -39,21 +39,64 @@ internal sealed class Combiner<TObject, TKey>(CombineOperator type, Action<IChan
     /// Executes the Subscribe operation.
     /// </summary>
     /// <param name="source">The source value.</param>
+    /// <param name="onError">Receives the first source failure.</param>
+    /// <param name="onCompleted">Runs after all inputs complete.</param>
     /// <returns>The result of the operation.</returns>
-    public IDisposable Subscribe(IObservable<IChangeSet<TObject, TKey>>[] source)
+    public IDisposable Subscribe(IObservable<IChangeSet<TObject, TKey>>[] source, Action<Exception> onError, Action onCompleted)
     {
-        // subscribe
-        var disposable = new CompositeDisposable();
-        lock (_locker)
+        // Merging semantics: the result finishes only once every source has.
+        var pending = source.Length;
+        if (pending == 0)
         {
-            var caches = Enumerable.Range(0, source.Length).Select(_ => new Cache<TObject, TKey>());
-            _sourceCaches.AddRange(caches);
+            onCompleted();
+            return Disposable.Empty;
+        }
 
+        // Each source updates shared state under _locker, but delivery has to be serialized too:
+        // without this, two sources can compute their notifications, leave the lock, and then both
+        // be inside updatedCallback at the same time. The queue takes the notification while the
+        // lock is held and drains it after the lock is released, so deliveries stay ordered and
+        // one at a time without a subscriber being able to block a producer.
+        var queue = new DeliveryQueue<IChangeSet<TObject, TKey>>(
+            _locker,
+            Observer.Create(updatedCallback, onError, onCompleted));
+
+        // Initialize every cache before synchronous inputs can produce their first update.
+        // Subscribe outside the mutation gate so queue delivery cannot retain an outer lock.
+        _sourceCaches.AddRange(Enumerable.Range(0, source.Length).Select(_ => new Cache<TObject, TKey>()));
+        var subscriptions = new CompositeDisposable();
+        var disposable = Disposable.Create(() =>
+        {
+            // Stop delivery before upstream teardown can invoke any final callbacks.
+            queue.Dispose();
+            subscriptions.Dispose();
+        });
+        try
+        {
             foreach (var pair in source.Zip(_sourceCaches, (item, cache) => new { Item = item, Cache = cache }))
             {
-                var subscription = pair.Item.Subscribe(updates => Update(pair.Cache, updates));
-                disposable.Add(subscription);
+                if (queue.IsTerminated)
+                {
+                    break;
+                }
+
+                var subscription = pair.Item.Subscribe(
+                    updates => Update(queue, pair.Cache, updates),
+                    queue.OnError,
+                    () =>
+                    {
+                        if (Interlocked.Decrement(ref pending) == 0)
+                        {
+                            queue.OnCompleted();
+                        }
+                    });
+                subscriptions.Add(subscription);
             }
+        }
+        catch
+        {
+            disposable.Dispose();
+            throw;
         }
 
         return disposable;
@@ -98,24 +141,22 @@ internal sealed class Combiner<TObject, TKey>(CombineOperator type, Action<IChan
     /// <summary>
     /// Executes the Update operation.
     /// </summary>
+    /// <param name="queue">Serializes notifications outside the mutation gate.</param>
     /// <param name="cache">The cache value.</param>
     /// <param name="updates">The updates value.</param>
-    private void Update(Cache<TObject, TKey> cache, IChangeSet<TObject, TKey> updates)
+    private void Update(DeliveryQueue<IChangeSet<TObject, TKey>> queue, Cache<TObject, TKey> cache, IChangeSet<TObject, TKey> updates)
     {
-        ChangeSet<TObject, TKey> notifications;
+        using var scope = queue.AcquireLock();
 
-        lock (_locker)
-        {
-            // update cache for the individual source
-            cache.Clone(updates);
+        // update cache for the individual source
+        cache.Clone(updates);
 
-            // update combined
-            notifications = UpdateCombined(updates);
-        }
+        // update combined
+        var notifications = UpdateCombined(updates);
 
         if (notifications.Count != 0)
         {
-            updatedCallback(notifications);
+            scope.EnqueueNext(notifications);
         }
     }
 

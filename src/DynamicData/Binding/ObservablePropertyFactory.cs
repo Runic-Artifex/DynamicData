@@ -160,7 +160,7 @@ private sealed class SinglePropertySubscription : IDisposable
 
         private void OnPropertyChanged(object? sender, PropertyChangedEventArgs args)
         {
-            if (args.PropertyName == _memberName)
+            if (string.IsNullOrEmpty(args.PropertyName) || args.PropertyName == _memberName)
             {
                 EmitCurrent();
             }

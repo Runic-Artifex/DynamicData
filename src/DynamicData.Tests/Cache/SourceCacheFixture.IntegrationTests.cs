@@ -13,79 +13,57 @@ public static partial class SourceCacheFixture
         [Test]
         public async Task ConnectDuringDeliveryDoesNotDuplicate()
         {
-            // Exploits the dequeue-to-OnNext window. Thread A writes two items in
-            // separate batches. The first delivery is held by a slow subscriber.
-            // While item1 delivery is blocked, item2 is committed to ReaderWriter
-            // and sitting in the queue. Thread B calls Connect(), takes a snapshot
-            // (sees both items), subscribes to _changes, then item2 is delivered
-            // via OnNext — producing a duplicate if not guarded by a generation counter.
-            using var cache = new SourceCache<TestItem, string>(static x => x.Key);
-
-            using var delivering = new ManualResetEventSlim(false);
-            using var item2Written = new ManualResetEventSlim(false);
+            using var cache = new SourceCache<TestItem, string>(static item => item.Key);
+            var delivering = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             using var connectDone = new ManualResetEventSlim(false);
-
             var firstDelivery = true;
-
-            // First subscriber: blocks on the first delivery to create the window
-            using var slowSub = cache.Connect().Subscribe(_ =>
+            using var slowSubscription = cache.Connect().Subscribe(_ =>
             {
-                if (firstDelivery)
+                if (!firstDelivery)
+                    return;
+
+                firstDelivery = false;
+                delivering.TrySetResult();
+                if (!connectDone.Wait(TimeSpan.FromSeconds(30)))
+                    throw new TimeoutException("The second subscriber did not connect during delivery.");
+            });
+
+            // This writer intentionally blocks inside OnNext. Give it its own thread
+            // so it cannot starve the pool that runs the test's async continuations.
+            var firstWrite = Task.Factory.StartNew(
+                () => cache.AddOrUpdate(new TestItem("k1", "v1")),
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+            try
+            {
+                await delivering.Task.WaitAsync(TimeSpan.FromSeconds(15));
+                await Task.Run(() => cache.AddOrUpdate(new TestItem("k2", "v2")))
+                    .WaitAsync(TimeSpan.FromSeconds(15));
+
+                // Both writes are committed, but the second delivery is still queued.
+                var addCounts = new Dictionary<string, int>();
+                using var newSubscription = cache.Connect().Subscribe(changes =>
                 {
-                    firstDelivery = false;
-                    delivering.Set();
-
-                    // Wait until item2 has been written and the Connect has subscribed
-                    connectDone.Wait(TimeSpan.FromSeconds(5));
-                }
-            });
-
-            // Write item1 on a background thread — delivery starts, slow subscriber blocks
-            var writeTask = Task.Run(() =>
-            {
-                cache.AddOrUpdate(new TestItem("k1", "v1"));
-            });
-
-            // Wait for delivery of item1 to be in progress (slow sub is blocking)
-            await Assert.That(delivering.Wait(TimeSpan.FromSeconds(5))).IsTrue().Because("delivery should have started");
-
-            // Now write item2 on another thread. It will acquire the lock, commit to
-            // ReaderWriter, enqueue a notification, and return. The notification sits
-            // in the queue because the deliverer (Thread A) is blocked by the slow sub.
-            var writeTask2 = Task.Run(() =>
-            {
-                cache.AddOrUpdate(new TestItem("k2", "v2"));
-                item2Written.Set();
-            });
-            await Assert.That(item2Written.Wait(TimeSpan.FromSeconds(5))).IsTrue().Because("item2 should have been written");
-
-            // Now Connect on the main thread. The snapshot from ReaderWriter includes
-            // BOTH k1 and k2. The subscription to _changes is added. When the slow
-            // subscriber unblocks, item2's notification will be delivered via OnNext
-            // and the new subscriber will see k2 again — a duplicate Add.
-            var addCounts = new Dictionary<string, int>();
-            using var newSub = cache.Connect().Subscribe(changes =>
-            {
-                foreach (var c in changes)
-                {
-                    if (c.Reason == ChangeReason.Add)
+                    foreach (var change in changes)
                     {
-                        var key = c.Current.Key;
-                        addCounts[key] = addCounts.GetValueOrDefault(key) + 1;
+                        if (change.Reason == ChangeReason.Add)
+                            addCounts[change.Key] = addCounts.GetValueOrDefault(change.Key) + 1;
                     }
-                }
-            });
+                });
 
-            // Unblock the slow subscriber — delivery resumes, item2 delivered
-            connectDone.Set();
-            await Assert.That(writeTask.Wait(TimeSpan.FromSeconds(5))).IsTrue().Because("writeTask should complete");
-            await Assert.That(writeTask2.Wait(TimeSpan.FromSeconds(5))).IsTrue().Because("writeTask2 should complete");
-
-            // Each key should appear exactly once in the new subscriber's view
-            await Assert.That(addCounts.GetValueOrDefault("k1")).IsEqualTo(1).Because("k1 should appear once (snapshot only)");
-            await Assert.That(addCounts.GetValueOrDefault("k2")).IsEqualTo(1).Because("k2 should appear once, not duplicated from snapshot + queued delivery");
+                connectDone.Set();
+                await firstWrite.WaitAsync(TimeSpan.FromSeconds(15));
+                await Assert.That(addCounts.GetValueOrDefault("k1")).IsEqualTo(1);
+                await Assert.That(addCounts.GetValueOrDefault("k2")).IsEqualTo(1)
+                    .Because("the queued update must not duplicate the subscription snapshot");
+            }
+            finally
+            {
+                connectDone.Set();
+                await firstWrite.WaitAsync(TimeSpan.FromSeconds(15));
+            }
         }
-
         [Test]
         public async Task DirectCrossWriteDoesNotDeadlock()
         {

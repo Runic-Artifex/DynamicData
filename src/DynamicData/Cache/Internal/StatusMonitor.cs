@@ -16,55 +16,16 @@ namespace DynamicData.Cache.Internal;
 /// <param name="source">The source value.</param>
 internal sealed class StatusMonitor<T>(IObservable<T> source)
 {
+    private readonly IObservable<T> _source = source ?? throw new ArgumentNullException(nameof(source));
+
     /// <summary>
     /// Executes the Run operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    public IObservable<ConnectionStatus> Run() => Observable.Create<ConnectionStatus>(
-            observer =>
-            {
-                var statusSubject = new Signal<ConnectionStatus>();
-                var status = ConnectionStatus.Pending;
-
-                void Error(Exception ex)
-                {
-                    status = ConnectionStatus.Errored;
-                    statusSubject.OnNext(status);
-                    observer.OnError(ex);
-                }
-
-                void Completion()
-                {
-                    if (status == ConnectionStatus.Errored)
-                    {
-                        return;
-                    }
-
-                    status = ConnectionStatus.Completed;
-                    statusSubject.OnNext(status);
-                }
-
-                void Updated()
-                {
-                    if (status != ConnectionStatus.Pending)
-                    {
-                        return;
-                    }
-
-                    status = ConnectionStatus.Loaded;
-                    statusSubject.OnNext(status);
-                }
-
-                var monitor = source.Subscribe(_ => Updated(), Error, Completion);
-
-                var subscriber = statusSubject.StartWith(status).DistinctUntilChanged().SubscribeSafe(observer);
-
-                return Disposable.Create(
-                    () =>
-                    {
-                        statusSubject.OnCompleted();
-                        monitor.Dispose();
-                        subscriber.Dispose();
-                    });
-            });
+    public IObservable<ConnectionStatus> Run() =>
+        _source.Select(static _ => ConnectionStatus.Loaded)
+            .Concat(Observable.Return(ConnectionStatus.Completed))
+            .Catch<ConnectionStatus, Exception>(static error => Observable.Return(ConnectionStatus.Errored).Concat(Observable.Throw<ConnectionStatus>(error)))
+            .StartWith(ConnectionStatus.Pending)
+            .DistinctUntilChanged();
 }
