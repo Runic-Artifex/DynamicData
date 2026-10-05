@@ -87,7 +87,7 @@ public static partial class ObservableCacheEx
     /// <item><term>OnError</term><description>Forwarded to the downstream observer.</description></item>
     /// <item><term>OnCompleted</term><description>Forwarded to the downstream observer.</description></item>
     /// </list>
-    /// <para><b>Worth noting:</b> No data is emitted until <paramref name="virtualRequests"/> produces its first value. Changing the window can cause a full recalculation of visible items.</para>
+    /// <para><b>Worth noting:</b> The initial window starts at zero and contains at most 25 rows. A zero size empties the window; null requests and negative start indexes or sizes are ignored. Context changes are delivered even without row changes. Synchronous initial requests are applied before connecting the source. Changing the window can cause a full recalculation of visible items.</para>
     /// </remarks>
     /// <seealso><c>SortAndVirtualize&lt;TObject, TKey&gt;(IObservable&lt;IChangeSet&lt;TObject, TKey&gt;&gt;, IObservable&lt;IComparer&lt;TObject&gt;&gt;, IObservable&lt;IVirtualRequest&gt;, SortAndVirtualizeOptions)</c></seealso>
     /// <seealso><c>Top&lt;TObject, TKey&gt;(IObservable&lt;IChangeSet&lt;TObject, TKey&gt;&gt;, IComparer&lt;TObject&gt;, int)</c></seealso>
@@ -131,7 +131,7 @@ public static partial class ObservableCacheEx
     /// <item><term>OnError</term><description>Forwarded to the downstream observer.</description></item>
     /// <item><term>OnCompleted</term><description>Forwarded to the downstream observer.</description></item>
     /// </list>
-    /// <para><b>Worth noting:</b> No data is emitted until both the comparer observable and virtualRequests have produced their first values. Changing the window or comparer can cause a full recalculation of visible items.</para>
+    /// <para><b>Worth noting:</b> Data requires a comparer. The initial window starts at zero and contains at most 25 rows. A zero size empties the window; null requests and negative start indexes or sizes are ignored. Context changes are delivered even without row changes. Synchronous initial requests are applied before connecting the source. Changing the window or comparer can cause a full recalculation of visible items.</para>
     /// </remarks>
     /// <seealso><c>SortAndPage&lt;TObject, TKey&gt;(IObservable&lt;IChangeSet&lt;TObject, TKey&gt;&gt;, IObservable&lt;IComparer&lt;TObject&gt;&gt;, IObservable&lt;IPageRequest&gt;, SortAndPageOptions)</c></seealso>
     /// <seealso><c>Top&lt;TObject, TKey&gt;(IObservable&lt;IChangeSet&lt;TObject, TKey&gt;&gt;, IComparer&lt;TObject&gt;, int)</c></seealso>
