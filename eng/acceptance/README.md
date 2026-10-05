@@ -52,6 +52,12 @@ commit, then requires that both embedded commits match the supplied expected
 source commit before restoring from that local feed. It rejects upstream and
 opposite-flavor DynamicData packages in the resolved graph.
 
+For every run, the verifier serializes a task-owned `NuGet.Config` with cleared
+sources, a portable file URI for the exact local package directory, and the
+NuGet.org HTTPS endpoint. Source mapping confines `Runic.DynamicData*` to the
+local feed. The verifier parses the generated XML back and checks those sources
+and mappings before restore; it does not pass repeated `--source` arguments.
+
 Use the release tag, version and hashes copied from the immutable GitHub release
 record. The published packages declare the shipping `ReactiveUI.Primitives`
 `9.0.0` cohort, so packaged managed and native acceptance each run that cohort
