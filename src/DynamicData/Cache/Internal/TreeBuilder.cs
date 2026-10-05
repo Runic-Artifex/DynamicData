@@ -6,6 +6,8 @@
 namespace DynamicData.Reactive.Cache.Internal;
 #else
 
+using DynamicData.Internal;
+
 namespace DynamicData.Cache.Internal;
 #endif
 
@@ -222,7 +224,10 @@ internal sealed class TreeBuilder<TObject, TKey>(IObservable<IChangeSet<TObject,
                         reFilterObservable.OnNext(Unit.Default);
                     }).DisposeMany().Subscribe(static _ => { }, static _ => { });
 
-                var filter = _predicateChanged.SynchronizeSafe(queue).CombineLatest(reFilterObservable, (predicate, _) => predicate);
+                // Both inputs are routed through the same SharedDeliveryQueue so their delivery is
+                // serialized; UnsynchronizedCombineLatest avoids the ABBA-prone gate that
+                // Observable.CombineLatest would hold across downstream delivery.
+                var filter = _predicateChanged.SynchronizeSafe(queue).UnsynchronizedCombineLatest(reFilterObservable.SynchronizeSafe(queue), (predicate, _) => predicate);
                 var result = allNodes.Connect().Filter(filter).SubscribeSafe(observer);
 
                 return new CompositeDisposable(result, parentSetter, allData, allNodes, groupedByPivot, Disposable.Create(() => reFilterObservable.OnCompleted()), queue);
