@@ -60,16 +60,16 @@ public sealed class NumericAndValueBoundaryCoverageFixture
             });
         source.Clear();
 
-        await Assert.That(averageInt).IsEquivalentTo(new[] { 3D, -1D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        await Assert.That(averageNullableInt).IsEquivalentTo(new[] { 1D, -2D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        await Assert.That(averageLong).IsEquivalentTo(new[] { 6D, -3D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        await Assert.That(averageNullableLong).IsEquivalentTo(new[] { 2D, -4D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        await Assert.That(averageDouble).IsEquivalentTo(new[] { 8D, -5D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        await Assert.That(averageNullableDouble).IsEquivalentTo(new[] { 3D, -6D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        await Assert.That(averageDecimal).IsEquivalentTo(new[] { 10M, -7M }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        await Assert.That(averageNullableDecimal).IsEquivalentTo(new[] { 4M, -8M }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        await Assert.That(averageFloat).IsEquivalentTo(new[] { 12F, -9F }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
-        await Assert.That(averageNullableFloat).IsEquivalentTo(new[] { 5F, -10F }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(averageInt).IsEquivalentTo(new[] { -1D, 3D, -1D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(averageNullableInt).IsEquivalentTo(new[] { -2D, 1D, -2D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(averageLong).IsEquivalentTo(new[] { -3D, 6D, -3D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(averageNullableLong).IsEquivalentTo(new[] { -4D, 2D, -4D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(averageDouble).IsEquivalentTo(new[] { -5D, 8D, -5D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(averageNullableDouble).IsEquivalentTo(new[] { -6D, 3D, -6D }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(averageDecimal).IsEquivalentTo(new[] { -7M, 10M, -7M }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(averageNullableDecimal).IsEquivalentTo(new[] { -8M, 4M, -8M }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(averageFloat).IsEquivalentTo(new[] { -9F, 12F, -9F }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(averageNullableFloat).IsEquivalentTo(new[] { -10F, 5F, -10F }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
         await Assert.That(counts).IsEquivalentTo(new[] { 2, 0 }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
         await Assert.That(empty).IsEquivalentTo(new[] { true, false, true }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
         await Assert.That(notEmpty).IsEquivalentTo(new[] { false, true, false }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
