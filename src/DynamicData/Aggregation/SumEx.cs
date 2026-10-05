@@ -378,8 +378,13 @@ public static partial class SumEx
                                 var previousValue = values[change.Key];
                                 var currentValue = valueSelector(change.Current);
                                 values[change.Key] = currentValue;
-                                sum = subtract(sum, previousValue);
-                                sum = add(sum, currentValue);
+                                // An unchanged projection must not lose low-order floating digits
+                                // or turn an unchanged infinity into NaN through subtraction.
+                                if (!EqualityComparer<TValue>.Default.Equals(previousValue, currentValue))
+                                {
+                                    sum = subtract(sum, previousValue);
+                                    sum = add(sum, currentValue);
+                                }
                                 break;
                             }
 
@@ -498,8 +503,13 @@ public static partial class SumEx
                                     values.Insert(change.Item.CurrentIndex, (change.Item.Current, currentValue));
                                 }
 
-                                sum = subtract(sum, previousValue);
-                                sum = add(sum, currentValue);
+                                // An unchanged projection must not lose low-order floating digits
+                                // or turn an unchanged infinity into NaN through subtraction.
+                                if (!EqualityComparer<TValue>.Default.Equals(previousValue, currentValue))
+                                {
+                                    sum = subtract(sum, previousValue);
+                                    sum = add(sum, currentValue);
+                                }
                                 break;
                             }
 
@@ -583,8 +593,13 @@ public static partial class SumEx
                                 var previousValue = values[index].Value;
                                 var currentValue = valueSelector(change.Item.Current);
                                 values[index] = (change.Item.Current, currentValue);
-                                sum = subtract(sum, previousValue);
-                                sum = add(sum, currentValue);
+                                // An unchanged projection must not lose low-order floating digits
+                                // or turn an unchanged infinity into NaN through subtraction.
+                                if (!EqualityComparer<TValue>.Default.Equals(previousValue, currentValue))
+                                {
+                                    sum = subtract(sum, previousValue);
+                                    sum = add(sum, currentValue);
+                                }
                                 break;
                             }
                     }
