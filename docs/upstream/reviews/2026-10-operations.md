@@ -162,3 +162,52 @@ NativeAOT agent has finished. Its isolated package-consumer work at
 completion is not evidence that this other agent has finished and does not
 authorize resuming the deferred Validation work. No Validation upgrade or
 adoption is claimed by this operations record.
+
+## First hosted operational run: 2026-10-05 22:48 UTC
+
+The initial [fork PR #2](https://github.com/Runic-Artifex/DynamicData/pull/2)
+[Build run 37381616696](https://github.com/Runic-Artifex/DynamicData/actions/runs/37381616696)
+completed with an overall **failure**. Its API head was
+`99d61714296cd2fc07827a230af008a40a1e15bc`; all executed checkouts and package
+repository metadata used the synthetic PR merge
+`282ec60928a297577504c08c2186473671a33ace`. These are distinct identities, not
+interchangeable source pins.
+
+All four source matrix cells passed: **28,168 tests**, zero failed, skipped,
+cancelled, timed-out or flaky tests. The Linux packaged managed job ran both
+flavors successfully, with all three workflows passing in each. The Windows
+managed job failed during its first restore with NU1301: mixed local-first
+`--source` arguments caused the HTTPS nuget.org source to be interpreted as a
+local Windows path. Its report has `completed: false`, no checks and no runtime
+executions. The dependent Linux NativeAOT job was correctly skipped; it did not
+execute and is not counted as a pass.
+
+This observed Windows path failure matches the documented
+[NuGet #14624](https://github.com/NuGet/Home/issues/14624), closed as a duplicate
+of [#7413](https://github.com/NuGet/Home/issues/7413). All six produced artifact
+archive digests match their upload values, including the retained failed Windows
+acceptance evidence. The exact report and logs are under
+`artifacts/verification/operations-pr2-37381616696/failure-report.json` and its
+surrounding evidence directory. No rerun was submitted for the unchanged head.
+
+At **2026-10-05 22:49 UTC**, correction
+`1fd4d4c9006180dc9108486c7555dcb22ab4dcf1` was independently reviewed. It
+generates an isolated XML NuGet.Config with cleared inherited sources, a
+portable local file URI and HTTPS nuget.org feed, then restores using only
+`--configfile`. Source mapping confines the branded Runic packages to the
+verified local feed. Exact asset hashes, package graph/SHA-512, shipping
+dependency and expected source-commit checks stay required.
+
+Independent Windows drive-URI and special-character XML probes passed, and
+both real public-release Linux managed consumers passed under the generated
+configuration. Native application code and workflows were unchanged; no
+redundant local native or full source matrix run was made. The fix and this
+dated documentation follow-up require a new PR head and hosted Build run.
+Corrected Windows runtime and hosted Linux NativeAOT execution are still
+**pending at this observation**; local proof does not establish either gate.
+
+The PR packages (`10.0.0-runic.39.g282ec60928`) are separate CI candidates.
+Released `10.0.0-runic.30` assets remain unchanged, and their recorded public
+Linux managed/NativeAOT checks remain valid. This failed operational gate does
+not authorize replacing or republishing that release, or ending the user's
+ReactiveUI.Validation deferral.
