@@ -8,6 +8,12 @@ integration; the [fork difference register](../fork-differences.md) records
 intentional adaptations and their retirement conditions. Verify research findings
 against the current branch before implementing them.
 
+For implementation decisions and validation after this snapshot, see the
+[October 2026 integration review](reviews/2026-10.md). Its adoption and deferral
+record is separate from these historical assessments. It records the verified
+local source and explicit hosted CI/main integration status; it does not claim
+a published release or completed hosted matrix.
+
 Start with the [recommendations and implementation investigation](analysis.md).
 The [open-item assessment](open-assessment.md) gives every open issue and PR a
 summary, usefulness assessment, fork status and implementation approach.
