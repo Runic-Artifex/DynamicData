@@ -26,11 +26,6 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
     where T : notnull
 {
     /// <summary>
-    /// The _locker field.
-    /// </summary>
-    private readonly object _locker = new();
-
-    /// <summary>
     /// The _source field.
     /// </summary>
     private readonly IObservableList<IObservable<IChangeSet<T>>> _source = source ?? throw new ArgumentNullException(nameof(source));
@@ -42,15 +37,17 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
     public IObservable<IChangeSet<T>> Run() => Observable.Create<IChangeSet<T>>(
             observer =>
             {
+                var queue = new SharedDeliveryQueue();
+
                 // this is the resulting list which produces all notifications
                 var resultList = new ChangeAwareListWithRefCounts<T>();
 
                 // Transform to a merge container.
                 // This populates a RefTracker when the original source is subscribed to
-                var sourceLists = _source.Connect().Synchronize(_locker).Transform(changeSet => new MergeContainer(changeSet)).AsObservableList();
+                var sourceLists = _source.Connect().SynchronizeSafe(queue).Transform(changeSet => new MergeContainer(changeSet.SynchronizeSafe(queue))).AsObservableList();
 
                 // merge the items back together
-                var allChanges = sourceLists.Connect().MergeMany(mc => mc.Source).Synchronize(_locker).Subscribe(
+                var allChanges = sourceLists.Connect().MergeMany(mc => mc.Source).SynchronizeSafe(queue).Subscribe(
                     changes =>
                     {
                         // Populate result list and check for changes
@@ -59,7 +56,7 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
                         {
                             observer.OnNext(notifications);
                         }
-                    });
+                    }, observer.OnError, observer.OnCompleted);
 
                 // When a list is removed, update all items that were in that list
                 var removedItem = sourceLists.Connect().OnItemRemoved(
@@ -82,7 +79,7 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
                                 observer.OnNext(notification2);
                             }
                         }
-                    }).Subscribe();
+                    }).Subscribe(static _ => { }, static _ => { });
 
                 // When a list is added, update all items that are in that list
                 var sourceChanged = sourceLists.Connect().WhereReasonsAre(ListChangeReason.Add, ListChangeReason.AddRange).ForEachItemChange(
@@ -103,9 +100,9 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
                                 observer.OnNext(notification2);
                             }
                         }
-                    }).Subscribe();
+                    }).Subscribe(static _ => { }, static _ => { });
 
-                return new CompositeDisposable(sourceLists, allChanges, removedItem, sourceChanged);
+                return new CompositeDisposable(sourceLists, allChanges, removedItem, sourceChanged, queue);
             });
 
     /// <summary>

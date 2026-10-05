@@ -96,12 +96,12 @@ internal sealed class MergeManyListChangeSets<TObject, TDestination>(IObservable
                 switch (change.Reason)
                 {
                     case ChangeReason.Add or ChangeReason.Update:
-                        AddChildSubscription(change.Current.Source, change.Key);
                         if (change.Previous.HasValue)
                         {
                             _changeSetMergeTracker.RemoveItems(change.Previous.Value.List);
                         }
 
+                        AddChildSubscription(change.Current.Source, change.Key);
                         break;
 
                     case ChangeReason.Remove:
