@@ -46,8 +46,7 @@ public static partial class ObservableListEx
         return Observable.Create<IChangeSet<T>>(
             observer =>
             {
-                var locker = InternalEx.NewMonitorGate();
-                return source.Synchronize(locker).Select(
+                return source.SynchronizeSafe().Select(
                     changes =>
                     {
                         adaptor.Adapt(changes);

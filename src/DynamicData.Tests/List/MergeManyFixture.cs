@@ -103,10 +103,10 @@ public class MergeManyFixture : IDisposable
     }
 
     /// <summary>
-    /// Stream completes even if one of the children fails.
+    /// An active child error terminates the output after the parent completes.
     /// </summary>
     [Test]
-    public async Task MergedStreamCompletesIfLastItemFails()
+    public async Task MergedStreamFailsIfLastItemFails()
     {
         var receivedError = default(Exception);
         var streamCompleted = false;
@@ -121,9 +121,9 @@ public class MergeManyFixture : IDisposable
         _source.Dispose();
         item.FailObservable(new Exception("Test exception"));
 
-        await Assert.That(receivedError).IsNull();
+        await Assert.That(receivedError).IsNotNull();
         await Assert.That(sourceCompleted).IsTrue();
-        await Assert.That(streamCompleted).IsTrue();
+        await Assert.That(streamCompleted).IsFalse();
     }
 
     /// <summary>

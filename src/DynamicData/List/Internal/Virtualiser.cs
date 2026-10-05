@@ -33,89 +33,100 @@ internal sealed class Virtualiser<T>(IObservable<IChangeSet<T>> source, IObserva
     /// </summary>
     /// <returns>The result of the operation.</returns>
     public IObservable<IVirtualChangeSet<T>> Run() => Observable.Create<IVirtualChangeSet<T>>(
-            observer =>
-            {
-                var locker = InternalEx.NewMonitorGate();
-                var all = new List<T>();
-                var virtualised = new ChangeAwareList<T>();
-
-                IVirtualRequest parameters = new VirtualRequest(0, 25);
-
-                var requestStream = _requests.Synchronize(locker).Select(
-                    request =>
-                    {
-                        parameters = request;
-                        return CheckParamsAndVirtualise(all, virtualised, request);
-                    });
-
-                var dataChanged = _source.Synchronize(locker).Select(changes => Virtualise(all, virtualised, parameters, changes));
-
-                // TODO: Remove this shared state stuff ie. _parameters
-                return requestStream.Merge(dataChanged).Where(changes => changes is not null && changes.Count != 0)
-                    .Select(x => x!)
-                    .Select(changes => new VirtualChangeSet<T>(changes, new VirtualResponse(virtualised.Count, parameters.StartIndex, all.Count))).SubscribeSafe(observer);
-            });
-
-    /// <summary>
-    /// Executes the CheckParamsAndVirtualise operation.
-    /// </summary>
-    /// <param name="all">The all value.</param>
-    /// <param name="virtualised">The virtualised value.</param>
-    /// <param name="request">The request value.</param>
-    /// <returns>The result of the operation.</returns>
-    private static IChangeSet<T>? CheckParamsAndVirtualise(IList<T> all, ChangeAwareList<T> virtualised, IVirtualRequest? request)
-    {
-        if (request is null || request.StartIndex < 0 || request.Size < 1)
+        observer =>
         {
-            return null;
-        }
+            var queue = new SharedDeliveryQueue();
+            var all = new List<Occurrence>();
+            var virtualised = new ChangeAwareList<Occurrence>();
+            IVirtualRequest parameters = VirtualRequest.Default;
+            IVirtualResponse previousResponse = new VirtualResponse(parameters.Size, parameters.StartIndex, 0);
 
-        return Virtualise(all, virtualised, request);
-    }
+            var requestStream = _requests
+                .Where(request => request is { StartIndex: >= 0, Size: >= 0 })
+                .SynchronizeSafe(queue)
+                .DistinctUntilChanged(VirtualRequest.StartIndexSizeComparer)
+                .Select(request =>
+                {
+                    // Invalid requests never replace the last valid window.
+                    parameters = request;
+                    return Virtualise(all, virtualised, parameters);
+                });
 
-    /// <summary>
-    /// Executes the Virtualise operation.
-    /// </summary>
-    /// <param name="all">The all value.</param>
-    /// <param name="virtualised">The virtualised value.</param>
-    /// <param name="request">The request value.</param>
-    /// <param name="changeSet">The changeSet value.</param>
-    /// <returns>The result of the operation.</returns>
-    private static IChangeSet<T> Virtualise(IList<T> all, ChangeAwareList<T> virtualised, IVirtualRequest request, IChangeSet<T>? changeSet = null)
+            // Each addition owns a token, including equal values and repeated references.
+            var dataChanged = _source.SynchronizeSafe(queue)
+                .Transform(item => new Occurrence(item))
+                .Select(changes => Virtualise(all, virtualised, parameters, changes));
+
+            var publisher = requestStream.UnsynchronizedMerge(dataChanged)
+                .Select(changes =>
+                {
+                    var response = new VirtualResponse(parameters.Size, parameters.StartIndex, all.Count);
+                    var result = changes.Count != 0 || !response.Equals(previousResponse)
+                        ? new VirtualChangeSet<T>(changes.Transform(occurrence => occurrence.Item), response)
+                        : null;
+                    previousResponse = response;
+                    return result;
+                })
+                .Where(changes => changes is not null)
+                .Select(changes => changes!)
+                .SubscribeSafe(observer);
+
+            return new CompositeDisposable(publisher, queue);
+        });
+
+    private static IChangeSet<Occurrence> Virtualise(List<Occurrence> all,
+        ChangeAwareList<Occurrence> virtualised, IVirtualRequest request, IChangeSet<Occurrence>? changeSet = null)
     {
         if (changeSet is not null)
         {
             all.Clone(changeSet);
         }
 
-        var previous = virtualised;
+        var current = all.Skip(request.StartIndex).Take(request.Size).ToList();
+        var currentSet = new HashSet<Occurrence>(current);
 
-        var current = all.Distinct().Skip(request.StartIndex).Take(request.Size).ToList();
-
-        var adds = current.Except(previous);
-        var removes = previous.Except(current);
-
-        virtualised.RemoveMany(removes);
-
-        foreach (var add in adds)
+        // Remove by index so duplicate values cannot select the wrong occurrence.
+        for (var index = virtualised.Count - 1; index >= 0; index--)
         {
-            var index = current.IndexOf(add);
-            virtualised.Insert(index, add);
+            if (!currentSet.Contains(virtualised[index])) virtualised.RemoveAt(index);
         }
 
-        if (changeSet is not null && changeSet.Count != 0)
+        // Keep a single in-window source move as one downstream move.
+        if (changeSet is { Count: 1 } && changeSet.First().Reason == ListChangeReason.Moved)
         {
-            var changes = changeSet.EmptyIfNull().Where(change => change.Reason == ListChangeReason.Moved && change.MovedWithinRange(request.StartIndex, request.StartIndex + request.Size)).Select(x => x.Item);
-
-            foreach (var itemChange in changes)
+            var moved = changeSet.First().Item.Current;
+            var previousIndex = virtualised.IndexOf(moved);
+            var currentIndex = current.IndexOf(moved);
+            if (previousIndex >= 0 && currentIndex >= 0 && previousIndex != currentIndex)
             {
-                // check whether an item has moved within the same page
-                var currentIndex = itemChange.CurrentIndex - request.StartIndex;
-                var previousIndex = itemChange.PreviousIndex - request.StartIndex;
                 virtualised.Move(previousIndex, currentIndex);
             }
         }
 
+        for (var index = 0; index < current.Count; index++)
+        {
+            var occurrence = current[index];
+            if (index < virtualised.Count && ReferenceEquals(virtualised[index], occurrence)) continue;
+
+            var previousIndex = virtualised.IndexOf(occurrence);
+            if (previousIndex >= 0) virtualised.Move(previousIndex, index);
+            else virtualised.Insert(index, occurrence);
+        }
+
+        if (changeSet is not null)
+        {
+            foreach (var change in changeSet.Where(change => change.Reason == ListChangeReason.Refresh))
+            {
+                var index = current.IndexOf(change.Item.Current);
+                if (index >= 0) virtualised.RefreshAt(index);
+            }
+        }
+
         return virtualised.CaptureChanges();
+    }
+
+    private sealed class Occurrence(T item)
+    {
+        public T Item { get; } = item;
     }
 }

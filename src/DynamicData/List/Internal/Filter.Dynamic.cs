@@ -74,7 +74,7 @@ internal static partial class Filter
         public IObservable<IChangeSet<T>> Run() => Observable.Create<IChangeSet<T>>(
                 observer =>
                 {
-                    var locker = InternalEx.NewMonitorGate();
+                    var queue = new SharedDeliveryQueue();
 
                     Func<T, bool> predicate = _ => false;
                     var all = new List<ItemWithMatch>();
@@ -95,7 +95,7 @@ internal static partial class Filter
                             throw new InvalidOperationException("The predicates is not set and the change is not a immutableFilter.");
                         }
 
-                        predicateChanged = _predicates.Synchronize(locker).Select(
+                        predicateChanged = _predicates.SynchronizeSafe(queue).Select(
                             newPredicate =>
                             {
                                 predicate = newPredicate;
@@ -110,7 +110,7 @@ internal static partial class Filter
                      */
 
                     // Need to get item by index and store it in the transform
-                    var filteredResult = _source.Synchronize(locker).Transform<T, ItemWithMatch>(
+                    var filteredResult = _source.SynchronizeSafe(queue).Transform<T, ItemWithMatch>(
                         (t, previous) =>
                             {
                                 var wasMatch = previous.ConvertOr(p => p!.IsMatch, () => false);
@@ -130,9 +130,10 @@ internal static partial class Filter
                             return result;
                         });
 
-                    return predicateChanged.Merge(filteredResult).NotEmpty()
+                    var publisher = predicateChanged.UnsynchronizedMerge(filteredResult).NotEmpty()
                         .Select(changes => changes.Transform(iwm => iwm.Item)) // use convert, not transform
                         .SubscribeSafe(observer);
+                    return new CompositeDisposable(publisher, queue);
                 });
 
         /// <summary>

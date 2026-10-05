@@ -22,6 +22,16 @@ namespace DynamicData;
 public static partial class ObservableListEx
 {
     /// <summary>
+    /// Emits a collection snapshot sorted using <see cref="Comparer{T}.Default"/> after each change set.
+    /// </summary>
+    /// <typeparam name="TObject">The type of the items.</typeparam>
+    /// <param name="source">The source change sets.</param>
+    /// <returns>An observable emitting sorted read-only collection snapshots.</returns>
+    /// <remarks>The items must support comparison by the default comparer.</remarks>
+    public static IObservable<IReadOnlyCollection<TObject>> ToSortedCollection<TObject>(this IObservable<IChangeSet<TObject>> source)
+        where TObject : notnull => source.ToSortedCollection(Comparer<TObject>.Default);
+
+    /// <summary>
     /// Emits a sorted <c>IReadOnlyCollection&lt;T&gt;</c> after every changeset, sorted by the value returned by <paramref name="sort"/>.
     /// </summary>
     /// <typeparam name="TObject">The type of items in the list.</typeparam>

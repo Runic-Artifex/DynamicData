@@ -26,14 +26,13 @@ internal sealed class QueryWhenChanged<T>(IObservable<IChangeSet<T>> source)
     /// Executes the Run operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    public IObservable<IReadOnlyCollection<T>> Run() => Observable.Create<IReadOnlyCollection<T>>(observer =>
-                                                             {
-                                                                 var list = new List<T>();
-
-                                                                 return _source.Subscribe(changes =>
-                                                                 {
-                                                                     list.Clone(changes);
-                                                                     observer.OnNext(new ReadOnlyCollectionLight<T>(list));
-                                                                 });
-                                                             });
+    public IObservable<IReadOnlyCollection<T>> Run() => Observable.Defer(() =>
+    {
+        var list = new List<T>();
+        return _source.Select(changes =>
+        {
+            list.Clone(changes);
+            return (IReadOnlyCollection<T>)new ReadOnlyCollectionLight<T>(list);
+        });
+    });
 }

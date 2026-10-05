@@ -41,6 +41,28 @@ public static partial class ObservableCacheEx
     }
 
     /// <summary>
+    /// Switches virtualized streams using keyed cache clearing on each source change.
+    /// </summary>
+    /// <typeparam name="TObject">The type of the object.</typeparam>
+    /// <typeparam name="TKey">The type of the key.</typeparam>
+    /// <param name="sources">An observable of virtualized changeset streams.</param>
+    /// <returns>Base keyed changesets from the selected source, with removals on each switch.</returns>
+    /// <remarks>
+    /// This overload returns the base keyed type, so viewport ordering and <see cref="VirtualContext{TObject}"/>
+    /// are not guaranteed on every batch. Incoming batches may retain their runtime context type, but
+    /// clearing batches contain no viewport context. Switch the keyed source before each presentation's
+    /// SortAndVirtualize when context is needed. Context-preserving switching requires a separate contract.
+    /// </remarks>
+    public static IObservable<IChangeSet<TObject, TKey>> Switch<TObject, TKey>(this IObservable<IObservable<IChangeSet<TObject, TKey, VirtualContext<TObject>>>> sources)
+        where TObject : notnull
+        where TKey : notnull
+    {
+        ArgumentExceptionHelper.ThrowIfNull(sources);
+
+        return ObservableCacheEx.Switch((IObservable<IObservable<IChangeSet<TObject, TKey>>>)sources);
+    }
+
+    /// <summary>
     /// Subscribes to the latest inner changeset stream, unsubscribing from the previous one on each switch.
     /// When switching, the old source's items are removed and the new source's items are added.
     /// </summary>

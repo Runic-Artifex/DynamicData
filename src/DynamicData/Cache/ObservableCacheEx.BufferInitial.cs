@@ -23,25 +23,34 @@ public static partial class ObservableCacheEx
     /// <typeparam name="TObject">The object type.</typeparam>
     /// <typeparam name="TKey">The type of the key.</typeparam>
     /// <param name="source">The source <c>IObservable&lt;IChangeSet&lt;TObject, TKey&gt;&gt;</c> to buffer during the initial loading period.</param>
-    /// <param name="initialBuffer">The <see cref="TimeSpan"/> time window to buffer, measured from when the first changeset arrives.</param>
+    /// <param name="initialBuffer">The <see cref="TimeSpan"/> non-negative time window to buffer, measured from the first non-empty changeset. Zero forwards immediately.</param>
     /// <param name="scheduler">The scheduler for timing. Defaults to <see cref="GlobalConfig.DefaultScheduler"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="source"/> is null.</exception>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="initialBuffer"/> is negative.</exception>
     /// <returns>An observable that emits one merged changeset for the initial burst, then passthrough for the rest.</returns>
     /// <remarks>
     /// <para>
     /// Useful for aggregating the initial snapshot (which may arrive as many small changesets) into a
     /// single changeset for efficient downstream processing, while leaving subsequent live updates untouched.
     /// </para>
-    /// <para>Internally uses <c>DeferUntilLoaded&lt;TObject, TKey&gt;(IObservable&lt;IChangeSet&lt;TObject, TKey&gt;&gt;)</c>, Rx <c>Buffer</c>, and <c>FlattenBufferResult&lt;TObject, TKey&gt;</c>.</para>
+    /// <para>Empty changesets are suppressed, matching <c>DeferUntilLoaded</c>. Completion flushes any pending changes once; an error discards them. Disposal cancels the timer and source subscription.</para>
     /// </remarks>
     /// <seealso><c>Batch&lt;TObject, TKey&gt;</c></seealso>
     /// <seealso><c>DeferUntilLoaded&lt;TObject, TKey&gt;(IObservable&lt;IChangeSet&lt;TObject, TKey&gt;&gt;)</c></seealso>
     public static IObservable<IChangeSet<TObject, TKey>> BufferInitial<TObject, TKey>(this IObservable<IChangeSet<TObject, TKey>> source, TimeSpan initialBuffer, IScheduler? scheduler = null)
         where TObject : notnull
-        where TKey : notnull => source.DeferUntilLoaded().Publish(
-            shared =>
-            {
-                var initial = shared.Buffer(initialBuffer, scheduler ?? GlobalConfig.DefaultScheduler).FlattenBufferResult().Take(1);
+        where TKey : notnull
+    {
+        ArgumentExceptionHelper.ThrowIfNull(source);
+        if (initialBuffer < TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(initialBuffer), initialBuffer, "The initial buffer duration must be non-negative.");
+        }
 
-                return initial.Concat(shared);
-            });
+        return InitialChangeSetBuffer<IChangeSet<TObject, TKey>>.Run(
+            source,
+            initialBuffer,
+            scheduler ?? GlobalConfig.DefaultScheduler,
+            updates => new ChangeSet<TObject, TKey>(updates.SelectMany(update => update)));
+    }
 }

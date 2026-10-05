@@ -26,11 +26,6 @@ internal sealed class Combiner<T>(ICollection<IObservable<IChangeSet<T>>> source
     where T : notnull
 {
     /// <summary>
-    /// The _locker field.
-    /// </summary>
-    private readonly object _locker = new();
-
-    /// <summary>
     /// The _source field.
     /// </summary>
     private readonly ICollection<IObservable<IChangeSet<T>>> _source = source ?? throw new ArgumentNullException(nameof(source));
@@ -39,36 +34,57 @@ internal sealed class Combiner<T>(ICollection<IObservable<IChangeSet<T>>> source
     /// Executes the Run operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    public IObservable<IChangeSet<T>> Run() => Observable.Create<IChangeSet<T>>(
-            observer =>
+    public IObservable<IChangeSet<T>> Run() => Observable.Create<IChangeSet<T>>(observer =>
+    {
+        var sources = _source.ToArray();
+        var subscriptions = new CompositeDisposable();
+        var queue = new SharedDeliveryQueue();
+        var resultList = new ChangeAwareListWithRefCounts<T>();
+        var sourceLists = sources.Select(static _ => new ReferenceCountTracker<T>()).ToList();
+        var pending = sources.Length;
+        var stopped = false;
+
+        if (pending == 0)
+        {
+            observer.OnCompleted();
+        }
+
+        for (var index = 0; index < sources.Length && !stopped; index++)
+        {
+            var tracker = sourceLists[index];
+            subscriptions.Add(sources[index].SynchronizeSafe(queue).Subscribe(changes =>
             {
-                var disposable = new CompositeDisposable();
-
-                var resultList = new ChangeAwareListWithRefCounts<T>();
-
-                lock (_locker)
+                if (stopped)
                 {
-                    var sourceLists = Enumerable.Range(0, _source.Count).Select(_ => new ReferenceCountTracker<T>()).ToList();
-
-                    foreach (var pair in _source.Zip(sourceLists, (item, list) => new { Item = item, List = list }))
-                    {
-                        disposable.Add(
-                            pair.Item.Synchronize(_locker).Subscribe(
-                                changes =>
-                                {
-                                    CloneSourceList(pair.List, changes);
-
-                                    var notifications = UpdateResultList(changes, sourceLists, resultList);
-                                    if (notifications.Count != 0)
-                                    {
-                                        observer.OnNext(notifications);
-                                    }
-                                }));
-                    }
+                    return;
                 }
 
-                return disposable;
-            });
+                CloneSourceList(tracker, changes);
+                var notifications = UpdateResultList(changes, sourceLists, resultList);
+                if (notifications.Count != 0)
+                {
+                    observer.OnNext(notifications);
+                }
+            }, error =>
+            {
+                if (!stopped)
+                {
+                    stopped = true;
+                    observer.OnError(error);
+                }
+            }, () =>
+            {
+                if (!stopped && --pending == 0)
+                {
+                    stopped = true;
+                    observer.OnCompleted();
+                }
+            }));
+        }
+
+        subscriptions.Add(queue);
+        return subscriptions;
+    });
 
     /// <summary>
     /// Executes the CloneSourceList operation.

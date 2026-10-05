@@ -56,8 +56,14 @@ internal static class AsyncDisposeMany<TObject, TKey>
                             switch (change.Reason)
                             {
                                 case ChangeReason.Update:
-                                    if (change.Previous.HasValue && !EqualityComparer<TObject>.Default.Equals(change.Current, change.Previous.Value))
+                                    // Reference items are owned instances, even when their values compare equal.
+                                    // Value items have no stable reference identity; keep their value comparison.
+                                    if (change.Previous.HasValue && !(typeof(TObject).IsValueType
+                                        ? EqualityComparer<TObject>.Default.Equals(change.Current, change.Previous.Value)
+                                        : ReferenceEquals(change.Current, change.Previous.Value)))
+                                    {
                                         TryDisposeItem(change.Previous.Value);
+                                    }
                                     break;
 
                                 case ChangeReason.Remove:

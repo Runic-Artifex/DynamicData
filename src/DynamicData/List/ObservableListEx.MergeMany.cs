@@ -38,6 +38,7 @@ public static partial class ObservableListEx
     /// <item><term><b>Replace</b></term><description>Old subscription disposed, new subscription created for the replacement item.</description></item>
     /// <item><term><b>Remove</b>/<b>RemoveRange</b>/<b>Clear</b></term><description>Subscription disposed.</description></item>
     /// <item><term><b>Refresh</b>/<b>Moved</b></term><description>No effect on subscriptions.</description></item>
+    /// <item><term>OnError</term><description>A source or inner observable error terminates the output.</description></item>
     /// <item><term>OnCompleted (source)</term><description>Completes only after the source and all active inner observables have completed.</description></item>
     /// </list>
     /// </remarks>
