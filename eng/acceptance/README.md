@@ -48,7 +48,8 @@ object through several disposal branches.
 For a published release, the command fetches the two named GitHub release assets itself, stores them in
 `artifacts/acceptance/release-assets/<version>`, verifies their SHA-256 values,
 checks their branded identity, `.NET 10` contents and embedded Runic repository
-commit, then restores from that local feed. It rejects upstream and
+commit, then requires that both embedded commits match the supplied expected
+source commit before restoring from that local feed. It rejects upstream and
 opposite-flavor DynamicData packages in the resolved graph.
 
 Use the release tag, version and hashes copied from the immutable GitHub release
@@ -63,24 +64,28 @@ Native mode uses a matching host RID.
 direnv exec /home/viktor/Development/RunicArtifex/runic-sdk \
   python3 eng/acceptance/verify-package-acceptance.py managed \
   --tag v<version> --version <version> \
-  --primitives-sha256 <sha256> --reactive-sha256 <sha256>
+  --primitives-sha256 <sha256> --reactive-sha256 <sha256> \
+  --expected-source-commit <commit>
 
 df -h . /tmp
 direnv exec /home/viktor/Development/RunicArtifex/runic-sdk \
   python3 eng/acceptance/verify-package-acceptance.py native --rid linux-x64 \
   --tag v<version> --version <version> \
-  --primitives-sha256 <sha256> --reactive-sha256 <sha256>
+  --primitives-sha256 <sha256> --reactive-sha256 <sha256> \
+  --expected-source-commit <commit>
 ```
 
 Before publication, an exact CI-produced candidate pair may be preflighted
 without claiming it is a release. Supply the directory that holds the verified
-pair instead of a tag; `results.json` records `asset_source: ci-candidate`.
+pair instead of a tag; the mode-specific result report records
+`asset_source: ci-candidate`.
 
 ```sh
 direnv exec /home/viktor/Development/RunicArtifex/runic-sdk \
   python3 eng/acceptance/verify-package-acceptance.py managed \
   --asset-directory /absolute/path/to/verified/packages --version <version> \
-  --primitives-sha256 <sha256> --reactive-sha256 <sha256>
+  --primitives-sha256 <sha256> --reactive-sha256 <sha256> \
+  --expected-source-commit <commit>
 ```
 
 After promotion, repeat the GitHub-release command and require the downloaded

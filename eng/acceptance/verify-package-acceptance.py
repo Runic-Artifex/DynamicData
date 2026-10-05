@@ -104,6 +104,7 @@ def main() -> None:
     parser.add_argument("--version", required=True, help="The identical version of both package assets")
     parser.add_argument("--primitives-sha256", required=True)
     parser.add_argument("--reactive-sha256", required=True)
+    parser.add_argument("--expected-source-commit", required=True, help="Commit embedded by both package assets")
     parser.add_argument("--rid", help="Required target runtime identifier for native execution")
     args = parser.parse_args()
     if args.mode == "native" and not args.rid:
@@ -148,8 +149,11 @@ def main() -> None:
     commits = {item["repository_commit"] for item in assets}
     if len(commits) != 1:
         raise ValueError(f"The package pair has mismatched source commits: {sorted(commits)}")
+    if commits != {args.expected_source_commit}:
+        raise ValueError(f"The package pair does not match the expected source commit {args.expected_source_commit}: {sorted(commits)}")
 
     report["assets"] = assets
+    report["expected_source_commit"] = args.expected_source_commit
     report_path.write_text(json.dumps(report, indent=2) + "\n")
     versions = ("9.0.0",)
     for primitives_version in versions:
