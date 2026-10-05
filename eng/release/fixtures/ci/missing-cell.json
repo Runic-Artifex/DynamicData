@@ -1,0 +1,10 @@
+{
+  "runs": [
+    { "id": 101, "head_sha": "@SHA@", "head_repository": { "full_name": "Runic-Artifex/DynamicData" }, "head_branch": "main", "event": "push", "status": "completed", "conclusion": "success", "path": ".github/workflows/ci-build.yml@refs/heads/main", "run_attempt": 1, "updated_at": "2026-10-05T12:00:00Z" }
+  ],
+  "jobs": [
+    { "id": 1, "name": "build (ubuntu-latest, 8.4.0)", "run_attempt": 1, "completed_at": "2026-10-05T12:00:00Z", "conclusion": "success" },
+    { "id": 2, "name": "build (ubuntu-latest, 9.0.0)", "run_attempt": 1, "completed_at": "2026-10-05T12:00:00Z", "conclusion": "success" },
+    { "id": 3, "name": "build (windows-latest, 9.0.0)", "run_attempt": 1, "completed_at": "2026-10-05T12:00:00Z", "conclusion": "success" }
+  ]
+}
