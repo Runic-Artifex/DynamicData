@@ -14,6 +14,7 @@ import { promisify } from 'node:util';
 
 const run = promisify(execFile);
 const repo = 'reactivemarbles/DynamicData';
+const gh = process.env.GH_BIN ?? 'gh';
 
 function usage() {
   return 'Usage: node eng/upstream/collect-inventory.mjs --output <file> --upstream <40-hex-sha>';
@@ -33,7 +34,7 @@ function parseArgs(argv) {
 
 async function api(endpoint, paginate = false) {
   const args = ['api', ...(paginate ? ['--paginate', '--slurp'] : []), `repos/${repo}${endpoint ? `/${endpoint}` : ''}`];
-  const { stdout } = await run('gh', args, { maxBuffer: 40 * 1024 * 1024 });
+  const { stdout } = await run(gh, args, { maxBuffer: 40 * 1024 * 1024 });
   const parsed = JSON.parse(stdout);
   return paginate ? parsed.flat() : parsed;
 }
