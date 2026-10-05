@@ -139,7 +139,21 @@ public sealed class SourceList<T> : ISourceList<T>
     /// <param name="predicate">The predicate value.</param>
     /// <returns>The result of the operation.</returns>
     public IObservable<IChangeSet<T>> Connect(Func<T, bool>? predicate = null)
-        => Observable.Create<IChangeSet<T>>(observer =>
+    {
+        var observable = ConnectWithVersion().Select(static update => update.Changes);
+        return predicate is null ? observable : new FilterStatic<T>(observable, predicate).Run();
+    }
+
+    /// <summary>
+    /// Gets the committed mutation version. Expiration reads this while holding the source edit lock.
+    /// </summary>
+    internal long CurrentVersion => Volatile.Read(ref _currentVersion);
+
+    /// <summary>
+    /// Connects with the exact version represented by each snapshot or delivered change set.
+    /// </summary>
+    internal IObservable<(IChangeSet<T> Changes, long Version)> ConnectWithVersion()
+        => Observable.Create<(IChangeSet<T> Changes, long Version)>(observer =>
         {
             lock (_locker)
             {
@@ -147,27 +161,28 @@ public sealed class SourceList<T> : ISourceList<T>
                     ? _isEditInProgress.Value
                         .Where(static isEditInProgress => !isEditInProgress)
                         .Take(1)
-                        .SelectMany(_ => CreateConnectObservable(predicate))
-                    : CreateConnectObservable(predicate);
+                        .SelectMany(_ => CreateConnectObservable())
+                    : CreateConnectObservable();
 
                 return observable.SubscribeSafe(observer);
             }
         });
 
-    private IObservable<IChangeSet<T>> CreateConnectObservable(Func<T, bool>? predicate)
-    {
-        var observable = Observable.Create<IChangeSet<T>>(
+    private IObservable<(IChangeSet<T> Changes, long Version)> CreateConnectObservable()
+        => Observable.Create<(IChangeSet<T> Changes, long Version)>(
             observer =>
             {
                 using var readLock = _notifications.AcquireReadLock();
+                var snapshotVersion = _currentVersion;
 
                 if (_readerWriter.Items.Length > 0)
                 {
-                    observer.OnNext(
+                    observer.OnNext((
                         new ChangeSet<T>
                         {
                             new(ListChangeReason.AddRange, _readerWriter.Items, 0)
-                        });
+                        },
+                        snapshotVersion));
                 }
 
                 if (_isDisposed)
@@ -176,23 +191,16 @@ public sealed class SourceList<T> : ISourceList<T>
                     return Disposable.Empty;
                 }
 
-                var snapshotVersion = _currentVersion;
                 var changes = readLock.HasPending
                     ? _changes.SkipWhile(_ => Volatile.Read(ref _currentDeliveryVersion) <= snapshotVersion)
                     : (IObservable<IChangeSet<T>>)_changes;
 
-                var source = changes.Finally(observer.OnCompleted);
+                var source = changes
+                    .Select(changes => (Changes: changes, Version: Volatile.Read(ref _currentDeliveryVersion)))
+                    .Finally(observer.OnCompleted);
 
                 return source.SubscribeSafe(observer);
             });
-
-        if (predicate is not null)
-        {
-            observable = new FilterStatic<T>(observable, predicate).Run();
-        }
-
-        return observable;
-    }
 
     /// <inheritdoc />
     public void Dispose()
