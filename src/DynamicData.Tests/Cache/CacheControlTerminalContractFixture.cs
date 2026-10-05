@@ -274,4 +274,42 @@ public class CacheControlTerminalContractFixture
         await Assert.That(leftCompleted).IsEqualTo(1);
         await Assert.That(rightCompleted).IsEqualTo(1);
     }
+
+    [Test]
+    [NotInParallel]
+    public async Task DynamicCombineSerializesChildCacheMutationsBeforeQueuedOutput()
+    {
+        using var parent = new SourceList<IObservable<IChangeSet<Person, string>>>();
+        using var left = new Signal<IChangeSet<Person, string>>();
+        using var right = new Signal<IChangeSet<Person, string>>();
+        using var entered = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var events = new List<string>();
+        Exception? error = null;
+        using var subscription = parent.Or().Subscribe(changes =>
+        {
+            foreach (var change in changes) events.Add(change.Key + ":" + change.Reason);
+            if (changes.Any(change => change.Key == "block"))
+            {
+                entered.Set();
+                if (!release.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException("release blocked callback");
+            }
+        }, ex => error = ex);
+        parent.AddRange([left, right]);
+        var blocker = new Person("block", 1);
+        var transient = new Person("transient", 2);
+        var writer = Task.Run(() => left.OnNext(new ChangeSet<Person, string>([new Change<Person, string>(ChangeReason.Add, blocker.Name, blocker)])));
+        try
+        {
+            if (!entered.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException("enter blocked callback");
+            // This child produces serially while a different child's output is being delivered.
+            right.OnNext(new ChangeSet<Person, string>([new Change<Person, string>(ChangeReason.Add, transient.Name, transient)]));
+            right.OnNext(new ChangeSet<Person, string>([new Change<Person, string>(ChangeReason.Remove, transient.Name, transient)]));
+        }
+        finally { release.Set(); }
+        await writer.WaitAsync(TimeSpan.FromSeconds(15));
+        await Assert.That(error).IsNull();
+        await Assert.That(events.Count).IsEqualTo(3);
+        await Assert.That(events.SequenceEqual(new[] { "block:Add", "transient:Add", "transient:Remove" })).IsTrue();
+    }
 }
