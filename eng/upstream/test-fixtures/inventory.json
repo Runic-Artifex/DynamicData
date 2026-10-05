@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "collectedAt": "2026-11-01T00:00:00.000Z",
+  "requestedUpstreamCommit": "0000000000000000000000000000000000000000",
+  "observedUpstreamMainCommit": "0000000000000000000000000000000000000000",
+  "counts": { "issues": 1, "pullRequests": 1, "open": 1, "total": 2 },
+  "assessmentPolicy": "Every item is unassessed for this monthly review. Historical docs/upstream research remains dated evidence and is never copied as a current decision.",
+  "items": []
+}

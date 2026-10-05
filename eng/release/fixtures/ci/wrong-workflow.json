@@ -1,0 +1,6 @@
+{
+  "runs": [
+    { "id": 101, "head_sha": "@SHA@", "head_repository": { "full_name": "Runic-Artifex/DynamicData" }, "head_branch": "main", "event": "push", "status": "completed", "conclusion": "success", "path": ".github/workflows/release.yml@refs/heads/main", "run_attempt": 1, "updated_at": "2026-10-05T12:00:00Z" }
+  ],
+  "jobs": []
+}

@@ -36,7 +36,23 @@ workflow.
 ## Monthly upstream review
 
 Review upstream once a month, and sooner for an urgent correctness or security
-fix. This is an operating cadence, not an automatically installed schedule.
+fix. The scheduled [upstream-review workflow](../.github/workflows/upstream-review.yml)
+prepares an immutable, unassessed fork review branch and artifact on the first
+of each month; it does not merge, publish, retag, or contact upstream. It pins
+both the Runic base and an upstream commit, calculates conflicts without
+checking out a merge, and writes a new `eng/upstream/reviews/` snapshot. The
+branch name includes the month and both pins, so reruns never overwrite an
+existing review. A manual run may select only a full SHA reachable from fetched
+`upstream/main`. Review branches and their PRs are maintenance evidence, not
+approval to integrate. Historical `docs/upstream/` assessments are intentionally
+not copied into a new snapshot: every item must be assessed against that
+month's pins. This workflow uses Git objects and the GitHub REST API only; it
+does not run upstream workflows, build scripts, or project code. The current
+fork setting may restrict GitHub Actions from creating pull requests. In that
+case the workflow retains its immutable branch and artifact, writes a manual
+compare link in `pr-status.md`, and retries PR creation on the next run without
+changing the branch. Do not loosen repository settings merely to make this
+automation succeed.
 
 1. Start from the current Runic `main` in a clean checkout or isolated worktree.
    Preserve unrelated work. Record the Runic base SHA and review date.
@@ -144,6 +160,17 @@ tested final revision. Review both .NET 10 API baselines for intentional changes
 compile representative external consumers for overload/namespace changes.
 Check package IDs and contents before release.
 
+The [packaged acceptance gate](../eng/acceptance/README.md) exercises the actual
+default 9.0.0 branded package pair outside the library namespaces. CI runs both
+flavors managed on Linux and Windows, then Linux NativeAOT after both managed
+jobs succeed. Require exact artifact hashes, repository SHA and the expected
+restore graph. These three headless application workflows cover presentation
+updates, child-session recovery and view-close ownership; they do not establish
+actual Terra UI behavior or all-operator/platform NativeAOT support. Source
+8.4.0 compatibility remains a separate matrix: never force a shipping package
+below its declared Primitives minimum or suppress NU1605 to claim packaged
+compatibility.
+
 Before a large local matrix, check project and temporary filesystem free space
 and container storage if used. Use conservative concurrency, reuse valid caches
 and build outputs, and avoid overlapping full runs. On storage failure, stop
@@ -159,9 +186,20 @@ repack different code under the same version. Corrections receive a new version.
 Record the source SHA, dependency generation and validation in release notes;
 keep `Runic.DynamicData` and `Runic.DynamicData.Reactive` package IDs. The current
 manual [release workflow](../.github/workflows/release.yml) creates prerelease
-GitHub assets for its selected commit; it is not a substitute for the complete
-compatibility matrix or a claim of stable/NuGet.org publication. Upstream's
-inherited `RELEASING.md` describes upstream automation, not this fork's process.
+GitHub assets from a clean maintained `main` checkout at its exact workflow
+SHA. The [release guard](../eng/release/README.md) requires the latest trusted
+main Build run at that same SHA to complete successfully, including every
+source matrix cell and the packaged acceptance jobs. It validates exactly one
+matching default 9.0.0 package per branded ID, .NET 10 contents, original MIT
+attribution and repository source metadata. It refuses an existing release or
+tag, uploads a draft pair, downloads and compares the exact bytes, creates and
+resolves a new tag at the tested SHA, then publishes. Promoting an already
+verified CI pair follows the same source, version, byte and tag requirements;
+record that provenance instead of rebuilding or replacing published assets.
+This process is not a claim of stable/NuGet.org publication. GitHub server
+immutability may be disabled; the no-replacement policy still applies.
+Upstream's inherited `RELEASING.md` describes upstream automation, not this
+fork's process.
 
 Retire a difference only when its register condition is met. Record the upstream
 replacement SHA or Runic policy decision, the removal commit and validation;

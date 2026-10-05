@@ -5,9 +5,11 @@ Versioned baseline: **2026-10-05**, Runic `runic/reactiveui25` at
 DD-001–DD-015 preserve that original source/history baseline. Subsequent
 implementation is recorded below and in the
 [October integration review](upstream/reviews/2026-10.md), which records tested
-source and actual local results. Delivery/main integration and hosted outcome
-are tracked by [fork PR #1](https://github.com/Runic-Artifex/DynamicData/pull/1)
-and its [live checks](https://github.com/Runic-Artifex/DynamicData/pull/1/checks). Follow the
+source and actual local results. Delivery is recorded by
+[fork PR #1](https://github.com/Runic-Artifex/DynamicData/pull/1) and its
+[checks](https://github.com/Runic-Artifex/DynamicData/pull/1/checks). Main adoption
+at `9e3039a5` and subsequent hosted/package/release evidence are recorded in the
+[October operations note](upstream/reviews/2026-10-operations.md). Follow the
 [maintenance policy](maintenance.md) when integrating or retiring entries.
 
 Keep stable IDs. Each entry records its source, reason/scope, dependencies,
@@ -79,6 +81,20 @@ retired merely because related upstream work was merged.
 | DD-033 / active | #1039/#1044, `c8f90c11` observable initial exclusion/latest synchronous predicate/child ownership and `8ce9aea2` dynamic occurrence identity/indexed replay. | DD-016/DD-018; [observable initialization](../src/DynamicData.Tests/List/FilterObservableInitialInclusionFixture.cs) and [move/duplicate replay](../src/DynamicData.Tests/List/FilterMoveSwapRegressionFixture.cs). Preserve existing static filter move behavior and child errors/lifetimes. | Equivalent list initialization and occurrence-aware indexes verified for included/excluded moves, equal rows, repeated references and child replacement/disposal. |
 | DD-034 / active | #1066 bounded Sort repair `5459b07a`: prove one mutable outlier against the sorted remainder, emit one stable move; general reorder searches unplaced occurrences. | [single-outlier replay](../src/DynamicData.Tests/List/SortSingleOutlierFixture.cs) and [retained benchmark](../src/DynamicData.Benchmarks/List/SortSingleOutlier.cs). Stable comparator ties and duplicate occurrence replay retained. No general minimum-move algorithm or browser snapshot fallback. | Equivalent reorder correctness and bounded move amplification verified with exact replay and measured workload; broad optimization requires separate evidence. |
 | DD-035 / retained | #1099 and inherited concurrency audit `a7e63782`: existing fork subscription ordering retained; both imported AutoRefresh skips enabled and deterministic concurrent activation added. | [property integration fixture](../src/DynamicData.Tests/Binding/WhenPropertyChangedFixture.IntegrationTests.cs), original 100-by-200 workload and old-order sensitivity proof. DD-016 queue integration must preserve child identity, initial suppression and pending-refresh removal. | Equivalent subscription ordering passes enabled concurrency and stale-child regressions. This test-only audit is not a new production adaptation. |
+
+## October operational follow-up
+
+DD-036–DD-038 extend the maintained fork's operational gates. Their topic
+revisions and adoption/release state are recorded separately in the
+[October operations note](upstream/reviews/2026-10-operations.md). The dated
+integration review and research remain unchanged; a passing preparation or
+candidate-package check is not a completed release or application adoption.
+
+| ID / status | Source and scope | Dependencies / validation | Retirement condition |
+| --- | --- | --- | --- |
+| DD-036 / active | Monthly preparation `c32a9dcd`; scheduled/manual inventory, immutable fork review branches and virtual merge reports. Pins both Runic and upstream commits without executing upstream code, integrating upstream or publishing packages. | DD-001/DD-016/DD-025; global-Git-isolated fixtures, actionlint, actual nested merge provenance, explicit same-fork fetch/push/PR targeting, absent-ref publication lease and retained failure evidence. Existing branches stay unchanged; restricted Actions PR creation leaves a manual compare link and can be retried. Hosted execution and main adoption are recorded in the operations note. | Equivalent maintained preparation preserves immutable pins, fresh unassessed inventory, failed evidence and human integration decisions. Never replace it with unattended upstream integration. |
+| DD-037 / active | Reviewed release guard `4939b178`; validates the default 9.0.0 branded pair, source metadata and complete latest exact-source hosted main Build matrix before draft publication. | DD-005/DD-025; strict offline fixtures, actionlint, shell syntax, actual candidate package validation and corrupt-download rejection before tag/publication. Check exact source/version/tag, repository identity, MIT attribution, dependency cohort, draft byte comparison and new tag resolution. Existing versions/tags/assets must never be replaced; actual release evidence is recorded separately in the operations note. | Equivalent release path proves tested source and exact immutable assets before publication, including failed/retried matrix cells. Never retire unique-version or original-license requirements. |
+| DD-038 / active | External packaged acceptance `91a06958`, reviewed CI follow-up `e1550b2f`, Windows feed correction `1fd4d4c9`; shared application workflows compile against each branded package rather than sibling project references. Managed CI runs on Linux/Windows; Linux NativeAOT follows both managed jobs. | DD-003/DD-005/DD-026; exact artifact hashes and repository SHA, restore graph/SHA-512 and runtime evidence for both flavors. Isolated XML NuGet.Config uses local file URI/HTTPS feeds and branded source mapping through `--configfile`. Covers presentation feed/viewport/aggregation, terminal child-session recovery and view-close disposal. Shipping packages declare minimum Primitives 9.0.0; source 8.4.0 compatibility is separate and must not be simulated by a forced package downgrade. Headless workflows do not establish actual Terra UI or all-operator/platform NativeAOT support. The dated operations note records the first hosted Windows restore failure and required corrected-head validation. | Equivalent external packaged consumers verify release bytes, dependency graph and these three workflows in both flavors, with portable isolated feeds, explicit native/platform scope and retained failure reports. |
 
 ## Final verification and future updates
 
