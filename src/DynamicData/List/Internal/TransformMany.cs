@@ -237,10 +237,10 @@ internal sealed class TransformMany<TSource, TDestination>(IObservable<IChangeSe
                             var currentItems = change.Item.Current.Destination.AsArray();
                             var previousItems = change.Item.Previous.Value.Destination.AsArray();
 
-                            var adds = currentItems.Except(previousItems, equalityComparer);
+                            var adds = ExceptOccurrences(currentItems, previousItems, equalityComparer);
 
                             // I am not sure whether it is possible to translate the original change into a replace
-                            foreach (var destination in previousItems.Except(currentItems, equalityComparer))
+                            foreach (var destination in ExceptOccurrences(previousItems, currentItems, equalityComparer))
                             {
                                 yield return new Change<TDestination>(ListChangeReason.Remove, destination);
                             }
@@ -278,6 +278,35 @@ internal sealed class TransformMany<TSource, TDestination>(IObservable<IChangeSe
         /// </summary>
         /// <returns>The result of the operation.</returns>
         IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
+
+        /// <summary>
+        /// Excludes one matching occurrence per item instead of applying set difference.
+        /// </summary>
+        /// <param name="items">The items to inspect in their original order.</param>
+        /// <param name="exclusions">The occurrences to exclude.</param>
+        /// <param name="comparer">The destination equality comparer.</param>
+        /// <returns>The unmatched occurrences.</returns>
+        private static IEnumerable<TDestination> ExceptOccurrences(IEnumerable<TDestination> items, IEnumerable<TDestination> exclusions, IEqualityComparer<TDestination> comparer)
+        {
+            var remaining = new Dictionary<TDestination, int>(comparer);
+            foreach (var item in exclusions)
+            {
+                remaining.TryGetValue(item, out var count);
+                remaining[item] = count + 1;
+            }
+
+            foreach (var item in items)
+            {
+                if (remaining.TryGetValue(item, out var count) && count > 0)
+                {
+                    remaining[item] = count - 1;
+                }
+                else
+                {
+                    yield return item;
+                }
+            }
+        }
     }
 
     /// <summary>

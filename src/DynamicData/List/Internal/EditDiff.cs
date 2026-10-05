@@ -38,10 +38,45 @@ internal sealed class EditDiff<T>(ISourceList<T> source, IEqualityComparer<T>? e
                 var originalItems = innerList.AsArray();
                 var newItems = items.AsArray();
 
-                var removes = originalItems.Except(newItems, _equalityComparer);
-                var adds = newItems.Except(originalItems, _equalityComparer);
+                var available = new Dictionary<T, int>(_equalityComparer);
+                foreach (var item in originalItems)
+                {
+                    available.TryGetValue(item, out var count);
+                    available[item] = count + 1;
+                }
 
-                innerList.Remove(removes);
+                var retained = new Dictionary<T, int>(_equalityComparer);
+                var adds = new List<T>();
+                foreach (var item in newItems)
+                {
+                    if (available.TryGetValue(item, out var count) && count > 0)
+                    {
+                        available[item] = count - 1;
+                        retained.TryGetValue(item, out var retainedCount);
+                        retained[item] = retainedCount + 1;
+                    }
+                    else
+                    {
+                        adds.Add(item);
+                    }
+                }
+
+                // Keep the earliest matching originals in their existing order;
+                // append unmatched incoming occurrences in their input order.
+                var index = 0;
+                foreach (var item in originalItems)
+                {
+                    if (retained.TryGetValue(item, out var count) && count > 0)
+                    {
+                        retained[item] = count - 1;
+                        index++;
+                    }
+                    else
+                    {
+                        innerList.RemoveAt(index);
+                    }
+                }
+
                 innerList.AddRange(adds);
             });
 }
