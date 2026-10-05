@@ -159,20 +159,19 @@ internal sealed class TransformMany<TSource, TDestination>(IObservable<IChangeSe
             observer =>
             {
                 var result = new ChangeAwareList<TDestination>();
+                var queue = new SharedDeliveryQueue();
 
-                var transformed = _source.Transform(
+                var transformed = _source.SynchronizeSafe(queue).Transform(
                     t =>
                     {
-                        var locker = InternalEx.NewMonitorGate();
                         var collection = manySelector(t);
-                        var changes = childChanges(t).Synchronize(locker).Skip(1);
+                        var changes = childChanges(t).SynchronizeSafe(queue).Skip(1);
                         return new ManyContainer(collection, changes);
                     }).Publish();
 
-                var outerLock = InternalEx.NewMonitorGate();
-                var initial = transformed.Synchronize(outerLock).Select(changes => new ChangeSet<TDestination>(new DestinationEnumerator(changes, _equalityComparer)));
+                var initial = transformed.SynchronizeSafe(queue).Select(changes => new ChangeSet<TDestination>(new DestinationEnumerator(changes, _equalityComparer)));
 
-                var subsequent = transformed.MergeMany(x => x.Changes).Synchronize(outerLock);
+                var subsequent = transformed.MergeMany(x => x.Changes).SynchronizeSafe(queue);
 
                 var init = initial.Select(
                     changes =>
@@ -188,9 +187,9 @@ internal sealed class TransformMany<TSource, TDestination>(IObservable<IChangeSe
                         return result.CaptureChanges();
                     });
 
-                var allChanges = init.Merge(subsequentSelection);
+                var allChanges = init.UnsynchronizedMerge(subsequentSelection);
 
-                return new CompositeDisposable(allChanges.SubscribeSafe(observer), transformed.Connect());
+                return new CompositeDisposable(allChanges.SubscribeSafe(observer), transformed.Connect(), queue);
             });
     }
     // make this an instance
