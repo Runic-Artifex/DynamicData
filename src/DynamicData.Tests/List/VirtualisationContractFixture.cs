@@ -50,6 +50,26 @@ public sealed class VirtualisationContractFixture
     }
 
     [Test]
+    public async Task EqualObjectsAndRepeatedReferencesKeepOccurrenceIdentity()
+    {
+        using var source = new SourceList<EqualRow>();
+        using var requests = new StateSignal<IVirtualRequest>(new VirtualRequest(1, 3));
+        var rows = new List<EqualRow>();
+        using var subscription = source.Connect().Virtualise(requests).Clone(rows).Subscribe();
+        var first = new EqualRow(1);
+        var second = new EqualRow(2);
+        var third = new EqualRow(3);
+        source.AddRange(new[] { first, second, second, third });
+        await Assert.That(rows.Select(row => row.Id)).IsEquivalentTo(new[] { 2, 2, 3 }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        source.Move(3, 1);
+        await Assert.That(rows[0]).IsSameReferenceAs(third);
+        source.RemoveAt(2);
+        await Assert.That(rows.Select(row => row.Id)).IsEquivalentTo(new[] { 3, 2 }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        source.ReplaceAt(2, first);
+        await Assert.That(rows[1]).IsSameReferenceAs(first);
+    }
+
+    [Test]
     public async Task DuplicateRefreshForwardsTheCorrectVisibleIndex()
     {
         using var source = new Signal<IChangeSet<int>>();
@@ -135,4 +155,12 @@ public sealed class VirtualisationContractFixture
         using var errors = Observable.Throw<IChangeSet<int>>(failure).Virtualise(Observable.Never<IVirtualRequest>()).Subscribe(_ => { }, error => actual = error);
         await Assert.That(actual).IsSameReferenceAs(failure);
     }
+    private sealed class EqualRow(int id) : IEquatable<EqualRow>
+    {
+        public int Id { get; } = id;
+        public bool Equals(EqualRow? other) => other is not null;
+        public override bool Equals(object? obj) => obj is EqualRow;
+        public override int GetHashCode() => 0;
+    }
+
 }

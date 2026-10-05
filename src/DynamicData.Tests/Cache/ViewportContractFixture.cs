@@ -64,6 +64,20 @@ public sealed class ViewportContractFixture
     }
 
     [Test]
+    public async Task ZeroRequestBeforeDelayedComparerDeliversEmptyContext()
+    {
+        using var source = new Signal<IChangeSet<int, int>>();
+        using var requests = new StateSignal<IVirtualRequest>(new VirtualRequest(7, 0));
+        using var comparers = new Signal<IComparer<int>>();
+        using var results = source.SortAndVirtualize(comparers, requests).AsAggregator();
+        comparers.OnNext(Comparer<int>.Default);
+        await Assert.That(results.Messages.Count).IsEqualTo(1);
+        await Assert.That(results.Messages[0].Count).IsEqualTo(0);
+        await Assert.That(results.Messages[0].Context.Response.StartIndex).IsEqualTo(7);
+        await Assert.That(results.Messages[0].Context.Response.Size).IsEqualTo(0);
+    }
+
+    [Test]
     public async Task DefaultWindowRemainsBoundedToTwentyFive()
     {
         using var source = new SourceCache<int, int>(value => value);
