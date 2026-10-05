@@ -146,7 +146,7 @@ public static partial class ObservableCacheEx
     /// </para>
     /// <list type="table">
     /// <listheader><term>Event</term><description>Behavior</description></listheader>
-    /// <item><term>OnError</term><description>An error from the source (parent) stream or from any child changeset stream terminates the entire output. Unlike <c>MergeMany&lt;TObject, TKey, TDestination&gt;(IObservable&lt;IChangeSet&lt;TObject, TKey&gt;&gt;, Func&lt;TObject, IObservable&lt;TDestination&gt;&gt;)</c>, child errors are NOT swallowed.</description></item>
+    /// <item><term>OnError</term><description>An error from the source (parent) stream or from any child changeset stream terminates the entire output.</description></item>
     /// <item><term>OnCompleted</term><description>The output completes when the source (parent) stream completes <b>and</b> all active child changeset streams have also completed.</description></item>
     /// </list>
     /// <para>
