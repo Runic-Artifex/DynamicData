@@ -202,4 +202,76 @@ public class CacheControlTerminalContractFixture
             .Subscribe(changes => events.Add(string.Join(",", changes.SelectMany(change => change.Current.Cache.Items).Select(p => p.Name))), static _ => { }, () => events.Add("completed"));
         await Assert.That(events.SequenceEqual(new[] { "P", "completed" })).IsTrue();
     }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task DynamicCombineFailsOnChildErrorAndDisposesOwnership(bool outerCompleted)
+    {
+        using var parent = new SourceList<IObservable<IChangeSet<Person, string>>>();
+        using var child = new Signal<IChangeSet<Person, string>>();
+        var childDisposals = 0;
+        var completions = 0;
+        Exception? error = null;
+        using var subscription = parent.Or().Subscribe(static _ => { }, ex => error = ex, () => completions++);
+        parent.Add(child.Finally(() => childDisposals++));
+        if (outerCompleted) parent.Dispose();
+        var expected = new InvalidOperationException("dynamic child");
+        child.OnError(expected);
+        await Assert.That(error).IsSameReferenceAs(expected);
+        await Assert.That(completions).IsEqualTo(0);
+        await Assert.That(childDisposals).IsEqualTo(1);
+    }
+
+    [Test]
+    [NotInParallel]
+    public async Task DynamicCombineAllowsBidirectionalChildCallbacksWithoutHoldingGates()
+    {
+        using var leftParent = new SourceList<IObservable<IChangeSet<Person, string>>>();
+        using var rightParent = new SourceList<IObservable<IChangeSet<Person, string>>>();
+        using var left = new Signal<IChangeSet<Person, string>>();
+        using var right = new Signal<IChangeSet<Person, string>>();
+        using var rendezvous = new Barrier(2);
+        var leftValues = new List<string>();
+        var rightValues = new List<string>();
+        var errors = new List<Exception>();
+        var leftCompleted = 0;
+        var rightCompleted = 0;
+        static IChangeSet<Person, string> Added(string key)
+        {
+            var person = new Person(key, 1);
+            return new ChangeSet<Person, string>([new Change<Person, string>(ChangeReason.Add, key, person)]);
+        }
+        using var leftSubscription = leftParent.Or().Subscribe(changes =>
+        {
+            leftValues.AddRange(changes.Select(change => change.Key));
+            if (changes.Any(change => change.Key == "leftTrigger"))
+            {
+                if (!rendezvous.SignalAndWait(TimeSpan.FromSeconds(10))) throw new TimeoutException("left callback rendezvous");
+                right.OnNext(Added("fromLeft"));
+            }
+        }, errors.Add, () => leftCompleted++);
+        using var rightSubscription = rightParent.Or().Subscribe(changes =>
+        {
+            rightValues.AddRange(changes.Select(change => change.Key));
+            if (changes.Any(change => change.Key == "rightTrigger"))
+            {
+                if (!rendezvous.SignalAndWait(TimeSpan.FromSeconds(10))) throw new TimeoutException("right callback rendezvous");
+                left.OnNext(Added("fromRight"));
+            }
+        }, errors.Add, () => rightCompleted++);
+        leftParent.Add(left);
+        rightParent.Add(right);
+        await Task.WhenAll(Task.Run(() => left.OnNext(Added("leftTrigger"))), Task.Run(() => right.OnNext(Added("rightTrigger"))))
+            .WaitAsync(TimeSpan.FromSeconds(30));
+        leftParent.Dispose();
+        rightParent.Dispose();
+        left.OnCompleted();
+        right.OnCompleted();
+        await Assert.That(errors.Count).IsEqualTo(0);
+        await Assert.That(leftValues.SequenceEqual(new[] { "leftTrigger", "fromRight" })).IsTrue();
+        await Assert.That(rightValues.SequenceEqual(new[] { "rightTrigger", "fromLeft" })).IsTrue();
+        await Assert.That(leftCompleted).IsEqualTo(1);
+        await Assert.That(rightCompleted).IsEqualTo(1);
+    }
 }
