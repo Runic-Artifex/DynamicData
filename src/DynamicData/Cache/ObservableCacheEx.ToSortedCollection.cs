@@ -24,6 +24,18 @@ namespace DynamicData;
 public static partial class ObservableCacheEx
 {
     /// <summary>
+    /// Emits a collection snapshot sorted using <see cref="Comparer{T}.Default"/> after each change set.
+    /// </summary>
+    /// <typeparam name="TObject">The type of the items.</typeparam>
+    /// <typeparam name="TKey">The type of the key.</typeparam>
+    /// <param name="source">The source change sets.</param>
+    /// <returns>An observable emitting sorted read-only collection snapshots.</returns>
+    /// <remarks>The items must support comparison by the default comparer.</remarks>
+    public static IObservable<IReadOnlyCollection<TObject>> ToSortedCollection<TObject, TKey>(this IObservable<IChangeSet<TObject, TKey>> source)
+        where TObject : notnull
+        where TKey : notnull => source.ToSortedCollection(Comparer<TObject>.Default);
+
+    /// <summary>
     /// Converts the change set into a fully formed sorted collection. Each change in the source results in a new sorted collection.
     /// </summary>
     /// <typeparam name="TObject">The type of the object.</typeparam>
