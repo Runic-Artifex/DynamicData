@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);REACTIVE_CONSUMER</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../../src/DynamicData.Reactive/DynamicData.Reactive.csproj" />
+    <PackageReference Include="ReactiveUI.Primitives" Version="$(ReactiveUIPrimitivesVersion)" ExcludeAssets="analyzers" />
+  </ItemGroup>
+</Project>
