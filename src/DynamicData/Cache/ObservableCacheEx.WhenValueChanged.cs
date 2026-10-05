@@ -37,7 +37,8 @@ public static partial class ObservableCacheEx
     /// <remarks>
     /// <para>
     /// Per-item subscriptions are created on Add, replaced on Update, disposed on Remove. Errors from individual
-    /// property subscriptions are silently ignored. If you need to correlate a value back to its source item,
+    /// property subscriptions terminate the output with the original error and release all active subscriptions.
+    /// If you need to correlate a value back to its source item,
     /// use <c>WhenPropertyChanged&lt;TObject, TKey, TValue&gt;</c> which returns a <c>PropertyValue&lt;TObject, TValue&gt;</c> pair.
     /// </para>
     /// <list type="table">
@@ -46,7 +47,7 @@ public static partial class ObservableCacheEx
     /// <item><term>Update</term><description>Disposes the old subscription, subscribes to the new item's property.</description></item>
     /// <item><term>Remove</term><description>Disposes the property subscription.</description></item>
     /// <item><term>Refresh</term><description>No effect on subscriptions.</description></item>
-    /// <item><term>OnError</term><description>Per-item errors silently ignored. Source errors terminate the stream.</description></item>
+    /// <item><term>OnError</term><description>An error from a property subscription or the source terminates the stream with the original error and releases all active subscriptions.</description></item>
     /// </list>
     /// </remarks>
     /// <seealso><c>WhenPropertyChanged&lt;TObject, TKey, TValue&gt;</c></seealso>
