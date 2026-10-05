@@ -63,7 +63,8 @@ public sealed class ExpireAfterOccurrenceFixture
                 release.Wait();
             }
         });
-        var writer = Task.Run(() => source.Edit(list => list.Move(0, 1)));
+        var writer = Task.Factory.StartNew(() => source.Edit(list => list.Move(0, 1)),
+            CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         IDisposable? expiration = null;
         try
         {
@@ -120,13 +121,13 @@ public sealed class ExpireAfterOccurrenceFixture
             }, pollingInterval: polling ? TimeSpan.FromMilliseconds(10) : null, scheduler: scheduler)
             .RecordValues(out var results, scheduler);
 
-        var writer = Task.Run(() =>
+        var writer = Task.Factory.StartNew(() =>
         {
             if (blockSentinel)
                 source.Add(sentinel);
             else
                 source.Edit(list => list.Move(0, 1));
-        });
+        }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         try
         {
             await entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
@@ -135,8 +136,8 @@ public sealed class ExpireAfterOccurrenceFixture
 
             scheduler.AdvanceBy(TimeSpan.FromMilliseconds(20).Ticks);
             // Assert references/actual value fields, because all test rows compare equal.
-            await Assert.That(source.Count).IsEqualTo(blockSentinel ? 3 : 2);
             await Assert.That(sameOccurrence(source.Items[0], second)).IsTrue();
+            await Assert.That(source.Count).IsEqualTo(blockSentinel ? 3 : 2);
             await Assert.That(sameOccurrence(source.Items[1], first)).IsTrue();
             await Assert.That(results.RecordedValues).IsEmpty();
         }
@@ -187,5 +188,74 @@ public sealed class ExpireAfterOccurrenceFixture
         public bool Equals(EqualValue other) => true;
         public override bool Equals(object? obj) => obj is EqualValue;
         public override int GetHashCode() => 0;
+    }
+}
+
+public sealed class SourceListExpirationVersionFixture
+{
+    [Test]
+    public async Task ConnectDuringNestedEdit_UsesCompletedSnapshot()
+    {
+        using var source = new SourceList<int>();
+        IDisposable? connection = null;
+        ListItemRecordingObserver<int>? results = null;
+        source.Edit(outer =>
+        {
+            outer.Add(1);
+            source.Edit(inner =>
+            {
+                inner.Add(2);
+                connection = source.Connect().RecordListItems(out results);
+            });
+            outer.Add(3);
+        });
+        using (connection!)
+        {
+            await Assert.That(results!.RecordedChangeSets.Count).IsEqualTo(1);
+            await Assert.That(results.RecordedItems.SequenceEqual(new[] { 1, 2, 3 })).IsTrue();
+        }
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task ConnectWhileDeliveryIsBlocked_SnapshotSkipsAlreadyCommittedChanges(bool filtered)
+    {
+        using var source = new SourceList<int>();
+        source.AddRange(new[] { 1, 2 });
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var release = new ManualResetEventSlim();
+        using var blocker = source.Connect().Subscribe(changes =>
+        {
+            if (changes.Any(change => change.Reason == ListChangeReason.Add && change.Item.Current == 3))
+            {
+                entered.TrySetResult();
+                release.Wait();
+            }
+        });
+        var writer = Task.Factory.StartNew(() => source.Add(3),
+            CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        IDisposable? connection = null;
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            source.Edit(list => list.Move(0, 1));
+            connection = source.Connect(filtered ? static value => value % 2 == 0 : null)
+                .RecordListItems(out var results);
+            await Assert.That(results.RecordedItems.SequenceEqual(filtered ? new[] { 2 } : new[] { 2, 1, 3 })).IsTrue();
+            release.Set();
+            await writer.WaitAsync(TimeSpan.FromSeconds(30));
+            await Assert.That(results.RecordedChangeSets.Count).IsEqualTo(1);
+            source.Add(4);
+            await Assert.That(results.RecordedChangeSets.Count).IsEqualTo(2);
+            await Assert.That(results.RecordedItems.SequenceEqual(filtered ? new[] { 2, 4 } : new[] { 2, 1, 3, 4 })).IsTrue();
+            await Assert.That(results.Error).IsNull();
+        }
+        finally
+        {
+            release.Set();
+            await writer.WaitAsync(TimeSpan.FromSeconds(30));
+            connection?.Dispose();
+        }
     }
 }
