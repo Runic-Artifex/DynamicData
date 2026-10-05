@@ -17,7 +17,6 @@ public static partial class WhenPropertyChangedFixture
             SpinWait.SpinUntil(condition, timeout ?? ConditionTimeout);
 
         [Test]
-[Skip("AutoRefresh has a separate concurrency bug; tracked separately")]
         public async Task AutoRefreshThenFilter_ConcurrentAddsAndPropertyActivation_AllItemsObserved()
         {
             // One adder thread sequentially adds items to the cache while a single flipper thread
@@ -27,12 +26,8 @@ public static partial class WhenPropertyChangedFixture
             // KeyedActivable's setter only raises PropertyChanged on actual value change, so a
             // dropped false->true transition is unrecoverable.
             //
-            // The race lives in AutoRefresh's internal Publish multicast: Sub 1 (Filter path)
-            // receives the Add and reads the property before Sub 2 (MergeMany) subscribes the
-            // per-item refresh handler. A concurrent flip landing in that gap is dropped. This
-            // is not a WhenPropertyChanged issue: AutoRefresh calls WhenPropertyChanged with
-            // notifyInitial=false, so the per-item subscribe attaches the handler immediately
-            // and has no internal race window.
+            // AutoRefresh must attach each item's handler before the Add reaches Filter.
+            // Otherwise activation between Filter's initial read and handler attachment is lost.
             const int iterations = 100;
             const int itemCount = 200;
 
@@ -72,7 +67,6 @@ public static partial class WhenPropertyChangedFixture
         }
 
         [Test]
-[Skip("AutoRefresh has a separate concurrency bug; tracked separately")]
         public async Task AutoRefreshThenFilter_DualSubscribers_AllItemsObserved()
         {
             // Two independent cache subscribers running on the ThreadPool:
@@ -81,9 +75,8 @@ public static partial class WhenPropertyChangedFixture
             // Items start with Activated=false (filtered out). The mutator flips every item, so
             // the final filter contents must include every item.
             //
-            // Same root cause as the single-flipper variant above: AutoRefresh's internal Publish
-            // multicasts the Add to the Filter path before MergeMany subscribes the per-item
-            // refresh handler. The mutator's flip can land in that gap and be dropped.
+            // These independent deliveries must converge regardless of whether activation
+            // happens before handler attachment or while Filter processes the initial Add.
             const int iterations = 100;
             const int itemCount = 200;
 
@@ -119,6 +112,68 @@ public static partial class WhenPropertyChangedFixture
                 var actual = results.Data.Keys.ToHashSet();
                 await Assert.That(actual).IsEquivalentTo(expected, TUnit.Assertions.Enums.CollectionOrdering.Any).Because("concurrent observations must match expected state");
                 await Assert.That(results.Error).IsNull().Because($"iter {iter}: pipeline must not error");
+            }
+        }
+
+        [Test]
+        public async Task AutoRefreshThenFilter_PropertyActivationDuringInitialDelivery_IsObserved()
+        {
+            using var cache = new SourceCache<KeyedActivable, int>(x => x.Id);
+            var item = new KeyedActivable(1);
+            using var propertyRead = new ManualResetEventSlim();
+            using var activationFinished = new ManualResetEventSlim();
+
+            var flipper = Task.Factory.StartNew(
+                () =>
+                {
+                    try
+                    {
+                        if (!propertyRead.Wait(ConditionTimeout))
+                        {
+                            throw new TimeoutException("Filter did not read the initial property value.");
+                        }
+
+                        item.Activated = true;
+                    }
+                    finally
+                    {
+                        activationFinished.Set();
+                    }
+                },
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default);
+
+            try
+            {
+                using var results = cache.Connect()
+                    .AutoRefresh(x => x.Activated)
+                    .Filter(current =>
+                    {
+                        var activated = current.Activated;
+                        if (!activated)
+                        {
+                            propertyRead.Set();
+                            if (!activationFinished.Wait(ConditionTimeout))
+                            {
+                                throw new TimeoutException("Property activation did not finish during initial delivery.");
+                            }
+                        }
+
+                        return activated;
+                    })
+                    .AsAggregator();
+
+                cache.AddOrUpdate(item);
+                await flipper.WaitAsync(ConditionTimeout);
+
+                await Assert.That(results.Data.Keys).IsEquivalentTo(new[] { item.Id }, TUnit.Assertions.Enums.CollectionOrdering.Any);
+                await Assert.That(results.Error).IsNull();
+            }
+            finally
+            {
+                propertyRead.Set();
+                await flipper.WaitAsync(ConditionTimeout);
             }
         }
     }
