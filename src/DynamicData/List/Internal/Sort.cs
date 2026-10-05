@@ -25,12 +25,12 @@ internal sealed class Sort<T>(IObservable<IChangeSet<T>> source, IComparer<T>? c
     /// <summary>
     /// The _comparerObservable field.
     /// </summary>
-    private readonly IObservable<IComparer<T>> _comparerObservable = comparerObservable ?? Observable.Never<IComparer<T>>();
+    private readonly IObservable<IComparer<T>> _comparerObservable = comparerObservable ?? Observable.Empty<IComparer<T>>();
 
     /// <summary>
     /// The _resort field.
     /// </summary>
-    private readonly IObservable<Unit> _resort = resort ?? Observable.Never<Unit>();
+    private readonly IObservable<Unit> _resort = resort ?? Observable.Empty<Unit>();
 
     /// <summary>
     /// The _source field.
@@ -49,11 +49,11 @@ internal sealed class Sort<T>(IObservable<IChangeSet<T>> source, IComparer<T>? c
     public IObservable<IChangeSet<T>> Run() => Observable.Create<IChangeSet<T>>(
             observer =>
             {
-                var locker = InternalEx.NewMonitorGate();
+                var queue = new SharedDeliveryQueue();
                 var original = new List<T>();
                 var target = new ChangeAwareList<T>();
 
-                var dataChanged = _source.Synchronize(locker).Select(
+                var dataChanged = _source.SynchronizeSafe(queue).Select(
                     changes =>
                     {
                         if (resetThreshold > 1)
@@ -63,10 +63,11 @@ internal sealed class Sort<T>(IObservable<IChangeSet<T>> source, IComparer<T>? c
 
                         return changes.TotalChanges > resetThreshold ? Reset(original, target) : Process(target, changes);
                     });
-                var resortSync = _resort.Synchronize(locker).Select(_ => Reorder(target));
-                var changeComparer = _comparerObservable.Synchronize(locker).Select(comparer => ChangeComparer(target, comparer));
+                var resortSync = _resort.SynchronizeSafe(queue).Select(_ => Reorder(target));
+                var changeComparer = _comparerObservable.SynchronizeSafe(queue).Select(comparer => ChangeComparer(target, comparer));
 
-                return changeComparer.Merge(resortSync).Merge(dataChanged).Where(changes => changes.Count != 0).SubscribeSafe(observer);
+                var publisher = changeComparer.UnsynchronizedMerge(resortSync, dataChanged).Where(changes => changes.Count != 0).SubscribeSafe(observer);
+                return new CompositeDisposable(publisher, queue);
             });
 
     /// <summary>

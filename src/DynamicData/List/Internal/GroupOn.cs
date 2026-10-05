@@ -49,19 +49,19 @@ internal sealed class GroupOn<TObject, TGroupKey>(IObservable<IChangeSet<TObject
                 // capture the grouping up front which has the benefit that the group key is only selected once
                 var itemsWithGroup = _source.Transform<TObject, ItemWithGroupKey>((t, previous) => new ItemWithGroupKey(t, _groupSelector(t), previous.Convert(p => p.Group)), true);
 
-                var locker = InternalEx.NewMonitorGate();
-                var shared = itemsWithGroup.Synchronize(locker).Publish();
+                var queue = new SharedDeliveryQueue();
+                var shared = itemsWithGroup.SynchronizeSafe(queue).Publish();
 
                 var grouper = shared.Select(changes => Process(groupings, groupCache, changes));
 
                 var regrouperFunc = _regrouper is null ?
-                    Observable.Never<IChangeSet<IGroup<TObject, TGroupKey>>>() :
-                    _regrouper.Synchronize(locker).CombineLatest(shared.ToCollection(), (_, collection) => Regroup(groupings, groupCache, collection));
+                    Observable.Empty<IChangeSet<IGroup<TObject, TGroupKey>>>() :
+                    _regrouper.SynchronizeSafe(queue).UnsynchronizedCombineLatest(shared.ToCollection(), (_, collection) => Regroup(groupings, groupCache, collection));
 
-                var publisher = grouper.Merge(regrouperFunc).DisposeMany() // dispose removes as the grouping is disposable
+                var publisher = grouper.UnsynchronizedMerge(regrouperFunc).DisposeMany() // dispose removes as the grouping is disposable
                     .NotEmpty().SubscribeSafe(observer);
 
-                return new CompositeDisposable(publisher, shared.Connect());
+                return new CompositeDisposable(publisher, shared.Connect(), queue);
             });
 
     /// <summary>

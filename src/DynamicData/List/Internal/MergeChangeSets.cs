@@ -37,19 +37,20 @@ internal sealed class MergeChangeSets<TObject>(IObservable<IObservable<IChangeSe
     public IObservable<IChangeSet<TObject>> Run() => Observable.Create<IChangeSet<TObject>>(
         observer =>
         {
-            var locker = InternalEx.NewMonitorGate();
+            var queue = new SharedDeliveryQueue();
 
             // This is manages all of the changes
             var changeTracker = new ChangeSetMergeTracker<TObject>();
 
             // Merge all of the changeset streams together and Process them with the change tracker which will emit the results
-            return CreateClonedListObservable(source, locker)
-                .Synchronize(locker)
-                .MergeMany(clonedList => clonedList.Source.RemoveIndex().Do(static _ => { }, observer.OnError))
+            var publisher = CreateClonedListObservable(source, queue)
+                .SynchronizeSafe(queue)
+                .MergeMany(clonedList => clonedList.Source.RemoveIndex())
                 .Subscribe(
                     changes => changeTracker.ProcessChangeSet(changes, observer),
                     observer.OnError,
                     observer.OnCompleted);
+            return new CompositeDisposable(publisher, queue);
         });
 
     /// <summary>
@@ -75,18 +76,18 @@ internal sealed class MergeChangeSets<TObject>(IObservable<IObservable<IChangeSe
     /// Executes the CreateChange operation.
     /// </summary>
     /// <param name="source">The source value.</param>
-    /// <param name="locker">The locker value.</param>
+    /// <param name="queue">The serialization queue.</param>
     /// <returns>The result of the operation.</returns>
-    private Change<ClonedListChangeSet<TObject>> CreateChange(IObservable<IChangeSet<TObject>> source, object locker) =>
-        new(ListChangeReason.Add, new ClonedListChangeSet<TObject>(source.Synchronize(locker), equalityComparer));
+    private Change<ClonedListChangeSet<TObject>> CreateChange(IObservable<IChangeSet<TObject>> source, SharedDeliveryQueue queue) =>
+        new(ListChangeReason.Add, new ClonedListChangeSet<TObject>(source.SynchronizeSafe(queue), equalityComparer));
     // Create a ChangeSet Observable that produces ChangeSets with a single Add event for each new sub-observable
 
     /// <summary>
     /// Executes the CreateClonedListObservable operation.
     /// </summary>
     /// <param name="source">The source value.</param>
-    /// <param name="locker">The locker value.</param>
+    /// <param name="queue">The serialization queue.</param>
     /// <returns>The result of the operation.</returns>
-    private IObservable<IChangeSet<ClonedListChangeSet<TObject>>> CreateClonedListObservable(IObservable<IObservable<IChangeSet<TObject>>> source, object locker) =>
-        source.Select(src => new ChangeSet<ClonedListChangeSet<TObject>>(new[] { CreateChange(src, locker) }));
+    private IObservable<IChangeSet<ClonedListChangeSet<TObject>>> CreateClonedListObservable(IObservable<IObservable<IChangeSet<TObject>>> source, SharedDeliveryQueue queue) =>
+        source.Select(src => new ChangeSet<ClonedListChangeSet<TObject>>(new[] { CreateChange(src, queue) }));
 }

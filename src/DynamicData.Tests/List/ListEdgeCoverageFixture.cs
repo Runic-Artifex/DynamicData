@@ -46,7 +46,7 @@ public class ListEdgeCoverageFixture
     }
 
     [Test]
-    public async Task DynamicCombinerIgnoresFailedChildrenAndKeepsHealthyChildrenActive()
+    public async Task DynamicCombinerFailsAndReleasesHealthyChildrenWhenAnyChildFails()
     {
         using var failedChild = new ReactiveUI.Primitives.Signals.Signal<IChangeSet<int>>();
         using var healthyChild = new SourceList<int>();
@@ -55,13 +55,14 @@ public class ListEdgeCoverageFixture
 
         sources.Add(failedChild);
         sources.Add(healthyChild.Connect());
-        failedChild.OnError(new InvalidOperationException("child failed"));
+        var expected = new InvalidOperationException("child failed");
+        failedChild.OnError(expected);
         healthyChild.Add(42);
 
-        await Assert.That(results.Exception).IsNull();
-        await Assert.That(results.Data.Items).IsEquivalentTo(new[] { 42 });
-        await Assert.That(results.Messages).HasSingleItem();
-        await Assert.That(results.Messages[0].Adds).IsEqualTo(1);
+        await Assert.That(results.Exception).IsSameReferenceAs(expected);
+        await Assert.That(results.IsCompleted).IsFalse();
+        await Assert.That(results.Data.Items).IsEmpty();
+        await Assert.That(results.Messages).IsEmpty();
     }
 
     [Test]

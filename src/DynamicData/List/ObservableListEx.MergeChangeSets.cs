@@ -214,7 +214,7 @@ public static partial class ObservableListEx
     {
         ArgumentExceptionHelper.ThrowIfNull(comparer);
 
-        return source.MergeChangeSets(comparer);
+        return source.MergeChangeSets(equalityComparer: null, comparer: comparer);
     }
 
     /// <para>This overload follows the same core behavior as the related overload.</para>

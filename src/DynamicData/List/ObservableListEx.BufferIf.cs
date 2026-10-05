@@ -97,8 +97,8 @@ public static partial class ObservableListEx
     /// <item><term>Any (while active)</term><description>Passed through immediately.</description></item>
     /// <item><term>Pause selector emits false</term><description>All buffered changesets are flushed downstream as one combined changeset.</description></item>
     /// <item><term>Timeout fires</term><description>Automatically resumes and flushes the buffer.</description></item>
-    /// <item><term>OnError</term><description>Forwarded immediately (not buffered).</description></item>
-    /// <item><term>OnCompleted</term><description>Forwarded immediately.</description></item>
+    /// <item><term>OnError</term><description>Forwarded immediately; buffered data is discarded. Pause-selector errors also terminate the output.</description></item>
+    /// <item><term>OnCompleted</term><description>Buffered changes are flushed before source completion is forwarded.</description></item>
     /// </list>
     /// <para><b>Worth noting:</b> Each pause/resume cycle re-arms the timeout. Rapid toggling can create many small buffer windows.</para>
     /// </remarks>
