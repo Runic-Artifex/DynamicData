@@ -86,6 +86,7 @@ internal class TransformAsync<TDestination, TSource, TKey>(
     /// </summary>
     /// <param name="cache">The cache value.</param>
     /// <param name="changes">The changes value.</param>
+    /// <param name="queue">The queue that serializes updates when forced transforms are enabled.</param>
     /// <returns>The result of the operation.</returns>
     private IObservable<IChangeSet<TDestination, TKey>> DoTransform(
         ChangeAwareCache<TransformedItemContainer, TKey> cache, IChangeSet<TSource, TKey> changes, SharedDeliveryQueue? queue = null)
