@@ -1,4 +1,5 @@
 using ReactiveUI.Primitives.Signals;
+using DynamicData.Tests;
 #if REACTIVE_TESTS
 using DynamicData.Reactive;
 #else
@@ -28,7 +29,8 @@ public sealed class SpecializedSwitchFixture
         feeds.OnNext(second.Connect().SortAndVirtualize(Comparer<int>.Default, requests));
         await Assert.That(result.Data.Items).IsEquivalentTo(new[] { 3 });
         await Assert.That(result.Messages.Any(batch => batch.Removes == 2)).IsTrue();
-        await Assert.That(result.Messages.Any(batch => batch is IChangeSet<int, int, VirtualContext<int>>)).IsFalse();
+        var clearingBatch = result.Messages.Single(batch => batch.Removes == 2);
+        await Assert.That(clearingBatch is IChangeSet<int, int, VirtualContext<int>>).IsFalse();
     }
 
     [Test]

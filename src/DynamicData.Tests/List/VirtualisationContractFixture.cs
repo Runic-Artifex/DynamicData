@@ -139,6 +139,34 @@ public sealed class VirtualisationContractFixture
     }
 
     [Test]
+    public async Task IndexlessValueRemovalUpdatesTheWindowAndTotal()
+    {
+        using var source = new Signal<IChangeSet<int>>();
+        var rows = new List<int>();
+        var messages = new List<IVirtualChangeSet<int>>();
+        using var subscription = source.Virtualise(Observable.Never<IVirtualRequest>()).Do(messages.Add).Clone(rows).Subscribe();
+        source.OnNext(new ChangeSet<int> { new(ListChangeReason.AddRange, new[] { 1, 2 }) });
+        source.OnNext(new ChangeSet<int> { new(ListChangeReason.Remove, 1) });
+        await Assert.That(rows).IsEquivalentTo(new[] { 2 });
+        await Assert.That(messages.Last().Response.TotalSize).IsEqualTo(1);
+    }
+
+    [Test]
+    public async Task IndexlessRangeRemovalConsumesOneRepeatedReference()
+    {
+        using var source = new Signal<IChangeSet<EqualRow>>();
+        var shared = new EqualRow(1);
+        var other = new EqualRow(2);
+        var rows = new List<EqualRow>();
+        using var subscription = source.Virtualise(Observable.Never<IVirtualRequest>()).Clone(rows).Subscribe();
+        source.OnNext(new ChangeSet<EqualRow> { new(ListChangeReason.AddRange, new[] { shared, shared, other }) });
+        source.OnNext(new ChangeSet<EqualRow> { new(ListChangeReason.RemoveRange, new[] { shared }) });
+        await Assert.That(rows.Count).IsEqualTo(2);
+        await Assert.That(rows[0]).IsSameReferenceAs(shared);
+        await Assert.That(rows[1]).IsSameReferenceAs(other);
+    }
+
+    [Test]
     public async Task EmptyViewportForwardsCompletionAndErrors()
     {
         using var requests = new StateSignal<IVirtualRequest>(new VirtualRequest(0, 0));

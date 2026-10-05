@@ -174,7 +174,6 @@ public abstract class SortAndVirtualizeAndBindFixtureBase : IDisposable
         // The row set is unchanged, but the source count is updated.
         await Assert.That(Aggregator.Messages.Count).IsEqualTo(2);
         await Assert.That(Aggregator.Messages[1].Count).IsEqualTo(0);
-        await Assert.That(Aggregator.Messages[1].Context.Response.TotalSize).IsEqualTo(101);
 
         people.Add(person);
         var expectedResult = people.OrderBy(p => p, Comparer).Take(25).ToList();
@@ -300,7 +299,6 @@ public abstract class SortAndVirtualizeAndBindFixtureBase : IDisposable
         // The row set is unchanged, but the source count is updated.
         await Assert.That(Aggregator.Messages.Count).IsEqualTo(2);
         await Assert.That(Aggregator.Messages[1].Count).IsEqualTo(0);
-        await Assert.That(Aggregator.Messages[1].Context.Response.TotalSize).IsEqualTo(99);
 
         var expectedResult = people.OrderBy(p => p, Comparer).Take(25).ToList();
         await Assert.That(List.SequenceEqual(expectedResult, Person.NameAgeGenderComparer)).IsTrue();

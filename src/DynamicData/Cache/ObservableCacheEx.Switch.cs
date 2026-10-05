@@ -48,9 +48,10 @@ public static partial class ObservableCacheEx
     /// <param name="sources">An observable of virtualized changeset streams.</param>
     /// <returns>Base keyed changesets from the selected source, with removals on each switch.</returns>
     /// <remarks>
-    /// This overload intentionally drops <see cref="VirtualContext{TObject}"/> and does not preserve
-    /// viewport ordering or metadata. Switch the keyed source before each presentation's
-    /// SortAndVirtualize when that context is needed. Context-preserving switching requires a separate contract.
+    /// This overload returns the base keyed type, so viewport ordering and <see cref="VirtualContext{TObject}"/>
+    /// are not guaranteed on every batch. Incoming batches may retain their runtime context type, but
+    /// clearing batches contain no viewport context. Switch the keyed source before each presentation's
+    /// SortAndVirtualize when context is needed. Context-preserving switching requires a separate contract.
     /// </remarks>
     public static IObservable<IChangeSet<TObject, TKey>> Switch<TObject, TKey>(this IObservable<IObservable<IChangeSet<TObject, TKey, VirtualContext<TObject>>>> sources)
         where TObject : notnull
