@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <DefineConstants>$(DefineConstants);REACTIVE_ACCEPTANCE</DefineConstants>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Runic.DynamicData.Reactive" Version="$(RunicDynamicDataVersion)" />
+    <PackageReference Include="ReactiveUI.Primitives.Reactive" Version="$(ReactiveUIPrimitivesVersion)" ExcludeAssets="analyzers" />
+  </ItemGroup>
+</Project>
