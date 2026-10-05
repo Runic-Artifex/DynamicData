@@ -22,6 +22,20 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     steps:
+      - name: Initialize durable evidence directory
+        id: initialize
+        shell: bash
+        run: |
+          set -euo pipefail
+          directory="$RUNNER_TEMP/upstream-review"
+          mkdir -p "$directory"
+          printf '# Upstream review workflow evidence\n\nRun: %s\nRef: %s\n' "$GITHUB_RUN_ID" "$GITHUB_REF" > "$directory/run-context.md"
+          echo "directory=$directory" >> "$GITHUB_OUTPUT"
+          [[ "$GITHUB_REF" == 'refs/heads/main' ]] || {
+            echo 'Upstream review preparation must run from refs/heads/main.' >&2
+            exit 1
+          }
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
@@ -54,7 +68,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          output="$RUNNER_TEMP/upstream-review/inventory.json"
+          output="${{ steps.initialize.outputs.directory }}/inventory.json"
           node eng/upstream/collect-inventory.mjs --output "$output" --upstream "${{ steps.pin.outputs.upstream }}"
           echo "file=$output" >> "$GITHUB_OUTPUT"
 
@@ -62,7 +76,7 @@ jobs:
         id: prepare
         run: |
           set -euo pipefail
-          output="$RUNNER_TEMP/upstream-review/snapshot"
+          output="${{ steps.initialize.outputs.directory }}/snapshot"
           node eng/upstream/prepare-review.mjs \
             --repo "$GITHUB_WORKSPACE" \
             --base "${{ steps.pin.outputs.base }}" \
@@ -84,31 +98,33 @@ jobs:
           result="$(bash eng/upstream/publish-review-branch.sh \
             --repo "$GITHUB_WORKSPACE" \
             --base "${{ steps.pin.outputs.base }}" \
+            --upstream "${{ steps.pin.outputs.upstream }}" \
             --branch "$branch" \
             --snapshot "${{ steps.prepare.outputs.directory }}")"
           printf '%s\n' "$result"
           printf '%s\n' "$result" >> "$GITHUB_OUTPUT"
 
-      - name: Open fork review pull request
-        if: steps.branch.outputs.status == 'created'
+      - name: Open or recover fork review pull request
+        id: pull-request
+        if: ${{ steps.branch.outcome == 'success' }}
         env:
           GH_TOKEN: ${{ github.token }}
-          BRANCH: ${{ steps.branch.outputs.branch }}
-          BASE: ${{ steps.pin.outputs.base }}
-          UPSTREAM: ${{ steps.pin.outputs.upstream }}
-          MONTH: ${{ steps.pin.outputs.month }}
         run: |
           set -euo pipefail
-          body="$RUNNER_TEMP/upstream-review-pr.md"
-          printf '%s\n\n' "Automated preparation for the ${MONTH} upstream review." > "$body"
-          printf '%s\n' "Pins Runic base \`${BASE}\` and upstream candidate \`${UPSTREAM}\`." >> "$body"
-          printf '%s\n\n' 'This PR contains an inventory and virtual-merge report only. It does not merge upstream, publish packages, or contact upstream.' >> "$body"
-          gh pr create --base main --head "$BRANCH" --title "docs: prepare ${MONTH} upstream review" --body-file "$body"
+          result="$(bash eng/upstream/open-review-pr.sh \
+            --repo Runic-Artifex/DynamicData \
+            --branch "${{ steps.branch.outputs.branch }}" \
+            --base "${{ steps.pin.outputs.base }}" \
+            --upstream "${{ steps.pin.outputs.upstream }}" \
+            --month "${{ steps.pin.outputs.month }}" \
+            --evidence-dir "${{ steps.initialize.outputs.directory }}")"
+          printf '%s\n' "$result"
+          printf '%s\n' "$result" >> "$GITHUB_OUTPUT"
 
       - name: Upload review evidence
-        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: upstream-review-${{ steps.pin.outputs.month }}-${{ steps.pin.outputs.upstream }}
-          path: ${{ steps.prepare.outputs.directory }}
+          name: upstream-review-${{ github.run_id }}
+          path: ${{ steps.initialize.outputs.directory }}
           if-no-files-found: error

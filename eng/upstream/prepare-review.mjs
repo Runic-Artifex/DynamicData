@@ -46,9 +46,13 @@ function git(repo, args, options = {}) {
 
 function gitResult(repo, args) {
   try {
-    return { ok: true, output: git(repo, args) };
+    return { ok: true, status: 0, output: git(repo, args) };
   } catch (error) {
-    return { ok: false, output: String(error.stdout ?? error.stderr ?? '').trim() };
+    return {
+      ok: false,
+      status: Number.isInteger(error.status) ? error.status : null,
+      output: String(error.stdout ?? error.stderr ?? '').trim(),
+    };
   }
 }
 
@@ -60,15 +64,22 @@ function assertCommit(repo, sha, label) {
 
 function previousUpstreamPin(repo, base) {
   const upstreamMain = gitResult(repo, ['rev-parse', '--verify', 'refs/remotes/upstream/main^{commit}']);
-  if (!upstreamMain.ok) return null;
+  if (!upstreamMain.ok) return { status: 'not-found', reason: 'No fetched refs/remotes/upstream/main ref.' };
   const merges = git(repo, ['rev-list', '--first-parent', '--merges', '--parents', base]).split('\n').filter(Boolean);
+  const candidates = [];
   for (const line of merges) {
-    const [merge, firstParent, secondParent] = line.split(' ');
-    if (secondParent && gitResult(repo, ['merge-base', '--is-ancestor', secondParent, upstreamMain.output]).ok) {
-      return { merge, runicParent: firstParent, upstreamParent: secondParent };
-    }
+    const [merge, firstParent, ...additionalParents] = line.split(' ');
+    if (gitResult(repo, ['merge-base', '--is-ancestor', firstParent, upstreamMain.output]).ok) continue;
+    const upstreamParents = additionalParents.filter(parent =>
+      gitResult(repo, ['merge-base', '--is-ancestor', parent, upstreamMain.output]).ok);
+    if (upstreamParents.length === 1) candidates.push({ merge, runicParent: firstParent, upstreamParent: upstreamParents[0] });
+    if (upstreamParents.length > 1) candidates.push({ merge, runicParent: firstParent, upstreamParents, ambiguous: true });
   }
-  return null;
+  if (candidates.length === 0) return { status: 'not-found', reason: 'No imported upstream merge was found in reachable history.' };
+  if (candidates.some(candidate => candidate.ambiguous)) return { status: 'ambiguous', candidates };
+  const maximal = candidates.filter(candidate => !candidates.some(other =>
+    other !== candidate && gitResult(repo, ['merge-base', '--is-ancestor', candidate.upstreamParent, other.upstreamParent]).ok));
+  return maximal.length === 1 ? { status: 'found', ...maximal[0] } : { status: 'ambiguous', candidates: maximal };
 }
 
 function markdown(manifest) {
@@ -86,7 +97,7 @@ inventory. Historical research under \`docs/upstream/\` remains dated evidence.
 | --- | --- |
 | Runic base | \`${manifest.base}\` |
 | Upstream candidate | \`${manifest.upstream}\` |
-| Previous recorded upstream merge | ${manifest.previousUpstreamPin ? `\`${manifest.previousUpstreamPin.upstreamParent}\` via \`${manifest.previousUpstreamPin.merge}\`` : 'Not found automatically; inspect history before integration.'} |
+| Previous recorded upstream merge | ${manifest.previousUpstreamPin.status === 'found' ? `\`${manifest.previousUpstreamPin.upstreamParent}\` via \`${manifest.previousUpstreamPin.merge}\`` : `${manifest.previousUpstreamPin.status}: ${manifest.previousUpstreamPin.reason ?? 'inspect candidates in manifest.json'}`} |
 
 ## Result
 
@@ -123,6 +134,9 @@ if (inventory.requestedUpstreamCommit?.toLowerCase() !== args.upstream.toLowerCa
 }
 const mergeBase = git(repo, ['merge-base', args.base, args.upstream]);
 const mergeTree = gitResult(repo, ['merge-tree', '--write-tree', args.base, args.upstream]);
+if (!mergeTree.ok && mergeTree.status !== 1) {
+  throw new Error(`git merge-tree failed with exit ${mergeTree.status ?? 'unknown'}: ${mergeTree.output}`);
+}
 const commits = git(repo, ['log', '--format=%H%x09%s', `${mergeBase}..${args.upstream}`])
   .split('\n').filter(Boolean).map(line => {
     const [sha, subject] = line.split('\t');

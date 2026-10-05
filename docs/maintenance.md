@@ -47,7 +47,12 @@ existing review. A manual run may select only a full SHA reachable from fetched
 approval to integrate. Historical `docs/upstream/` assessments are intentionally
 not copied into a new snapshot: every item must be assessed against that
 month's pins. This workflow uses Git objects and the GitHub REST API only; it
-does not run upstream workflows, build scripts, or project code.
+does not run upstream workflows, build scripts, or project code. The current
+fork setting may restrict GitHub Actions from creating pull requests. In that
+case the workflow retains its immutable branch and artifact, writes a manual
+compare link in `pr-status.md`, and retries PR creation on the next run without
+changing the branch. Do not loosen repository settings merely to make this
+automation succeed.
 
 1. Start from the current Runic `main` in a clean checkout or isolated worktree.
    Preserve unrelated work. Record the Runic base SHA and review date.
