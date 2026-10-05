@@ -1,0 +1,114 @@
+name: Prepare upstream review
+
+on:
+  schedule:
+    - cron: '23 4 1 * *'
+  workflow_dispatch:
+    inputs:
+      upstream_sha:
+        description: 'Optional full commit SHA already reachable from upstream/main.'
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: upstream-review-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Fetch and pin upstream candidate
+        id: pin
+        shell: bash
+        env:
+          REQUESTED_UPSTREAM_SHA: ${{ inputs.upstream_sha }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags https://github.com/reactivemarbles/DynamicData.git \
+            +refs/heads/main:refs/remotes/upstream/main
+          candidate="${REQUESTED_UPSTREAM_SHA:-$(git rev-parse refs/remotes/upstream/main)}"
+          [[ "$candidate" =~ ^[0-9a-fA-F]{40}$ ]] || { echo 'upstream_sha must be a full SHA.' >&2; exit 1; }
+          git cat-file -e "$candidate^{commit}"
+          git merge-base --is-ancestor "$candidate" refs/remotes/upstream/main || {
+            echo 'upstream_sha must be reachable from the fetched upstream/main.' >&2
+            exit 1
+          }
+          {
+            echo "base=$(git rev-parse HEAD)"
+            echo "upstream=$(git rev-parse "$candidate")"
+            echo "month=$(date -u +%Y-%m)"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Collect fresh unassessed inventory
+        id: inventory
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/upstream-review/inventory.json"
+          node eng/upstream/collect-inventory.mjs --output "$output" --upstream "${{ steps.pin.outputs.upstream }}"
+          echo "file=$output" >> "$GITHUB_OUTPUT"
+
+      - name: Prepare immutable review snapshot
+        id: prepare
+        run: |
+          set -euo pipefail
+          output="$RUNNER_TEMP/upstream-review/snapshot"
+          node eng/upstream/prepare-review.mjs \
+            --repo "$GITHUB_WORKSPACE" \
+            --base "${{ steps.pin.outputs.base }}" \
+            --upstream "${{ steps.pin.outputs.upstream }}" \
+            --month "${{ steps.pin.outputs.month }}" \
+            --inventory "${{ steps.inventory.outputs.file }}" \
+            --output "$output"
+          echo "directory=$output" >> "$GITHUB_OUTPUT"
+
+      - name: Create one immutable fork review branch
+        id: branch
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="${{ steps.pin.outputs.base }}"
+          upstream="${{ steps.pin.outputs.upstream }}"
+          # Keep the readable month and two 12-character immutable pins.
+          branch="review/upstream/${{ steps.pin.outputs.month }}-${base:0:12}-${upstream:0:12}"
+          result="$(bash eng/upstream/publish-review-branch.sh \
+            --repo "$GITHUB_WORKSPACE" \
+            --base "${{ steps.pin.outputs.base }}" \
+            --branch "$branch" \
+            --snapshot "${{ steps.prepare.outputs.directory }}")"
+          printf '%s\n' "$result"
+          printf '%s\n' "$result" >> "$GITHUB_OUTPUT"
+
+      - name: Open fork review pull request
+        if: steps.branch.outputs.status == 'created'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          BASE: ${{ steps.pin.outputs.base }}
+          UPSTREAM: ${{ steps.pin.outputs.upstream }}
+          MONTH: ${{ steps.pin.outputs.month }}
+        run: |
+          set -euo pipefail
+          body="$RUNNER_TEMP/upstream-review-pr.md"
+          printf '%s\n\n' "Automated preparation for the ${MONTH} upstream review." > "$body"
+          printf '%s\n' "Pins Runic base \`${BASE}\` and upstream candidate \`${UPSTREAM}\`." >> "$body"
+          printf '%s\n\n' 'This PR contains an inventory and virtual-merge report only. It does not merge upstream, publish packages, or contact upstream.' >> "$body"
+          gh pr create --base main --head "$BRANCH" --title "docs: prepare ${MONTH} upstream review" --body-file "$body"
+
+      - name: Upload review evidence
+        if: ${{ !cancelled() && steps.prepare.outcome == 'success' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: upstream-review-${{ steps.pin.outputs.month }}-${{ steps.pin.outputs.upstream }}
+          path: ${{ steps.prepare.outputs.directory }}
+          if-no-files-found: error

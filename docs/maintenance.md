@@ -36,7 +36,18 @@ workflow.
 ## Monthly upstream review
 
 Review upstream once a month, and sooner for an urgent correctness or security
-fix. This is an operating cadence, not an automatically installed schedule.
+fix. The scheduled [upstream-review workflow](../.github/workflows/upstream-review.yml)
+prepares an immutable, unassessed fork review branch and artifact on the first
+of each month; it does not merge, publish, retag, or contact upstream. It pins
+both the Runic base and an upstream commit, calculates conflicts without
+checking out a merge, and writes a new `eng/upstream/reviews/` snapshot. The
+branch name includes the month and both pins, so reruns never overwrite an
+existing review. A manual run may select only a full SHA reachable from fetched
+`upstream/main`. Review branches and their PRs are maintenance evidence, not
+approval to integrate. Historical `docs/upstream/` assessments are intentionally
+not copied into a new snapshot: every item must be assessed against that
+month's pins. This workflow uses Git objects and the GitHub REST API only; it
+does not run upstream workflows, build scripts, or project code.
 
 1. Start from the current Runic `main` in a clean checkout or isolated worktree.
    Preserve unrelated work. Record the Runic base SHA and review date.
