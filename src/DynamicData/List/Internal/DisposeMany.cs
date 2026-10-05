@@ -24,73 +24,85 @@ internal sealed class DisposeMany<T>(IObservable<IChangeSet<T>> source)
     public IObservable<IChangeSet<T>> Run()
         => Observable.Create<IChangeSet<T>>(observer =>
         {
-            // Will be locking on cachedItems directly, instead of using an anonymous gate object. This is acceptable, since it's a privately-held object, there's no risk of deadlock from other consumers locking on it.
             var cachedItems = new List<T>();
 
             var sourceSubscription = source
-                .Synchronize(cachedItems)
+                .SynchronizeSafe()
                 .SubscribeSafe(Observer.Create<IChangeSet<T>>(
                     onNext: changeSet =>
                     {
-                        observer.OnNext(changeSet);
-
-                        foreach (var change in changeSet)
+                        // Track live ownership before delivery: downstream can dispose or reenter
+                        // the subscription from OnNext, and teardown must see the current items.
+                        cachedItems.Clone(changeSet);
+                        try
                         {
-                            switch (change.Reason)
+                            observer.OnNext(changeSet);
+                        }
+                        finally
+                        {
+                            foreach (var change in changeSet)
                             {
-                                case ListChangeReason.Clear:
-                                    foreach (var item in cachedItems)
-                                    {
-                                        (item as IDisposable)?.Dispose();
-                                    }
+                                switch (change.Reason)
+                                {
+                                    case ListChangeReason.Clear:
+                                        foreach (var item in change.Range)
+                                        {
+                                            (item as IDisposable)?.Dispose();
+                                        }
 
-                                    break;
+                                        break;
 
-                                case ListChangeReason.Remove:
-                                    (change.Item.Current as IDisposable)?.Dispose();
-                                    break;
+                                    case ListChangeReason.Remove:
+                                        (change.Item.Current as IDisposable)?.Dispose();
+                                        break;
 
-                                case ListChangeReason.RemoveRange:
-                                    foreach (var item in change.Range)
-                                    {
-                                        (item as IDisposable)?.Dispose();
-                                    }
+                                    case ListChangeReason.RemoveRange:
+                                        foreach (var item in change.Range)
+                                        {
+                                            (item as IDisposable)?.Dispose();
+                                        }
 
-                                    break;
+                                        break;
 
-                                case ListChangeReason.Replace:
-                                    if (change.Item.Previous.HasValue)
-                                    {
-                                        (change.Item.Previous.Value as IDisposable)?.Dispose();
-                                    }
+                                    case ListChangeReason.Replace:
+                                        if (change.Item.Previous.HasValue)
+                                        {
+                                            (change.Item.Previous.Value as IDisposable)?.Dispose();
+                                        }
 
-                                    break;
+                                        break;
+                                }
                             }
                         }
-
-                        cachedItems.Clone(changeSet);
                     },
                     onError: error =>
                     {
-                        observer.OnError(error);
-
-                        ProcessFinalization(cachedItems);
+                        try
+                        {
+                            observer.OnError(error);
+                        }
+                        finally
+                        {
+                            ProcessFinalization(cachedItems);
+                        }
                     },
                     onCompleted: () =>
                     {
-                        observer.OnCompleted();
-
-                        ProcessFinalization(cachedItems);
+                        try
+                        {
+                            observer.OnCompleted();
+                        }
+                        finally
+                        {
+                            ProcessFinalization(cachedItems);
+                        }
                     }));
 
             return Disposable.Create(() =>
             {
                 sourceSubscription.Dispose();
 
-                lock (cachedItems)
-                {
-                    ProcessFinalization(cachedItems);
-                }
+                ProcessFinalization(cachedItems);
             });
         });
 
@@ -100,11 +112,11 @@ internal sealed class DisposeMany<T>(IObservable<IChangeSet<T>> source)
     /// <param name="cachedItems">The cachedItems value.</param>
     private static void ProcessFinalization(List<T> cachedItems)
     {
-        foreach (var item in cachedItems)
+        var remaining = cachedItems.ToArray();
+        cachedItems.Clear();
+        foreach (var item in remaining)
         {
             (item as IDisposable)?.Dispose();
         }
-
-        cachedItems.Clear();
     }
 }

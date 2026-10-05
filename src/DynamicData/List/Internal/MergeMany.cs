@@ -37,33 +37,47 @@ internal sealed class MergeMany<T, TDestination>(IObservable<IChangeSet<T>> sour
             observer =>
             {
                 var counter = new SubscriptionCounter();
-                var locker = InternalEx.NewMonitorGate();
-                var disposable = _source.Concat(counter.DeferCleanup)
-                                                .SubscribeMany(t => SubscribeChild(t, locker, counter, observer))
+                var queue = new SharedDeliveryQueue();
+                var disposable = _source.SynchronizeSafe(queue).Concat(counter.DeferCleanup)
+                                                .SubscribeMany(t => SubscribeChild(t, queue, counter, observer))
                                                 .Subscribe(_ => { }, observer.OnError, observer.OnCompleted);
 
-                return new CompositeDisposable(disposable, counter);
+                return new CompositeDisposable(disposable, counter, queue);
             });
 
     /// <summary>
     /// Executes the SubscribeChild operation.
     /// </summary>
     /// <param name="item">The item value.</param>
-    /// <param name="locker">The locker value.</param>
+    /// <param name="queue">The serialization queue.</param>
     /// <param name="counter">The counter value.</param>
     /// <param name="observer">The observer value.</param>
     /// <returns>The result of the operation.</returns>
-    private IDisposable SubscribeChild(T item, object locker, SubscriptionCounter counter, IObserver<TDestination> observer)
+    private IDisposable SubscribeChild(T item, SharedDeliveryQueue queue, SubscriptionCounter counter, IObserver<TDestination> observer)
     {
         counter.Added();
+        var finalized = 0;
+        void Finish()
+        {
+            if (Interlocked.Exchange(ref finalized, 1) == 0)
+            {
+                counter.Finally();
+            }
+        }
+
         try
         {
-            return _observableSelector(item).Synchronize(locker).Finally(counter.Finally).Subscribe(observer.OnNext, _ => { }, () => { });
+            return _observableSelector(item).SynchronizeSafe(queue).Finally(Finish).Subscribe(observer.OnNext, observer.OnError, () => { });
         }
-        catch (ObjectDisposedException)
+        catch (ObjectDisposedException) when (counter.IsDisposed)
         {
-            counter.Finally();
+            Finish();
             return Disposable.Empty;
+        }
+        catch
+        {
+            Finish();
+            throw;
         }
     }
 
@@ -81,6 +95,10 @@ internal sealed class MergeMany<T, TDestination>(IObservable<IChangeSet<T>> sour
         /// The _subscriptionCount field.
         /// </summary>
         private int _subscriptionCount = 1;
+
+        private int _isDisposed;
+
+        public bool IsDisposed => Volatile.Read(ref _isDisposed) != 0;
 
         /// <summary>
         /// Gets the DeferCleanup value.
@@ -104,14 +122,18 @@ internal sealed class MergeMany<T, TDestination>(IObservable<IChangeSet<T>> sour
         /// <summary>
         /// Executes the Dispose operation.
         /// </summary>
-        public void Dispose() => _subject.Dispose();
+        public void Dispose()
+        {
+            Interlocked.Exchange(ref _isDisposed, 1);
+            _subject.Dispose();
+        }
 
         /// <summary>
         /// Executes the CheckCompleted operation.
         /// </summary>
         private void CheckCompleted()
         {
-            if (Interlocked.Decrement(ref _subscriptionCount) == 0)
+            if (Interlocked.Decrement(ref _subscriptionCount) == 0 && !IsDisposed)
             {
                 _subject.OnCompleted();
             }
