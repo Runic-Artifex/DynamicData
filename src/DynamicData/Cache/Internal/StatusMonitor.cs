@@ -16,12 +16,14 @@ namespace DynamicData.Cache.Internal;
 /// <param name="source">The source value.</param>
 internal sealed class StatusMonitor<T>(IObservable<T> source)
 {
+    private readonly IObservable<T> _source = source ?? throw new ArgumentNullException(nameof(source));
+
     /// <summary>
     /// Executes the Run operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
     public IObservable<ConnectionStatus> Run() =>
-        source.Select(static _ => ConnectionStatus.Loaded)
+        _source.Select(static _ => ConnectionStatus.Loaded)
             .Concat(Observable.Return(ConnectionStatus.Completed))
             .Catch<ConnectionStatus, Exception>(static error => Observable.Return(ConnectionStatus.Errored).Concat(Observable.Throw<ConnectionStatus>(error)))
             .StartWith(ConnectionStatus.Pending)

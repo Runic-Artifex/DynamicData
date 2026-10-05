@@ -47,12 +47,23 @@ internal sealed class SpecifiedGrouper<TObject, TKey, TGroupKey>(IObservable<ICh
             {
                 var queue = new SharedDeliveryQueue();
 
-                // create source group cache. The observer is fed from the result group source below, so the
-                // source's own terminal events would otherwise never reach it.
-                var sourceGroups = _source.SynchronizeSafe(queue).Do(static _ => { }, observer.OnError, observer.OnCompleted).Group(_groupSelector).DisposeMany().AsObservableCache();
+                // Both caches subscribe eagerly. Connect their inputs only after the notifier and child
+                // subscriptions are wired, then release a synchronous terminal after both initial snapshots.
+                var initializing = true;
+                var completed = false;
+                void Fail(Exception failure) => observer.OnError(failure);
+                void Finish()
+                {
+                    if (initializing) completed = true;
+                    else observer.OnCompleted();
+                }
+
+                var source = _source.SynchronizeSafe(queue).Publish();
+                var groups = _resultGroupSource.SynchronizeSafe(queue).Publish();
+                var sourceGroups = source.Do(static _ => { }, Fail, Finish).Group(_groupSelector).DisposeMany().AsObservableCache();
 
                 // create parent groups
-                var parentGroups = _resultGroupSource.SynchronizeSafe(queue).Transform(
+                var parentGroups = groups.Transform(
                     x =>
                     {
                         // if child already has data, populate it.
@@ -85,8 +96,17 @@ internal sealed class SpecifiedGrouper<TObject, TKey, TGroupKey>(IObservable<ICh
                     {
                         var groups = x.Select(s => new Change<IGroup<TObject, TKey, TGroupKey>, TGroupKey>(s.Reason, s.Key, s.Current));
                         return new GroupChangeSet<TObject, TKey, TGroupKey>(groups);
-                    }).SubscribeSafe(observer);
+                    }).Subscribe(observer.OnNext, Fail, Finish);
 
-                return new CompositeDisposable(notifier, sourceGroups, parentGroups, updatesFromChildren, queue);
+                var sourceConnection = source.Connect();
+                var groupConnection = groups.Connect();
+                var initialization = queue.CreateQueue(Observer.Create<Unit>(_ =>
+                {
+                    initializing = false;
+                    if (completed) observer.OnCompleted();
+                }));
+                initialization.OnNext(Unit.Default);
+
+                return new CompositeDisposable(sourceConnection, groupConnection, notifier, sourceGroups, parentGroups, updatesFromChildren, initialization, queue);
             });
 }

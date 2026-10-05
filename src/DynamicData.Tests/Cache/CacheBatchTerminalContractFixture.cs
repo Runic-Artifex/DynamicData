@@ -22,7 +22,7 @@ public class CacheBatchTerminalContractFixture
         Exception? error = null;
         var expected = new InvalidOperationException(terminal);
         using var subscription = source.Finally(() => disposals++)
-            .BatchIf(pause, timer, initialPauseState: true)
+            .BatchIf(pause, initialPauseState: true, timer: timer)
             .Subscribe(values.Add, ex => error = ex, () => completions++);
         var person = new Person("P", 1);
         source.OnNext(new ChangeSet<Person, string>([new Change<Person, string>(ChangeReason.Add, person.Name, person)]));

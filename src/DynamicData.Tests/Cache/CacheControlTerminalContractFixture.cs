@@ -179,4 +179,27 @@ public class CacheControlTerminalContractFixture
         await Assert.That(contents.Keys.OrderBy(static key => key)).IsEquivalentTo(
             Enumerable.Range(100, 100).Select(i => "L" + i).Concat(Enumerable.Range(100, 100).Select(i => "R" + i)).OrderBy(static key => key));
     }
+
+    [Test]
+    public async Task SynchronousTreeDeliversRootSnapshotBeforeCompletion()
+    {
+        var person = new Person("P", 1, parentName: "root");
+        var events = new List<string>();
+        var source = Observable.Return<IChangeSet<Person, string>>(new ChangeSet<Person, string>([new Change<Person, string>(ChangeReason.Add, person.Name, person)]));
+        using var subscription = source.TransformToTree(p => p.ParentName)
+            .Subscribe(changes => events.Add(string.Join(",", changes.Select(change => change.Current.Item.Name))), static _ => { }, () => events.Add("completed"));
+        await Assert.That(events.SequenceEqual(new[] { "P", "completed" })).IsTrue();
+    }
+
+    [Test]
+    public async Task SynchronousSpecifiedGroupingDeliversPopulatedSnapshotBeforeCompletion()
+    {
+        var person = new Person("P", 1);
+        var events = new List<string>();
+        var source = Observable.Return<IChangeSet<Person, string>>(new ChangeSet<Person, string>([new Change<Person, string>(ChangeReason.Add, person.Name, person)]));
+        var groups = Observable.Return<IDistinctChangeSet<int>>(new DistinctChangeSet<int>([new Change<int, int>(ChangeReason.Add, 1, 1)]));
+        using var subscription = source.Group(p => p.Age, groups)
+            .Subscribe(changes => events.Add(string.Join(",", changes.SelectMany(change => change.Current.Cache.Items).Select(p => p.Name))), static _ => { }, () => events.Add("completed"));
+        await Assert.That(events.SequenceEqual(new[] { "P", "completed" })).IsTrue();
+    }
 }

@@ -1,7 +1,9 @@
 #if REACTIVE_TESTS
+using CacheOperators = DynamicData.Reactive.ObservableCacheEx;
 using DynamicData.Reactive.Binding;
 using DynamicData.Reactive.Kernel;
 #else
+using CacheOperators = DynamicData.ObservableCacheEx;
 using DynamicData.Binding;
 using DynamicData.Kernel;
 #endif
@@ -62,7 +64,7 @@ public class CacheTerminalContractFixture
         "items" => source.MergeManyItems(static _ => Observable.Return(1)).Select(static _ => Unit.Default),
         "forced" => source.Transform(p => p.Name, Observable.Empty<Unit>()).Select(static _ => Unit.Default),
         "or" => source.Or(Observable.Empty<IChangeSet<Person, string>>()).Select(static _ => Unit.Default),
-        "and" => source.And(Observable.Empty<IChangeSet<Person, string>>()).Select(static _ => Unit.Default),
+        "and" => CacheOperators.And(source, Observable.Empty<IChangeSet<Person, string>>()).Select(static _ => Unit.Default),
         "xor" => source.Xor(Observable.Empty<IChangeSet<Person, string>>()).Select(static _ => Unit.Default),
         "except" => source.Except(Observable.Empty<IChangeSet<Person, string>>()).Select(static _ => Unit.Default),
         "innerMany" => source.InnerJoinMany(source, p => p.ParentName ?? "root", static (p, _) => p.Name).Select(static _ => Unit.Default),
