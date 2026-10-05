@@ -108,8 +108,13 @@ try {
   git(['remote', 'add', 'origin', remote], repo);
   git(['push', '--set-upstream', 'origin', 'main'], repo);
   const reviewBranch = `review/upstream/2026-11-${conflictBase.slice(0, 12)}-${conflictUpstream.slice(0, 12)}`;
-  const fakeGit = join(temporary, 'fake-git.sh');
-  writeFileSync(fakeGit, `#!/usr/bin/env bash
+const fakeGit = join(temporary, 'fake-git.sh');
+writeFileSync(fakeGit, `#!/usr/bin/env bash
+if [[ " $* " == *" remote get-url --push --all origin "* ]]; then
+  if [[ "\${FAKE_GIT_REAL_PUSH:-}" == '1' ]]; then exec git "$@"; fi
+  printf '%s\\n' 'https://github.com/Runic-Artifex/DynamicData.git'
+  exit 0
+fi
 if [[ " $* " == *" remote get-url origin "* ]]; then
   printf '%s\\n' 'https://github.com/Runic-Artifex/DynamicData.git'
   exit 0
@@ -124,13 +129,20 @@ exec git "$@"
   assert.equal(git(['ls-remote', '--heads', 'origin', `refs/heads/${reviewBranch}`], repo).split('\t')[1], `refs/heads/${reviewBranch}`);
   const repeated = run('bash', publishArgs, root, isolatedGit);
   assert.deepEqual(repeated.split('\n'), ['status=existing', `branch=${reviewBranch}`]);
+  git(['config', 'remote.origin.pushurl', 'https://example.invalid/not-our-fork.git'], repo);
+  assert.throws(() => run('bash', publishArgs, root, { ...isolatedGit, FAKE_GIT_REAL_PUSH: '1' }), /Origin push URL is not Runic-Artifex/);
+  git(['config', '--unset-all', 'remote.origin.pushurl'], repo);
   const dirty = join(repo, 'untracked.txt');
   writeFileSync(dirty, 'must not be published\n');
   assert.throws(() => run('bash', publishArgs, root, isolatedGit), /dirty worktree/);
   unlinkSync(dirty);
 
-  const failingGit = join(temporary, 'failing-git.sh');
-  writeFileSync(failingGit, `#!/usr/bin/env bash
+const failingGit = join(temporary, 'failing-git.sh');
+writeFileSync(failingGit, `#!/usr/bin/env bash
+if [[ " $* " == *" remote get-url --push --all origin "* ]]; then
+  printf '%s\\n' 'https://github.com/Runic-Artifex/DynamicData.git'
+  exit 0
+fi
 if [[ " $* " == *" remote get-url origin "* ]]; then
   printf '%s\\n' 'https://github.com/Runic-Artifex/DynamicData.git'
   exit 0

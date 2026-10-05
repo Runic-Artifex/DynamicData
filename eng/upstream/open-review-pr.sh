@@ -34,7 +34,7 @@ done
 [[ "$branch" =~ ^review/upstream/[0-9]{4}-(0[1-9]|1[0-2])-[0-9a-f]{12}-[0-9a-f]{12}$ ]] || { echo 'Unsafe review branch name.' >&2; exit 2; }
 mkdir -p "$evidence_dir"
 gh_bin="${GH_BIN:-gh}"
-existing="$($gh_bin pr list --repo "$repo" --state open --head "$branch" --base main --json url --jq '.[0].url')"
+existing="$("$gh_bin" pr list --repo "$repo" --state open --head "$branch" --base main --json url --jq '.[0].url')"
 if [[ -n "$existing" ]]; then
   printf 'status=existing\nurl=%s\n' "$existing"
   exit 0
@@ -46,7 +46,7 @@ printf '%s\n\n' "Automated preparation for the ${month} upstream review." > "$bo
 printf '%s\n' "Pins Runic base \`${base}\` and upstream candidate \`${upstream}\`." >> "$body"
 printf '%s\n\n' 'This PR contains an inventory and virtual-merge report only. It does not merge upstream, publish packages, or contact upstream.' >> "$body"
 set +e
-url="$($gh_bin pr create --repo "$repo" --base main --head "$branch" --title "docs: prepare ${month} upstream review" --body-file "$body" 2>"$error")"
+url="$("$gh_bin" pr create --repo "$repo" --base main --head "$branch" --title "docs: prepare ${month} upstream review" --body-file "$body" 2>"$error")"
 create_status=$?
 set -e
 if ((create_status == 0)); then

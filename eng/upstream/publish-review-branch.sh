@@ -34,6 +34,9 @@ done
 [[ "$base" =~ ^[0-9a-fA-F]{40}$ ]] || { echo 'Base must be a full commit SHA.' >&2; exit 2; }
 [[ "$upstream" =~ ^[0-9a-fA-F]{40}$ ]] || { echo 'Upstream must be a full commit SHA.' >&2; exit 2; }
 [[ "$branch" =~ ^review/upstream/[0-9]{4}-(0[1-9]|1[0-2])-[0-9a-f]{12}-[0-9a-f]{12}$ ]] || { echo 'Unsafe review branch name.' >&2; exit 2; }
+branch_base="${branch:24:12}"
+branch_upstream="${branch:37:12}"
+[[ "${base,,}" == "$branch_base"* && "${upstream,,}" == "$branch_upstream"* ]] || { echo 'Review branch pins do not match publication arguments.' >&2; exit 2; }
 [[ -f "$snapshot/manifest.json" && -f "$snapshot/report.md" && -f "$snapshot/inventory.json" ]] || { echo 'Snapshot is incomplete.' >&2; exit 2; }
 
 repo="$(cd "$repo" && pwd)"
@@ -43,6 +46,9 @@ relative_snapshot="${branch#review/upstream/}"
 target="eng/upstream/reviews/$relative_snapshot"
 origin="$("$git_bin" -C "$repo" remote get-url origin)"
 [[ "$origin" =~ ^(https://github\.com/|git@github\.com:)Runic-Artifex/DynamicData(\.git)?$ ]] || { echo "Origin is not Runic-Artifex/DynamicData: $origin" >&2; exit 1; }
+mapfile -t push_urls < <("$git_bin" -C "$repo" remote get-url --push --all origin)
+(( ${#push_urls[@]} == 1 )) || { echo 'Origin must have exactly one push URL.' >&2; exit 1; }
+[[ "${push_urls[0]}" =~ ^(https://github\.com/|git@github\.com:)Runic-Artifex/DynamicData(\.git)?$ ]] || { echo "Origin push URL is not Runic-Artifex/DynamicData: ${push_urls[0]}" >&2; exit 1; }
 [[ -z "$("$git_bin" -C "$repo" status --porcelain)" ]] || { echo 'Refusing to publish from a dirty worktree.' >&2; exit 1; }
 
 validate_manifest() {
@@ -91,7 +97,7 @@ cp -a "$snapshot" "$repo/$target"
 "$git_bin" -C "$repo" add -- "$target"
 "$git_bin" -C "$repo" -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' \
   commit -m "docs: prepare ${branch#review/upstream/} upstream review" >&2
-"$git_bin" -C "$repo" push origin "HEAD:refs/heads/$branch" >&2
+"$git_bin" -C "$repo" push --force-with-lease="refs/heads/$branch:" origin "HEAD:refs/heads/$branch" >&2
 echo "status=created"
 echo "branch=$branch"
 echo "target=$target"
