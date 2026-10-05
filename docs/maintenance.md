@@ -144,6 +144,17 @@ tested final revision. Review both .NET 10 API baselines for intentional changes
 compile representative external consumers for overload/namespace changes.
 Check package IDs and contents before release.
 
+The [packaged acceptance gate](../eng/acceptance/README.md) exercises the actual
+default 9.0.0 branded package pair outside the library namespaces. CI runs both
+flavors managed on Linux and Windows, then Linux NativeAOT after both managed
+jobs succeed. Require exact artifact hashes, repository SHA and the expected
+restore graph. These three headless application workflows cover presentation
+updates, child-session recovery and view-close ownership; they do not establish
+actual Terra UI behavior or all-operator/platform NativeAOT support. Source
+8.4.0 compatibility remains a separate matrix: never force a shipping package
+below its declared Primitives minimum or suppress NU1605 to claim packaged
+compatibility.
+
 Before a large local matrix, check project and temporary filesystem free space
 and container storage if used. Use conservative concurrency, reuse valid caches
 and build outputs, and avoid overlapping full runs. On storage failure, stop
@@ -159,9 +170,20 @@ repack different code under the same version. Corrections receive a new version.
 Record the source SHA, dependency generation and validation in release notes;
 keep `Runic.DynamicData` and `Runic.DynamicData.Reactive` package IDs. The current
 manual [release workflow](../.github/workflows/release.yml) creates prerelease
-GitHub assets for its selected commit; it is not a substitute for the complete
-compatibility matrix or a claim of stable/NuGet.org publication. Upstream's
-inherited `RELEASING.md` describes upstream automation, not this fork's process.
+GitHub assets from a clean maintained `main` checkout at its exact workflow
+SHA. The [release guard](../eng/release/README.md) requires the latest trusted
+main Build run at that same SHA to complete successfully, including every
+source matrix cell and the packaged acceptance jobs. It validates exactly one
+matching default 9.0.0 package per branded ID, .NET 10 contents, original MIT
+attribution and repository source metadata. It refuses an existing release or
+tag, uploads a draft pair, downloads and compares the exact bytes, creates and
+resolves a new tag at the tested SHA, then publishes. Promoting an already
+verified CI pair follows the same source, version, byte and tag requirements;
+record that provenance instead of rebuilding or replacing published assets.
+This process is not a claim of stable/NuGet.org publication. GitHub server
+immutability may be disabled; the no-replacement policy still applies.
+Upstream's inherited `RELEASING.md` describes upstream automation, not this
+fork's process.
 
 Retire a difference only when its register condition is met. Record the upstream
 replacement SHA or Runic policy decision, the removal commit and validation;
