@@ -1,10 +1,10 @@
 # Upstream pull requests
 
-Snapshot: 2026-10-05T18:22:31.182Z. Repository: [reactivemarbles/DynamicData](https://github.com/reactivemarbles/DynamicData). 703 records.
+Collected 2026-10-05 from [reactivemarbles/DynamicData](https://github.com/reactivemarbles/DynamicData). 703 records.
 
-[Analysis](analysis.md) · [Index](README.md) · [Machine-readable inventory](inventory.json)
+[Index and assessment](README.md)
 
-Open items have authored summaries and fork assessments. Historical summaries conservatively describe title-level scope; closed does not mean fixed, and absent ancestry does not mean absent code.
+Open items have summaries and the fork assessment made before the October 2026 integration; see the [index](README.md#adopted) for what was adopted since. Historical summaries describe title-level scope; closed does not mean fixed.
 
 ## Open (23)
 
