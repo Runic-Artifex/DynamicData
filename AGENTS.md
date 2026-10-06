@@ -1,54 +1,34 @@
 # Working on Runic DynamicData
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md), the
-[maintenance policy](docs/maintenance.md) and the
-[fork difference register](docs/fork-differences.md) before implementation.
-The files under `docs/upstream/` are dated research, not live completion or
-planning state. Verify a claim against the actual branch before acting on it.
-
-## Ownership and delegation
-
-GPT 6.1 Sol (`gpt-6.1-sol`) delegates are explicitly authorized for independent
-implementation, research and review topics. Follow any narrower instruction
-from the user. Do not use delegate models older than GPT 6. The integration owner
-assigns exclusive files or separate worktrees, pins source/dependency commits,
-orders dependent work and reviews every result. Delegates must report changed
-files, validation and outstanding limitations, and preserve existing user work.
-Only the integration owner merges into the maintained Runic `main`, commits
-shared integration results or publishes unless the user explicitly delegates
-those actions. Authorization to delegate does not authorize upstream messages
-or contributions.
+Read [CONTRIBUTING.md](CONTRIBUTING.md), the [maintenance guide](docs/maintenance.md)
+and the [fork difference register](docs/fork-differences.md) before changing code.
+Open upstream-derived work is tracked as
+[GitHub issues](https://github.com/Runic-Artifex/DynamicData/issues); verify an
+issue against the current code before acting on it.
 
 ## Preserve the fork
 
-- Keep existing Git history and upstream merge ancestry. Monthly syncs use a
-  pinned upstream commit on a temporary sync branch and a reviewed real merge.
-  Do not squash syncs, reconstruct the repository as a patch stack or introduce
-  a submodule wrapper. Optional patch exports are derived artifacts.
+- Keep Git history and upstream merge ancestry; upstream syncs are real merges
+  of a pinned upstream commit (see the maintenance guide).
 - Keep .NET 10-only targets, the SDK pin in `global.json`, default Primitives
-  9.0.0 and compatibility checks for 8.4.0. Preserve both shared-source flavors,
-  `REACTIVE_SHIM`, TUnit and branded Runic package IDs. Do not inherit enclosing
+  9.0.0 with 8.4.0 compatibility, both shared-source flavors (`REACTIVE_SHIM`),
+  TUnit and the branded `Runic.*` package IDs. Do not inherit enclosing
   workspace central package versions.
-- Protect expiration-disposal guards and recent targeted operator fixes listed
-  in the register. Resolve reused `rerere` resolutions by review and testing.
-- Use small logical topic commits with meaningful regression tests. Review API
-  changes and both flavor baselines. Update the register when a difference is
-  added, changed or retired; preserve retired entries with evidence.
-- Published versions, tags and release assets are immutable. No upstream issues,
-  PRs, comments or contributions are part of this work.
+- Keep the original MIT license and authorship.
+- Use small logical commits with meaningful regression tests in both flavors.
+  Review public API baseline changes. Update the register when a difference is
+  added, changed or retired.
+- Published versions, tags and release assets are immutable.
+- Do not open issues, PRs or comments upstream.
 
 ## Environment and checks
 
-Read the SDK workspace's `flake.nix` and `.envrc` and inspect `direnv status`.
-From this repository, use `direnv exec ../runic-sdk <command>` to reuse the locked
-Nix environment when it is not already loaded. Keep `use flake` Git-aware;
-do not replace it with `use flake path:.`, guess store paths or install duplicate
-SDKs. Resolve pin mismatches and last-working-shell fallback before claiming
-validation. See the maintenance policy for build/test commands and CI gates.
+From the repository root, use the SDK workspace's locked shell:
+`direnv exec <path-to>/runic-sdk <command>` (inspect its `.envrc` and
+`direnv status` first; do not install duplicate SDKs or use `use flake path:.`).
+Build and test commands are in the maintenance guide.
 
-Run focused tests during iteration and the required final matrix once ready.
-Use explicit synchronization and virtual time; keep meaningful contention in
-concurrency regressions. Check disk space before expensive verification. On
-ENOSPC, stop launching work and diagnose storage before retrying. Remove only
-task-owned disposable artifacts, preserve shared caches and user work, and never
-manually delete Nix store paths or broadly prune system storage.
+Run focused tests while iterating and the full matrix once ready. Use virtual
+time and explicit synchronization; keep meaningful contention in concurrency
+regressions. Check disk space before expensive verification; on ENOSPC stop and
+diagnose storage before retrying. Remove only task-owned temporary outputs.
