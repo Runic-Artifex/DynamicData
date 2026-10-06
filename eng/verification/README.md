@@ -13,10 +13,8 @@ source handoff. The specialized `Switch` deliberately returns a base keyed
 changeset; it does not preserve virtualization metadata. Applications needing
 per-presentation ordering should switch keyed feeds before `SortAndVirtualize`.
 
-Run from a checkout containing the final integrated viewport and Switch changes.
-The baseline before those changes is expected to fail the corresponding runtime
-checks. Compile checks alone do not prove that C# selected the specialized
-`Switch`: the executable also checks the inferred observable element type.
+Compile checks alone do not prove that C# selected the specialized `Switch`:
+the executable also checks the inferred observable element type.
 
 On the Runic desktop, use the SDK workspace's locked Nix shell. The script runs
 sequentially, with MSBuild limited to two nodes and parallel project builds
@@ -40,8 +38,6 @@ compatibility of every operator, model shape or platform. The property expressio
 paths deliberately execute in the native binary; analyzer flags alone do not
 establish that they work.
 
-`artifacts/verification/` retains the tested source SHA, SDK version, host,
-build/run logs and native executables. `bin/` and `obj/` are ignored incremental
-outputs. Preserve useful failure evidence; remove task-owned native executables
-and temporary outputs after verification consumers finish. This script does not
-run the repository's complete test matrix, publish packages or create releases.
+The script writes build/run logs and native executables to the ignored
+`artifacts/verification/` directory; remove them when finished. It does not run
+the repository's complete test matrix, publish packages or create releases.

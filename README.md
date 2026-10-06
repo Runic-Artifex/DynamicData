@@ -8,8 +8,9 @@ The namespaces remain `DynamicData` and `DynamicData.Reactive`; the NuGet IDs ar
 of each flavor in an application. The original MIT license and authorship remain.
 
 For build instructions and package assets, see [CONTRIBUTING](CONTRIBUTING.md).
-For the upstream issue/PR inventory and Runic implementation recommendations,
-see the [upstream investigation](docs/upstream/README.md).
+For upstream issue/PR summaries and how the fork handled them, see the
+[upstream summaries](docs/upstream/README.md); fork policy is in the
+[maintenance guide](docs/maintenance.md).
 For Runic model scheduling, collection updates and per-presentation virtualization,
 see the [SDK DynamicData guide](https://github.com/Runic-Artifex/runic-sdk/blob/feat/dynamicdata-collections/docs/guides/application/guides/dynamicdata.md). This fork will not be proposed upstream.
 
