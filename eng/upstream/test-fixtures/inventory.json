@@ -1,9 +1,16 @@
 {
-  "schemaVersion": 1,
-  "collectedAt": "2026-11-01T00:00:00.000Z",
-  "requestedUpstreamCommit": "0000000000000000000000000000000000000000",
-  "observedUpstreamMainCommit": "0000000000000000000000000000000000000000",
-  "counts": { "issues": 1, "pullRequests": 1, "open": 1, "total": 2 },
-  "assessmentPolicy": "Every item is unassessed for this monthly review. Historical docs/upstream research remains dated evidence and is never copied as a current decision.",
-  "items": []
+  "schemaVersion": 2,
+  "collectedAt": "2026-11-01T04:30:00.000Z",
+  "repository": "example-upstream/Library",
+  "upstreamCommit": "0000000000000000000000000000000000000000",
+  "coverage": "Fixture",
+  "counts": { "issues": 3, "pullRequests": 2, "openIssues": 2, "openPullRequests": 1, "open": 3, "total": 5 },
+  "warnings": [],
+  "items": [
+    { "number": 1, "type": "issue", "title": "Old untouched issue", "url": "https://example.invalid/issues/1", "state": "open", "createdAt": "2026-01-01T00:00:00Z", "updatedAt": "2026-02-01T00:00:00Z", "labels": [] },
+    { "number": 2, "type": "issue", "title": "Old issue with | pipe, updated", "url": "https://example.invalid/issues/2", "state": "closed", "createdAt": "2026-01-02T00:00:00Z", "updatedAt": "2026-10-20T00:00:00Z", "labels": [] },
+    { "number": 3, "type": "pull_request", "title": "Merged fix", "url": "https://example.invalid/pull/3", "state": "merged", "draft": false, "createdAt": "2026-09-01T00:00:00Z", "updatedAt": "2026-09-02T00:00:00Z", "labels": [] },
+    { "number": 4, "type": "issue", "title": "New issue", "url": "https://github.com/example-upstream/Library/issues/4", "state": "open", "createdAt": "2026-10-15T00:00:00Z", "updatedAt": "2026-10-16T00:00:00Z", "labels": [] },
+    { "number": 5, "type": "pull_request", "title": "New draft", "url": "https://example.invalid/pull/5", "state": "open", "draft": true, "createdAt": "2026-10-25T00:00:00Z", "updatedAt": "2026-10-26T00:00:00Z", "labels": [] }
+  ]
 }

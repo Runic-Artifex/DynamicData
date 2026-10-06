@@ -24,6 +24,13 @@ jobs:
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
+      - name: Test upstream maintenance fixtures
+        if: runner.os == 'Linux' && matrix.primitives == '9.0.0'
+        shell: bash
+        run: |
+          node eng/upstream/test-collect-inventory.mjs
+          node eng/upstream/test-prepare-review.mjs
+          node eng/upstream/test-review-issue.mjs
       - name: Build .NET 10
         id: build
         run: dotnet build src/DynamicData.sln -c Release -p:ReactiveUIPrimitivesVersion=${{ matrix.primitives }}

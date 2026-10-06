@@ -1,176 +1,232 @@
 #!/usr/bin/env node
 /**
- * Produce an immutable review snapshot from already-fetched Git objects.
+ * Summarize one monthly upstream review from already-fetched Git objects and a
+ * collected inventory.
  *
- * It never switches branches, merges a working tree, fetches, pushes, or runs
- * code from upstream. git merge-tree is used only to calculate whether a real
- * merge would need human conflict resolution.
+ * Writes manifest.json and summary.md into the output directory. It never
+ * switches branches, merges a working tree, commits, fetches, pushes or runs
+ * upstream code; git merge-tree only reports whether a merge would conflict.
  */
 import { execFileSync } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-function usage() {
-  return 'Usage: node eng/upstream/prepare-review.mjs --repo <repo> --base <40-hex-sha> --upstream <40-hex-sha> --month YYYY-MM --inventory <file> --output <new-directory> [--dry-run]';
-}
+export const marker = 'upstream-review-data';
+const listLimit = 50;
+const usage = 'Usage: node eng/upstream/prepare-review.mjs --repo <repo> --base <sha> --upstream <sha> --month YYYY-MM --inventory <file> --output <directory> [--previous <file>] [--run-url <url>] [--artifact <name>]';
 
 function parseArgs(argv) {
-  const values = { dryRun: false };
-  for (let index = 0; index < argv.length; index += 1) {
-    const argument = argv[index];
-    if (argument === '--dry-run') {
-      values.dryRun = true;
-      continue;
-    }
-    if (!argument.startsWith('--') || argv[index + 1] === undefined) throw new Error(usage());
-    values[argument.slice(2)] = argv[index + 1];
-    index += 1;
+  const values = {};
+  for (let index = 0; index < argv.length; index += 2) {
+    if (!argv[index]?.startsWith('--') || argv[index + 1] === undefined) throw new Error(usage);
+    values[argv[index].slice(2)] = argv[index + 1];
   }
-  for (const key of ['repo', 'base', 'upstream', 'month', 'inventory', 'output']) {
-    if (!values[key]) throw new Error(usage());
-  }
-  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(values.month) ||
-      !/^[0-9a-f]{40}$/i.test(values.base) || !/^[0-9a-f]{40}$/i.test(values.upstream)) {
-    throw new Error(usage());
+  if (!values.repo || !values.inventory || !values.output || !/^\d{4}-(0[1-9]|1[0-2])$/.test(values.month ?? '') ||
+      !/^[0-9a-f]{40}$/i.test(values.base ?? '') || !/^[0-9a-f]{40}$/i.test(values.upstream ?? '')) {
+    throw new Error(usage);
   }
   return values;
 }
 
-function git(repo, args, options = {}) {
-  return execFileSync('git', ['-C', repo, ...args], {
-    encoding: 'utf8',
-    maxBuffer: 20 * 1024 * 1024,
-    stdio: options.allowFailure ? ['ignore', 'pipe', 'pipe'] : undefined,
-  }).trim();
+function git(repo, args) {
+  return execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 }
 
 function gitResult(repo, args) {
   try {
     return { ok: true, status: 0, output: git(repo, args) };
   } catch (error) {
-    return {
-      ok: false,
-      status: Number.isInteger(error.status) ? error.status : null,
-      output: String(error.stdout ?? error.stderr ?? '').trim(),
-    };
+    return { ok: false, status: Number.isInteger(error.status) ? error.status : null, output: String(error.stdout ?? error.stderr ?? '').trim() };
   }
 }
 
 function assertCommit(repo, sha, label) {
-  if (git(repo, ['rev-parse', `${sha}^{commit}`]).toLowerCase() !== sha.toLowerCase()) {
-    throw new Error(`${label} is not an exact commit object: ${sha}`);
-  }
+  const resolved = gitResult(repo, ['rev-parse', '--verify', `${sha}^{commit}`]);
+  if (!resolved.ok || resolved.output.toLowerCase() !== sha.toLowerCase()) throw new Error(`${label} is not a commit in ${repo}: ${sha}`);
 }
 
-function previousUpstreamPin(repo, base) {
-  const upstreamMain = gitResult(repo, ['rev-parse', '--verify', 'refs/remotes/upstream/main^{commit}']);
-  if (!upstreamMain.ok) return { status: 'not-found', reason: 'No fetched refs/remotes/upstream/main ref.' };
+/**
+ * The fork's recorded upstream baseline: the upstream parent of the newest real
+ * upstream merge in the fork's history, or, for a fork that never merged
+ * upstream, the shared merge base it inherited.
+ */
+export function upstreamBaseline(repo, base, upstream) {
   const merges = git(repo, ['rev-list', '--merges', '--parents', base]).split('\n').filter(Boolean);
   const candidates = [];
   for (const line of merges) {
-    const [merge, firstParent, ...additionalParents] = line.split(' ');
-    if (gitResult(repo, ['merge-base', '--is-ancestor', firstParent, upstreamMain.output]).ok) continue;
-    const upstreamParents = additionalParents.filter(parent =>
-      gitResult(repo, ['merge-base', '--is-ancestor', parent, upstreamMain.output]).ok);
-    if (upstreamParents.length === 1) candidates.push({ merge, runicParent: firstParent, upstreamParent: upstreamParents[0] });
-    if (upstreamParents.length > 1) candidates.push({ merge, runicParent: firstParent, upstreamParents, ambiguous: true });
+    const [merge, firstParent, ...others] = line.split(' ');
+    if (gitResult(repo, ['merge-base', '--is-ancestor', firstParent, upstream]).ok) continue;
+    const imported = others.filter(parent => gitResult(repo, ['merge-base', '--is-ancestor', parent, upstream]).ok);
+    if (imported.length === 1) candidates.push({ merge, upstreamParent: imported[0] });
   }
-  if (candidates.length === 0) return { status: 'not-found', reason: 'No imported upstream merge was found in reachable history.' };
-  if (candidates.some(candidate => candidate.ambiguous)) return { status: 'ambiguous', candidates };
-  const maximal = candidates.filter(candidate => !candidates.some(other =>
-    other !== candidate && gitResult(repo, ['merge-base', '--is-ancestor', candidate.upstreamParent, other.upstreamParent]).ok));
-  return maximal.length === 1 ? { status: 'found', ...maximal[0] } : { status: 'ambiguous', candidates: maximal };
+  const newest = candidates.filter(candidate => !candidates.some(other =>
+    other !== candidate && other.upstreamParent !== candidate.upstreamParent &&
+    gitResult(repo, ['merge-base', '--is-ancestor', candidate.upstreamParent, other.upstreamParent]).ok));
+  if (newest.length >= 1) {
+    return { kind: 'upstream-merge', commit: newest[0].upstreamParent, merge: newest[0].merge };
+  }
+  return { kind: 'merge-base', commit: git(repo, ['merge-base', base, upstream]) };
 }
 
-function markdown(manifest) {
-  const conflicts = manifest.merge.status === 'conflicts';
-  const noChange = manifest.commits.count === 0;
-  return `# ${manifest.month} upstream review preparation
-
-This is a preparation record, not an implementation review or a merge approval.
-It was generated from immutable Git object IDs and a fresh unassessed GitHub
-inventory. Historical research under \`docs/upstream/\` remains dated evidence.
-
-## Pins
-
-| Input | SHA |
-| --- | --- |
-| Runic base | \`${manifest.base}\` |
-| Upstream candidate | \`${manifest.upstream}\` |
-| Previous recorded upstream merge | ${manifest.previousUpstreamPin.status === 'found' ? `\`${manifest.previousUpstreamPin.upstreamParent}\` via \`${manifest.previousUpstreamPin.merge}\`` : `${manifest.previousUpstreamPin.status}: ${manifest.previousUpstreamPin.reason ?? 'inspect candidates in manifest.json'}`} |
-
-## Result
-
-${noChange ? 'The candidate is already the base or has no commits beyond it. Record the no-change review after checking the fresh inventory.' : `${manifest.commits.count} upstream commits are ahead of the merge base.`}
-
-${conflicts
-    ? 'A virtual three-way merge reports conflicts. No merge was attempted. Resolve them only on a temporary sync branch after reviewing the affected fork differences.'
-    : 'A virtual three-way merge produced a tree without textual conflicts. This is not approval to merge: inspect cleanly merged workflow, dependency, test and source changes.'}
-
-## Fresh inventory
-
-The inventory contains ${manifest.inventory.counts.total} records (${manifest.inventory.counts.open} open). Every item is marked \`unassessed-for-this-review\`; no October assessment was copied forward. Review relevant issues and PRs against these pins before selecting a sync scope.
-
-## Required human follow-up
-
-1. Inspect the commit list and changed paths in \`manifest.json\`.
-2. Decide whether this candidate is suitable, then create \`sync/upstream/${manifest.month}\` from the recorded base.
-3. Perform a real, reviewed merge only on that temporary branch. Preserve the upstream merge parent and record conflict decisions, validations, adopted and deferred work in \`docs/upstream/reviews/${manifest.month}.md\`.
-4. Do not merge this preparation branch into Runic \`main\`, publish packages, tags, or send anything upstream.
-`;
-}
-
-const args = parseArgs(process.argv.slice(2));
-const repo = resolve(args.repo);
-const output = resolve(args.output);
-const inventoryPath = resolve(args.inventory);
-if (!existsSync(repo) || !existsSync(inventoryPath)) throw new Error('Repository or inventory file does not exist.');
-if (existsSync(output)) throw new Error(`Refusing to overwrite existing review snapshot: ${output}`);
-assertCommit(repo, args.base, 'Base');
-assertCommit(repo, args.upstream, 'Upstream candidate');
-const inventory = JSON.parse(readFileSync(inventoryPath, 'utf8'));
-if (inventory.requestedUpstreamCommit?.toLowerCase() !== args.upstream.toLowerCase()) {
-  throw new Error('Inventory candidate pin does not match --upstream. Collect a new inventory for this exact candidate.');
-}
-const mergeBase = git(repo, ['merge-base', args.base, args.upstream]);
-const mergeTree = gitResult(repo, ['merge-tree', '--write-tree', args.base, args.upstream]);
-if (!mergeTree.ok && mergeTree.status !== 1) {
-  throw new Error(`git merge-tree failed with exit ${mergeTree.status ?? 'unknown'}: ${mergeTree.output}`);
-}
-const commits = git(repo, ['log', '--format=%H%x09%s', `${mergeBase}..${args.upstream}`])
-  .split('\n').filter(Boolean).map(line => {
-    const [sha, subject] = line.split('\t');
-    return { sha, subject };
+function commitsBetween(repo, from, to) {
+  return git(repo, ['log', '--format=%H%x09%cI%x09%s', `${from}..${to}`]).split('\n').filter(Boolean).map(line => {
+    const [sha, date, ...subject] = line.split('\t');
+    return { sha, date, subject: subject.join('\t') };
   });
-const changedPaths = git(repo, ['diff', '--name-only', `${mergeBase}..${args.upstream}`]).split('\n').filter(Boolean);
-const manifest = {
-  schemaVersion: 1,
-  generatedAt: new Date().toISOString(),
-  month: args.month,
-  base: args.base.toLowerCase(),
-  upstream: args.upstream.toLowerCase(),
-  mergeBase,
-  previousUpstreamPin: previousUpstreamPin(repo, args.base),
-  merge: {
-    status: mergeTree.ok ? 'clean' : 'conflicts',
-    virtualTree: mergeTree.ok ? mergeTree.output : null,
-    diagnostic: mergeTree.ok ? null : mergeTree.output,
-    method: 'git merge-tree --write-tree; no checkout or working-tree merge was performed',
-  },
-  commits: { count: commits.length, items: commits },
-  changedPaths,
-  inventory: {
-    file: 'inventory.json',
-    collectedAt: inventory.collectedAt,
-    observedUpstreamMainCommit: inventory.observedUpstreamMainCommit,
-    counts: inventory.counts,
-    assessmentPolicy: inventory.assessmentPolicy,
-  },
-};
-if (!args.dryRun) {
-  mkdirSync(output, { recursive: false });
-  cpSync(inventoryPath, resolve(output, 'inventory.json'));
-  writeFileSync(resolve(output, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, { flag: 'wx' });
-  writeFileSync(resolve(output, 'report.md'), markdown(manifest), { flag: 'wx' });
 }
-console.log(JSON.stringify({ output: args.dryRun ? relative(process.cwd(), output) : output, base: manifest.base, upstream: manifest.upstream, merge: manifest.merge.status, commits: manifest.commits.count, inventory: manifest.inventory.counts }, null, 2));
+
+function readJson(file, fallback) {
+  if (!file) return fallback;
+  const text = readFileSync(file, 'utf8').trim();
+  return text ? JSON.parse(text) : fallback;
+}
+
+/** Items created or updated after `since`, newest first. */
+export function changedItems(items, since) {
+  const threshold = Date.parse(since);
+  return items
+    .filter(item => Date.parse(item.updatedAt) > threshold)
+    .map(item => ({ ...item, change: Date.parse(item.createdAt) > threshold ? 'new' : 'updated' }))
+    .sort((left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt) || right.number - left.number);
+}
+
+function escapeCell(text) {
+  return String(text ?? '').replace(/\|/g, '\\|').replace(/[\r\n]+/g, ' ');
+}
+
+/**
+ * Upstream links go through redirect.github.com (as Renovate does) so the
+ * public tracking issue does not add cross-references to upstream timelines.
+ */
+export function quietLink(url) {
+  return String(url).replace(/^https:\/\/github\.com\//, 'https://redirect.github.com/');
+}
+
+function short(sha) {
+  return sha.slice(0, 12);
+}
+
+export function summaryMarkdown(manifest) {
+  const { counts } = manifest.inventory;
+  const upstreamUrl = quietLink(`https://github.com/${manifest.upstreamRepository}`);
+  const commitLink = sha => `[\`${short(sha)}\`](${upstreamUrl}/commit/${sha})`;
+  const previous = manifest.previousReview;
+  const lines = [
+    `# Upstream review ${manifest.month}`,
+    '',
+    `Automated monthly summary of [${manifest.upstreamRepository}](${upstreamUrl}). Review it, then file or update fork issues for anything worth adopting. Nothing was merged or committed.`,
+    '',
+    '| | |',
+    '| --- | --- |',
+    `| Upstream main | ${commitLink(manifest.upstream)} |`,
+    `| Fork baseline | ${commitLink(manifest.baseline.commit)} (${manifest.baseline.kind === 'upstream-merge' ? `last upstream merge \`${short(manifest.baseline.merge)}\`` : 'inherited merge base'}) |`,
+    `| Previous review | ${previous ? `[#${previous.number}](${previous.url})` : 'none; compared with the baseline'} |`,
+    `| Compared since | ${manifest.since} |`,
+    `| Virtual merge into fork | ${manifest.merge.status === 'clean' ? 'clean' : `conflicts in ${manifest.merge.conflicts.length} path(s)`} |`,
+    ...(manifest.runUrl ? [`| Workflow run / artifact | [run](${manifest.runUrl}) / \`${manifest.artifact}\` |`] : []),
+    '',
+    '## Counts',
+    '',
+    '| | Open | Total |',
+    '| --- | ---: | ---: |',
+    `| Issues | ${counts.openIssues} | ${counts.issues} |`,
+    `| Pull requests | ${counts.openPullRequests} | ${counts.pullRequests} |`,
+    `| New or updated since ${manifest.since.slice(0, 10)} | ${manifest.changes.items.filter(item => item.state === 'open').length} | ${manifest.changes.count} |`,
+    `| Upstream commits since baseline | | ${manifest.commitsSinceBaseline.count} |`,
+    ...(manifest.commitsSincePrevious ? [`| Upstream commits since previous review | | ${manifest.commitsSincePrevious.count} |`] : []),
+    '',
+  ];
+  if (manifest.inventory.warnings.length > 0) {
+    lines.push('> [!WARNING]', ...manifest.inventory.warnings.map(warning => `> ${warning}`), '');
+  }
+  lines.push(`## New or updated upstream items (${manifest.changes.count})`, '');
+  if (manifest.changes.count === 0) {
+    lines.push('None.', '');
+  } else {
+    lines.push('| Item | Change | State | Updated | Title |', '| --- | --- | --- | --- | --- |');
+    for (const item of manifest.changes.items.slice(0, listLimit)) {
+      lines.push(`| [#${item.number}](${quietLink(item.url)}) ${item.type === 'pull_request' ? 'PR' : 'issue'} | ${item.change} | ${item.state}${item.draft ? ' (draft)' : ''} | ${item.updatedAt.slice(0, 10)} | ${escapeCell(item.title)} |`);
+    }
+    if (manifest.changes.count > listLimit) lines.push('', `${manifest.changes.count - listLimit} more in the artifact's \`manifest.json\`.`);
+    lines.push('');
+  }
+  lines.push(`## Upstream commits since baseline (${manifest.commitsSinceBaseline.count})`, '');
+  if (manifest.commitsSinceBaseline.count === 0) {
+    lines.push('None. The fork contains upstream main.', '');
+  } else {
+    for (const commit of manifest.commitsSinceBaseline.items.slice(0, listLimit)) {
+      lines.push(`- ${commitLink(commit.sha)} ${commit.date.slice(0, 10)} ${escapeCell(commit.subject)}`);
+    }
+    if (manifest.commitsSinceBaseline.count > listLimit) lines.push('', `${manifest.commitsSinceBaseline.count - listLimit} more in the artifact's \`manifest.json\`.`);
+    lines.push('');
+  }
+  if (manifest.merge.status !== 'clean') {
+    lines.push('## Conflicting paths', '', ...manifest.merge.conflicts.slice(0, listLimit).map(path => `- \`${path}\``), '');
+  }
+  const data = { month: manifest.month, collectedAt: manifest.inventory.collectedAt, upstreamCommit: manifest.upstream, baselineCommit: manifest.baseline.commit };
+  lines.push(`<!-- ${marker} ${JSON.stringify(data)} -->`, '');
+  return lines.join('\n');
+}
+
+export function prepare(options) {
+  const repo = resolve(options.repo);
+  const output = resolve(options.output);
+  assertCommit(repo, options.base, 'Base');
+  assertCommit(repo, options.upstream, 'Upstream candidate');
+  const inventory = readJson(options.inventory);
+  if (inventory.upstreamCommit?.toLowerCase() !== options.upstream.toLowerCase()) {
+    throw new Error('Inventory upstream commit does not match --upstream. Collect the inventory for this candidate.');
+  }
+  const previous = readJson(options.previous, {});
+  const baseline = upstreamBaseline(repo, options.base, options.upstream);
+  const baselineDate = git(repo, ['show', '-s', '--format=%cI', baseline.commit]);
+  const since = new Date(previous.data?.collectedAt ?? previous.createdAt ?? baselineDate).toISOString();
+  const commits = commitsBetween(repo, baseline.commit, options.upstream);
+  const previousUpstream = previous.data?.upstreamCommit;
+  const commitsSincePrevious = previousUpstream &&
+    gitResult(repo, ['merge-base', '--is-ancestor', previousUpstream, options.upstream]).ok
+    ? commitsBetween(repo, previousUpstream, options.upstream)
+    : null;
+  const virtual = gitResult(repo, ['merge-tree', '--write-tree', '--name-only', '--no-messages', options.base, options.upstream]);
+  if (!virtual.ok && virtual.status !== 1) throw new Error(`git merge-tree failed with exit ${virtual.status ?? 'unknown'}: ${virtual.output}`);
+  const changes = changedItems(inventory.items, since);
+  const manifest = {
+    schemaVersion: 2,
+    generatedAt: new Date().toISOString(),
+    month: options.month,
+    upstreamRepository: inventory.repository,
+    base: options.base.toLowerCase(),
+    upstream: options.upstream.toLowerCase(),
+    baseline: { ...baseline, date: baselineDate },
+    previousReview: previous.number ? { number: previous.number, url: previous.url, title: previous.title, month: previous.data?.month } : null,
+    since,
+    runUrl: options['run-url'],
+    artifact: options.artifact,
+    merge: { status: virtual.ok ? 'clean' : 'conflicts', conflicts: virtual.ok ? [] : [...new Set(virtual.output.split('\n').slice(1).filter(Boolean))] },
+    inventory: { file: 'inventory.json', collectedAt: inventory.collectedAt, counts: inventory.counts, warnings: inventory.warnings ?? [] },
+    commitsSinceBaseline: { count: commits.length, items: commits },
+    commitsSincePrevious: commitsSincePrevious ? { from: previousUpstream, count: commitsSincePrevious.length } : null,
+    changes: { count: changes.length, items: changes.map(({ number, type, title, url, state, draft, createdAt, updatedAt, change }) => ({ number, type, title, url, state, draft, createdAt, updatedAt, change })) },
+  };
+  for (const name of ['manifest.json', 'summary.md']) {
+    if (existsSync(resolve(output, name))) throw new Error(`Refusing to overwrite ${resolve(output, name)}`);
+  }
+  mkdirSync(output, { recursive: true });
+  writeFileSync(resolve(output, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`, { flag: 'wx' });
+  writeFileSync(resolve(output, 'summary.md'), summaryMarkdown(manifest), { flag: 'wx' });
+  return manifest;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
+  const manifest = prepare(parseArgs(process.argv.slice(2)));
+  console.log(JSON.stringify({
+    month: manifest.month,
+    upstream: manifest.upstream,
+    baseline: manifest.baseline.commit,
+    previousReview: manifest.previousReview?.number ?? null,
+    merge: manifest.merge.status,
+    commitsSinceBaseline: manifest.commitsSinceBaseline.count,
+    changes: manifest.changes.count,
+  }, null, 2));
+}
