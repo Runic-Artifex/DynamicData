@@ -214,4 +214,27 @@ public class WatcherFixture : IDisposable
         await Assert.That(received[0].Current).IsEqualTo(person);
         await Assert.That(isCompleted).IsTrue().Because("a watch on a finished source can never receive anything more");
     }
+
+    [Test]
+    public async Task WatchJoiningAKeyWhoseWatchesHaveEndedReceivesTheLastValueThenEnds()
+    {
+        using var source = new TestSourceCache<Person, string>(p => p.Key);
+        using var watcher = source.Connect().AsWatcher(_scheduler);
+
+        var person = new Person("Adult1", 50);
+        source.AddOrUpdate(person);
+        using var first = watcher.Watch(person.Key).Subscribe(static _ => { }, static _ => { });
+
+        var expectedError = new Exception("Test Exception");
+        source.SetError(expectedError);
+        _scheduler.Start();
+
+        var received = new List<Change<Person, string>>();
+        var actualError = default(Exception);
+        using var second = watcher.Watch(person.Key).Subscribe(received.Add, error => actualError = error);
+
+        await Assert.That(received).HasSingleItem().Because("the watch starts with the last value");
+        await Assert.That(received[0].Current).IsEqualTo(person);
+        await Assert.That(actualError).IsSameReferenceAs(expectedError).Because("the key's watches have already failed with the source");
+    }
 }
