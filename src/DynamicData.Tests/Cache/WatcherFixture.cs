@@ -4,6 +4,7 @@ using DynamicData.Reactive.Experimental;
 using DynamicData.Experimental;
 #endif
 using DynamicData.Tests.Domain;
+using ReactiveUI.Primitives.Signals;
 
 namespace DynamicData.Tests.Cache;
 
@@ -74,6 +75,17 @@ public class WatcherFixture : IDisposable
         var secondResult = _results.Messages[1].First();
         await Assert.That(secondResult.Current.UpdateCount).IsEqualTo(1).Because("Second Person should have received 1 update");
         await Assert.That(secondResult.Current.Completed).IsTrue().Because("Second person  should have received 1 update");
+    }
+
+    [Test]
+    public async Task SubscribesToTheSourceOnce()
+    {
+        var subscriptions = 0;
+        using var source = new Signal<IChangeSet<Person, string>>();
+
+        using var watcher = Observable.Defer(() => { subscriptions++; return source; }).AsWatcher(_scheduler);
+
+        await Assert.That(subscriptions).IsEqualTo(1).Because("a cold source runs once for every subscription");
     }
 
     [Test]
@@ -236,5 +248,30 @@ public class WatcherFixture : IDisposable
         await Assert.That(received).HasSingleItem().Because("the watch starts with the last value");
         await Assert.That(received[0].Current).IsEqualTo(person);
         await Assert.That(actualError).IsSameReferenceAs(expectedError).Because("the key's watches have already failed with the source");
+    }
+
+    [Test]
+    public async Task WatchStartedWhileTheSourceIsDeliveringAChangeReceivesItOnce()
+    {
+        // A hot source hands each change to its subscribers one after another, so a watch can start part way through.
+        var observers = new List<IObserver<IChangeSet<Person, string>>>();
+        using var watcher = Observable.Create<IChangeSet<Person, string>>(observer => { observers.Add(observer); return Disposable.Empty; }).AsWatcher(_scheduler);
+
+        var person = new Person("Adult1", 50);
+        var changes = new ChangeSet<Person, string> { new(ChangeReason.Add, person.Key, person) };
+        observers[0].OnNext(changes);
+
+        var received = new List<Change<Person, string>>();
+        using var subscription = watcher.Watch(person.Key).Subscribe(received.Add);
+
+        foreach (var observer in observers.Skip(1))
+        {
+            observer.OnNext(changes);
+        }
+
+        _scheduler.Start();
+
+        await Assert.That(received).HasSingleItem().Because("the person was added once");
+        await Assert.That(received[0].Current).IsEqualTo(person);
     }
 }

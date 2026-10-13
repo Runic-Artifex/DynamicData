@@ -29,10 +29,10 @@ internal sealed class Watcher<TObject, TKey> : IWatcher<TObject, TKey>
     private readonly object _locker = new();
 
     /// <summary>
-    /// The _source field.
+    /// Kept by the same subscription that hands out the changes, under the same lock, so a new watch's first value is
+    /// never out of step with the changes already handed out.
     /// </summary>
-    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Disposed with _cleanUp")]
-    private readonly IObservableCache<TObject, TKey> _source;
+    private readonly Cache<TObject, TKey> _source = new();
 
     /// <summary>
     /// The _subscribers field.
@@ -53,26 +53,28 @@ internal sealed class Watcher<TObject, TKey> : IWatcher<TObject, TKey>
     /// <param name="scheduler">The scheduler value.</param>
     public Watcher(IObservable<IChangeSet<TObject, TKey>> source, IScheduler scheduler)
     {
-        _source = source.AsObservableCache();
-
         var onCompletePublisher = _subscribers.Connect().Synchronize(_locker).ObserveOn(scheduler).SubscribeMany((t, _) => Disposable.Create(t.OnCompleted)).Subscribe();
 
         var sourceSubscriber = source.Synchronize(_locker).Subscribe(
-            updates => updates.ForEach(
-                update =>
-                {
-                    var subscriber = _subscribers.Lookup(update.Key);
-                    if (subscriber.HasValue)
+            updates =>
+            {
+                _source.Clone(updates);
+                updates.ForEach(
+                    update =>
                     {
-                        scheduler.Schedule(
-                            state: (subject: subscriber.Value, update),
-                            action: static (_, state) =>
-                            {
-                                state.subject.OnNext(state.update);
-                                return Disposable.Empty;
-                            });
-                    }
-                }),
+                        var subscriber = _subscribers.Lookup(update.Key);
+                        if (subscriber.HasValue)
+                        {
+                            scheduler.Schedule(
+                                state: (subject: subscriber.Value, update),
+                                action: static (_, state) =>
+                                {
+                                    state.subject.OnNext(state.update);
+                                    return Disposable.Empty;
+                                });
+                        }
+                    });
+            },
             error => Terminate(subject => subject.OnError(error)),
             () => Terminate(static subject => subject.OnCompleted()));
 
@@ -82,7 +84,6 @@ internal sealed class Watcher<TObject, TKey> : IWatcher<TObject, TKey>
                 onCompletePublisher.Dispose();
                 sourceSubscriber.Dispose();
 
-                _source.Dispose();
                 _subscribers.Dispose();
             });
 
