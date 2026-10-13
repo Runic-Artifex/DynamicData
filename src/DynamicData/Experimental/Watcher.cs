@@ -41,6 +41,12 @@ internal sealed class Watcher<TObject, TKey> : IWatcher<TObject, TKey>
     private readonly IntermediateCache<SubjectWithRefCount<Change<TObject, TKey>>, TKey> _subscribers = new();
 
     /// <summary>
+    /// Carries only the source's terminal event, which a signal replays to any watch that starts afterwards.
+    /// </summary>
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Completed rather than disposed, because a terminal event scheduled before disposal may still arrive")]
+    private readonly Signal<Change<TObject, TKey>> _termination = new();
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="Watcher{TObject, TKey}"/> class.
     /// </summary>
     /// <param name="source">The source value.</param>
@@ -66,7 +72,9 @@ internal sealed class Watcher<TObject, TKey> : IWatcher<TObject, TKey>
                                 return Disposable.Empty;
                             });
                     }
-                }));
+                }),
+            error => scheduler.Schedule(() => _termination.OnError(error)),
+            () => scheduler.Schedule(_termination.OnCompleted));
 
         _disposer = Disposable.Create(
             () =>
@@ -76,6 +84,7 @@ internal sealed class Watcher<TObject, TKey> : IWatcher<TObject, TKey>
 
                 _source.Dispose();
                 _subscribers.Dispose();
+                _termination.OnCompleted();
             });
     }
 
@@ -117,6 +126,7 @@ internal sealed class Watcher<TObject, TKey> : IWatcher<TObject, TKey>
 
                     // set up subscription
                     var subscriber = subject.SubscribeSafe(observer);
+                    var terminationSubscriber = _termination.SubscribeSafe(observer);
 
                     return Disposable.Create(
                         () =>
@@ -125,6 +135,7 @@ internal sealed class Watcher<TObject, TKey> : IWatcher<TObject, TKey>
                             // to whilst disposal is taking place
                             lock (_locker)
                             {
+                                terminationSubscriber.Dispose();
                                 subscriber.Dispose();
                                 if (subject.RefCount == 0)
                                 {

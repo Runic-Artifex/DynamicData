@@ -115,6 +115,43 @@ public class WatcherFixture : IDisposable
     }
 
     [Test]
+    public async Task WatchCompletesAfterPendingChangesWhenTheSourceCompletes()
+    {
+        using var source = new TestSourceCache<Person, string>(p => p.Key);
+        using var watcher = source.Connect().AsWatcher(_scheduler);
+
+        var received = new List<Change<Person, string>>();
+        var receivedAtCompletion = 0;
+        var isCompleted = false;
+        using var subscription = watcher.Watch("Adult1").Subscribe(received.Add, () => { isCompleted = true; receivedAtCompletion = received.Count; });
+
+        source.AddOrUpdate(new Person("Adult1", 50));
+        source.Complete();
+        _scheduler.Start();
+
+        await Assert.That(isCompleted).IsTrue().Because("the source completed");
+        await Assert.That(receivedAtCompletion).IsEqualTo(1).Because("the change was scheduled ahead of the completion, so it should arrive first");
+    }
+
+    [Test]
+    public async Task WatchFailsWhenTheSourceFails()
+    {
+        using var source = new TestSourceCache<Person, string>(p => p.Key);
+        using var watcher = source.Connect().AsWatcher(_scheduler);
+
+        var actualError = default(Exception);
+        var isCompleted = false;
+        using var subscription = watcher.Watch("Adult1").Subscribe(static _ => { }, error => actualError = error, () => isCompleted = true);
+
+        var expectedError = new Exception("Test Exception");
+        source.SetError(expectedError);
+        _scheduler.Start();
+
+        await Assert.That(actualError).IsSameReferenceAs(expectedError).Because("a watch should be told when the source fails");
+        await Assert.That(isCompleted).IsFalse().Because("the source failed, it did not complete");
+    }
+
+    [Test]
     public async Task WatchMany()
     {
         _source.AddOrUpdate(new Person("Adult1", 50));
@@ -156,5 +193,25 @@ public class WatcherFixture : IDisposable
         watch1.Dispose();
         watch2.Dispose();
         watch3.Dispose();
+    }
+
+    [Test]
+    public async Task WatchStartedAfterTheSourceCompletedReceivesTheCurrentValueThenCompletes()
+    {
+        using var source = new TestSourceCache<Person, string>(p => p.Key);
+        using var watcher = source.Connect().AsWatcher(_scheduler);
+
+        var person = new Person("Adult1", 50);
+        source.AddOrUpdate(person);
+        source.Complete();
+        _scheduler.Start();
+
+        var received = new List<Change<Person, string>>();
+        var isCompleted = false;
+        using var subscription = watcher.Watch(person.Key).Subscribe(received.Add, () => isCompleted = true);
+
+        await Assert.That(received).HasSingleItem().Because("the watch starts with the current value");
+        await Assert.That(received[0].Current).IsEqualTo(person);
+        await Assert.That(isCompleted).IsTrue().Because("a watch on a finished source can never receive anything more");
     }
 }
