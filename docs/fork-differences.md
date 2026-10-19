@@ -38,7 +38,7 @@ entry `retired`. Upstream status is as last reviewed; open gaps are tracked as
 | DD-036 | Monthly [upstream review](maintenance.md#monthly-upstream-review) as workflow artifact plus tracking issue. | Fork maintenance. | Fork only. |
 | DD-037 | [Release guard](../eng/release/README.md) for immutable branded GitHub releases. | Fork distribution. | Fork only. |
 | DD-038 | [Packaged acceptance](../eng/acceptance/README.md) of the released package pair, managed and NativeAOT. | Fork distribution. | Fork only. |
-| DD-039 | List `AutoRefreshOnObservable` (and `AutoRefresh`) follows the cache child policy: a re-evaluator error ends only that item's refresh subscription; the stream completes once the source has completed and every item subscription has ended. | Consistent list/cache behavior after list `MergeMany` started forwarding child errors (DD-028, fork issue #7). | Fork only; upstream list `AutoRefreshOnObservable` inherits list `MergeMany`'s child-error behavior (#1147). |
+| DD-041 | List `AutoRefreshOnObservable` (and `AutoRefresh`) follows the cache child policy: a re-evaluator error ends only that item's refresh subscription; the stream completes once the source has completed and every item subscription has ended. | Consistent list/cache behavior after list `MergeMany` started forwarding child errors (DD-028, fork issue #7). | Fork only; upstream list `AutoRefreshOnObservable` inherits list `MergeMany`'s child-error behavior (#1147). |
 
 DD-008 to DD-015 were upstream fixes (#1185–#1194) that upstream has since
 merged, and DD-035 was a test-only audit; they are no longer fork differences,
