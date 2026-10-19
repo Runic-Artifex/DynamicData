@@ -32,7 +32,7 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<TObject>> Batch<TObject>(this IObservable<IChangeSet<TObject>> source, TimeSpan timeSpan, IScheduler? scheduler = null)
         where TObject : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         if (timeSpan < TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(timeSpan), timeSpan, "The batch window must not be negative.");

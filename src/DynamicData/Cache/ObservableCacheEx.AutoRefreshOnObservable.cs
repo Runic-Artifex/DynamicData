@@ -32,8 +32,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(reevaluator);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(reevaluator);
 
         return source.AutoRefreshOnObservable((t, _) => reevaluator(t), changeSetBuffer, scheduler);
     }

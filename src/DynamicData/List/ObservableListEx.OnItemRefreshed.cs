@@ -32,7 +32,7 @@ public static partial class ObservableListEx
                 Action<T> refreshAction)
             where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return List.Internal.OnItemRefreshed<T>.Create(
                 source: source,
                 refreshAction: refreshAction);

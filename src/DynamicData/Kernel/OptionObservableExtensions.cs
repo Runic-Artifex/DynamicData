@@ -151,7 +151,7 @@ public static class OptionObservableExtensions
     public static IObservable<T> SelectValues<T>(this IObservable<ReactiveUI.Primitives.Optional<T>> source)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.Where(t => t.HasValue && t.Value is not null).Select(t => t.Value!);
     }

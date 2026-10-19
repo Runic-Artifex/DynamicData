@@ -52,7 +52,7 @@ public static partial class ObservableListEx
                 bool invokeOnUnsubscribe = true)
             where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return List.Internal.OnItemRemoved<T>.Create(
                 source: source,
                 removeAction: removeAction,

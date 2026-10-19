@@ -43,14 +43,4 @@
   <ItemGroup Condition="!$(DefineConstants.Contains('SUPPORTS_ASYNC_DISPOSABLE'))">
     <Compile Remove="..\DynamicData\Cache\ObservableCacheEx.AsyncDisposeMany.cs" />
   </ItemGroup>
-
-  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
-    <Using Include="DynamicData.Reactive.ArgumentExceptionHelper" Alias="ArgumentExceptionHelper" />
-    <Using Include="DynamicData.Reactive.ArgumentOutOfRangeExceptionHelper" Alias="ArgumentOutOfRangeExceptionHelper" />
-  </ItemGroup>
-
-  <ItemGroup Condition="!$(TargetFramework.StartsWith('net4'))">
-    <Using Include="System.ArgumentNullException" Alias="ArgumentExceptionHelper" />
-    <Using Include="System.ArgumentOutOfRangeException" Alias="ArgumentOutOfRangeExceptionHelper" />
-  </ItemGroup>
 </Project>

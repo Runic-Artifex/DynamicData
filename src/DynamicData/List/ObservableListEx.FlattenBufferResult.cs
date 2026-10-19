@@ -30,7 +30,7 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> FlattenBufferResult<T>(this IObservable<IList<IChangeSet<T>>> source)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return source.Where(x => x.Count != 0).Select(updates => new ChangeSet<T>(updates.SelectMany(u => u)));
     }
 }

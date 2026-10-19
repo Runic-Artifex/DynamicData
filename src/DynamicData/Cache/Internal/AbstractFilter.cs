@@ -30,7 +30,7 @@ internal abstract class AbstractFilter<TObject, TKey> : IFilter<TObject, TKey>
     /// <param name="filter">The filter value.</param>
     protected AbstractFilter(ChangeAwareCache<TObject, TKey> cache, Func<TObject, bool>? filter)
     {
-        ArgumentExceptionHelper.ThrowIfNull(cache);
+        ArgumentNullException.ThrowIfNull(cache);
 
         _cache = cache;
         Filter = filter ?? (_ => true);

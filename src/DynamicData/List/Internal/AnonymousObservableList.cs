@@ -47,7 +47,7 @@ internal sealed class AnonymousObservableList<T> : IObservableList<T>
     /// <param name="sourceList">The sourceList value.</param>
     public AnonymousObservableList(ISourceList<T> sourceList)
     {
-        ArgumentExceptionHelper.ThrowIfNull(sourceList);
+        ArgumentNullException.ThrowIfNull(sourceList);
         _sourceList = sourceList;
         _cleanUp = Disposable.Empty;
     }

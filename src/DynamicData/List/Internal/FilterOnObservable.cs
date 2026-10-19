@@ -71,7 +71,7 @@ internal sealed class FilterOnObservable<TObject>(IObservable<IChangeSet<TObject
     {
         // Keep factory exceptions on the source path, as before.
         var filter = _filter(item);
-        ArgumentExceptionHelper.ThrowIfNull(filter);
+        ArgumentNullException.ThrowIfNull(filter);
         return Observable.Create<ObjWithFilterValue>(observer =>
         {
             // Connect before observing so only the latest synchronous initialization value is committed.

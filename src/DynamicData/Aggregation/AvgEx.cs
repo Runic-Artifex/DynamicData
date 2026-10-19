@@ -316,7 +316,7 @@ public static class AvgEx
     /// </returns>
     public static IObservable<double> Avg<T>(this IObservable<IAggregateChangeSet<T>> source, Func<T, int> valueSelector, int emptyValue = 0)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return source.AvgCalc(valueSelector, emptyValue, (current, item) => new Avg<int>(current.Count + 1, current.Sum + item), (current, item) => new Avg<int>(current.Count - 1, current.Sum - item), values => values.Sum / (double)values.Count);
     }
 
@@ -342,7 +342,7 @@ public static class AvgEx
     /// <returns>An observable of averages as a double value.</returns>
     public static IObservable<double> Avg<T>(this IObservable<IAggregateChangeSet<T>> source, Func<T, long> valueSelector, long emptyValue = 0)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return source.AvgCalc(valueSelector, emptyValue, (current, item) => new Avg<long>(current.Count + 1, current.Sum + item), (current, item) => new Avg<long>(current.Count - 1, current.Sum - item), values => values.Sum / (double)values.Count);
     }
 
@@ -370,7 +370,7 @@ public static class AvgEx
     /// </returns>
     public static IObservable<double> Avg<T>(this IObservable<IAggregateChangeSet<T>> source, Func<T, double> valueSelector, double emptyValue = 0)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return source.AvgCalc(valueSelector, emptyValue, (current, item) => new Avg<double>(current.Count + 1, current.Sum + item), (current, item) => new Avg<double>(current.Count - 1, current.Sum - item), values => values.Sum / (double)values.Count);
     }
 
@@ -398,7 +398,7 @@ public static class AvgEx
     /// </returns>
     public static IObservable<decimal> Avg<T>(this IObservable<IAggregateChangeSet<T>> source, Func<T, decimal> valueSelector, decimal emptyValue = 0)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return source.AvgCalc(valueSelector, emptyValue, (current, item) => new Avg<decimal>(current.Count + 1, current.Sum + item), (current, item) => new Avg<decimal>(current.Count - 1, current.Sum - item), values => values.Sum / values.Count);
     }
 
@@ -456,11 +456,11 @@ public static class AvgEx
     /// <returns>The result of the operation.</returns>
     private static IObservable<TResult> AvgCalc<TObject, TValue, TResult>(this IObservable<IAggregateChangeSet<TObject>> source, Func<TObject, TValue> valueSelector, TResult fallbackValue, Func<Avg<TValue>, TValue, Avg<TValue>> addAction, Func<Avg<TValue>, TValue, Avg<TValue>> removeAction, Func<Avg<TValue>, TResult> resultAction, bool retainProjections = true)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
-        ArgumentExceptionHelper.ThrowIfNull(addAction);
-        ArgumentExceptionHelper.ThrowIfNull(removeAction);
-        ArgumentExceptionHelper.ThrowIfNull(resultAction);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(addAction);
+        ArgumentNullException.ThrowIfNull(removeAction);
+        ArgumentNullException.ThrowIfNull(resultAction);
 
         return Observable.Defer(() =>
         {
@@ -560,8 +560,8 @@ public static class AvgEx
         where TKey : notnull
         where TValue : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
         return source.Transform(valueSelector, transformOnRefresh: true).ForAggregation();
     }
 
@@ -569,8 +569,8 @@ public static class AvgEx
         where TObject : notnull
         where TValue : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
         return source.Transform(valueSelector, transformOnRefresh: true).ForAggregation();
     }
 
@@ -579,7 +579,7 @@ public static class AvgEx
         where TKey : notnull
         where TValue : struct
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return AvgProject(source, AvgNullableSelector(valueSelector));
     }
 
@@ -587,14 +587,14 @@ public static class AvgEx
         where TObject : notnull
         where TValue : struct
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return AvgProject(source, AvgNullableSelector(valueSelector));
     }
 
     private static Func<TObject, TValue> AvgNullableSelector<TObject, TValue>(Func<TObject, TValue?> valueSelector)
         where TValue : struct
     {
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(valueSelector);
         return item => valueSelector(item).GetValueOrDefault();
     }
 

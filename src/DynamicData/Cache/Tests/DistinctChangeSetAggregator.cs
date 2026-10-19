@@ -33,7 +33,7 @@ public class DistinctChangeSetAggregator<TValue> : IDisposable
     /// <param name="source">The source.</param>
     public DistinctChangeSetAggregator(IObservable<IDistinctChangeSet<TValue>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         var published = source.Publish();
 

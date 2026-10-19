@@ -29,7 +29,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(ChangeSet<TObject, TKey>.Empty);
     }
@@ -46,7 +46,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(SortedChangeSet<TObject, TKey>.Empty);
     }
@@ -63,7 +63,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(VirtualChangeSet<TObject, TKey>.Empty);
     }
@@ -80,7 +80,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(PagedChangeSet<TObject, TKey>.Empty);
     }
@@ -99,7 +99,7 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TGroupKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(GroupChangeSet<TObject, TKey, TGroupKey>.Empty);
     }
@@ -118,7 +118,7 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TGroupKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(ImmutableGroupChangeSet<TObject, TKey, TGroupKey>.Empty);
     }
@@ -132,7 +132,7 @@ public static partial class ObservableCacheEx
     /// <remarks>Overload for <c>IReadOnlyCollection&lt;T&gt;</c>.</remarks>
     public static IObservable<IReadOnlyCollection<T>> StartWithEmpty<T>(this IObservable<IReadOnlyCollection<T>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(ReadOnlyCollectionLight<T>.Empty);
     }

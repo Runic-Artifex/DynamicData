@@ -52,8 +52,8 @@ public static class AggregationEx
     /// <returns>An observable which emits the value.</returns>
     public static IObservable<T> InvalidateWhen<T>(this IObservable<T> source, IObservable<Unit> invalidate)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(invalidate);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(invalidate);
 
         return invalidate.StartWith(Unit.Default).Select(_ => source).Switch().DistinctUntilChanged();
     }
@@ -68,8 +68,8 @@ public static class AggregationEx
     /// <returns>An observable which emits the value.</returns>
     public static IObservable<T> InvalidateWhen<T, TTrigger>(this IObservable<T> source, IObservable<TTrigger?> invalidate)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(invalidate);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(invalidate);
 
         return invalidate.StartWith(default(TTrigger)).Select(_ => source).Switch().DistinctUntilChanged();
     }

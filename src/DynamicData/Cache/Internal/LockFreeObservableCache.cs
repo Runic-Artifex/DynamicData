@@ -60,7 +60,7 @@ public sealed class LockFreeObservableCache<TObject, TKey> : IObservableCache<TO
     /// <param name="source">The source.</param>
     public LockFreeObservableCache(IObservable<IChangeSet<TObject, TKey>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         _updater = new CacheUpdater<TObject, TKey>(_innerCache);
 

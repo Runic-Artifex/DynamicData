@@ -37,7 +37,7 @@ public static partial class ObservableCacheEx
         where TObject : IEvaluateAware
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return source.Do(changes => changes.Where(u => u.Reason == ChangeReason.Refresh).ForEach(u => u.Current.Evaluate()));
     }
 }

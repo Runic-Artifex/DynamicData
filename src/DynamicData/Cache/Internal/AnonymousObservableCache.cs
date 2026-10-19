@@ -50,7 +50,7 @@ internal sealed class AnonymousObservableCache<TObject, TKey> : IObservableCache
     /// <param name="cache">The cache value.</param>
     public AnonymousObservableCache(IObservableCache<TObject, TKey> cache)
     {
-        ArgumentExceptionHelper.ThrowIfNull(cache);
+        ArgumentNullException.ThrowIfNull(cache);
 
         _cache = cache;
         _cleanUp = Disposable.Empty;

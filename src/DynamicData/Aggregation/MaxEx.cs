@@ -49,8 +49,8 @@ private enum MaxOrMin
         where TObject : notnull
         where TResult : struct, IComparable<TResult>
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ToChangesAndCollection().Calculate(valueSelector, MaxOrMin.Max, emptyValue);
     }
@@ -72,8 +72,8 @@ private enum MaxOrMin
         where TKey : notnull
         where TResult : struct, IComparable<TResult>
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ToChangesAndCollection().Calculate(valueSelector, MaxOrMin.Max, emptyValue);
     }
@@ -91,8 +91,8 @@ private enum MaxOrMin
         where TObject : notnull
         where TResult : struct, IComparable<TResult>
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ToChangesAndCollection().Calculate(valueSelector, MaxOrMin.Min, emptyValue);
     }
@@ -114,8 +114,8 @@ private enum MaxOrMin
         where TKey : notnull
         where TResult : struct, IComparable<TResult>
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ToChangesAndCollection().Calculate(valueSelector, MaxOrMin.Min, emptyValue);
     }

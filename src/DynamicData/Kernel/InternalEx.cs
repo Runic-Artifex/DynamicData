@@ -41,8 +41,8 @@ public static class InternalEx
     public static IObservable<TSource> RetryWithBackOff<TSource, TException>(this IObservable<TSource> source, Func<TException, int, TimeSpan?> backOffStrategy)
         where TException : Exception
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(backOffStrategy);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(backOffStrategy);
 
         IObservable<TSource> Retry(int failureCount) =>
             source.Catch<TSource, TException>(
@@ -78,8 +78,8 @@ public static class InternalEx
     /// <returns>A disposable that will stop the schedule.</returns>
     public static IDisposable ScheduleRecurringAction(this IScheduler scheduler, TimeSpan interval, Action action)
     {
-        ArgumentExceptionHelper.ThrowIfNull(scheduler);
-        ArgumentExceptionHelper.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(scheduler);
+        ArgumentNullException.ThrowIfNull(action);
 
         var disposable = new SerialDisposable();
 

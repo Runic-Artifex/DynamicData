@@ -56,7 +56,7 @@ public sealed class ChangeAwareCache<TObject, TKey> : ICache<TObject, TKey>
     /// <param name="data">Data to populate the cache with.</param>
     public ChangeAwareCache(Dictionary<TKey, TObject> data)
     {
-        ArgumentExceptionHelper.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(data);
 
         _data = data;
         _changes = [];

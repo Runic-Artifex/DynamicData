@@ -248,8 +248,8 @@ public static partial class SumEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.Scan(seed, (sum, changes) =>
         {
@@ -286,7 +286,7 @@ public static partial class SumEx
         where TKey : notnull
         where TValue : struct
     {
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return SumCacheImmutable(source, item => valueSelector(item).GetValueOrDefault(), seed, add, subtract);
     }
@@ -299,8 +299,8 @@ public static partial class SumEx
         Func<TValue, TValue, TValue> subtract)
         where TObject : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.Scan(seed, (sum, changes) =>
         {
@@ -353,7 +353,7 @@ public static partial class SumEx
         where TObject : notnull
         where TValue : struct
     {
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return SumListImmutable(source, item => valueSelector(item).GetValueOrDefault(), seed, add, subtract);
     }

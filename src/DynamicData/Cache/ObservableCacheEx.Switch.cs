@@ -50,7 +50,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(sources);
 
         return ObservableCacheEx.Switch((IObservable<IObservable<IChangeSet<TObject, TKey>>>)sources);
     }
