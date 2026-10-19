@@ -98,6 +98,62 @@ public class TransformFixture : IDisposable
         await Assert.That(results.Data.Count).IsEqualTo(0).Because("Should be nothing cached");
     }
 
+    // Ported from upstream #1171; covers https://github.com/reactivemarbles/DynamicData/issues/1169
+    [Test]
+    public async Task RemoveRangeWithoutIndex()
+    {
+        var source = Enumerable.Empty<IChangeSet<int>>()
+            .Append(new ChangeSet<int>()
+            {
+                new Change<int>(
+                    reason: ListChangeReason.AddRange,
+                    items: new[] { 1, 2, 3, 4, 5, 4, 3, 2, 1 })
+            })
+            .Append(new ChangeSet<int>()
+            {
+                new Change<int>(reason: ListChangeReason.RemoveRange, items: new[] { 1, 3, 5 })
+            })
+            .ToObservable();
+
+        using var subscription = source
+            .Transform(static item => item.ToString())
+            .ValidateChangeSets()
+            .RecordListItems(out var results);
+
+        await Assert.That(results.Error).IsNull();
+        await Assert.That(results.RecordedChangeSets.Count).IsEqualTo(2).Because("2 source operations were performed");
+        await Assert.That(results.RecordedItems).IsEquivalentTo(new[] { "2", "4", "4", "3", "2", "1" }, TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("The first occurrence of each odd-numbered item in the list should have been removed");
+        await Assert.That(results.HasCompleted).IsTrue().Because("the source, and all asynchronous operations, have completed");
+    }
+
+    // Ported from upstream #1171; covers https://github.com/reactivemarbles/DynamicData/issues/1169
+    [Test]
+    public async Task RemoveValueWithoutIndex()
+    {
+        var source = Enumerable.Empty<IChangeSet<int>>()
+            .Append(new ChangeSet<int>()
+            {
+                new Change<int>(
+                    reason: ListChangeReason.AddRange,
+                    items: new[] { 1, 2, 3, 2, 1 })
+            })
+            .Append(new ChangeSet<int>()
+            {
+                new Change<int>(reason: ListChangeReason.Remove, current: 2)
+            })
+            .ToObservable();
+
+        using var subscription = source
+            .Transform(static item => item.ToString())
+            .ValidateChangeSets()
+            .RecordListItems(out var results);
+
+        await Assert.That(results.Error).IsNull();
+        await Assert.That(results.RecordedChangeSets.Count).IsEqualTo(2).Because("2 source operations were performed");
+        await Assert.That(results.RecordedItems).IsEquivalentTo(new[] { "1", "3", "2", "1" }, TUnit.Assertions.Enums.CollectionOrdering.Matching).Because("The first occurrence of the given item should have been removed");
+        await Assert.That(results.HasCompleted).IsTrue().Because("the source, and all asynchronous operations, have completed");
+    }
+
     [Test]
     public async Task SameKeyChanges()
     {
