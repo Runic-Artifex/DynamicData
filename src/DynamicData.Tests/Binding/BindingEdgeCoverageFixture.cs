@@ -66,14 +66,9 @@ public sealed class BindingEdgeCoverageFixture
         Exception? error = null;
 
         using var subscription = source.ToObservableChangeSet<ManualNotifyCollection<int>, int>().Subscribe(_ => { }, ex => error = ex);
-#if REACTIVE_TESTS
+        // DD-044: both flavours route the accumulator failure through OnError, not to the raiser.
         source.RaiseMoveWithoutOldIndex(2, 0);
         await Assert.That(error).IsTypeOf<UnspecifiedIndexException>();
-#else
-        // Primitives invokes its accumulator inline; Rx routes its exception through OnError.
-        await Assert.That(() => source.RaiseMoveWithoutOldIndex(2, 0)).Throws<UnspecifiedIndexException>();
-        await Assert.That(error).IsNull();
-#endif
     }
 
     [Test]
