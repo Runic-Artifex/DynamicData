@@ -250,6 +250,98 @@ checkContentAction: async result => { await Assert.That(result.Count).IsEqualTo(
     }
 
     [Test]
+    public async Task TaskCompletingWhileAChangeIsBeingDeliveredCompletesAfterIt()
+    {
+        var task = new TaskCompletionSource();
+        ISourceCache<Person, string>? captured = null;
+        var completerReturned = false;
+        var observer = new OverlapDetectingObserver<IChangeSet<Person, string>>(_ =>
+        {
+            // Complete the task on another thread while this change is still being delivered.
+            var completer = new Thread(() => task.SetResult());
+            completer.Start();
+            completerReturned = completer.Join(TimeSpan.FromSeconds(10));
+        });
+
+        using var subscription = ObservableChangeSet.Create<Person, string>((cache, _) => { captured = cache; return task.Task; }, p => p.Name).Subscribe(observer);
+        captured!.AddOrUpdate(new Person("Name0", 0));
+
+        await observer.Terminated.WaitAsync(TimeSpan.FromSeconds(10));
+        await Assert.That(completerReturned).IsTrue().Because("the completing thread hands the completion over instead of waiting for the delivery");
+        await Assert.That(observer.MaxConcurrentCalls).IsEqualTo(1).Because("the completion must not overlap the change being delivered");
+        await Assert.That(observer.HasCompleted).IsTrue();
+        await Assert.That(observer.Values).IsEqualTo(1);
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task TaskOutcomeRacingConcurrentEditsIsSerializedAndLast(bool fail)
+    {
+        for (var iteration = 0; iteration < 10; iteration++)
+        {
+            var task = new TaskCompletionSource();
+            var error = new InvalidOperationException("task failed");
+            ISourceCache<Person, string>? captured = null;
+            var observer = new OverlapDetectingObserver<IChangeSet<Person, string>>(_ => Thread.SpinWait(200));
+            using var subscription = ObservableChangeSet.Create<Person, string>((cache, _) => { captured = cache; return task.Task; }, p => p.Name).Subscribe(observer);
+
+            var stop = 0;
+            var editor = new Thread(() =>
+            {
+                try
+                {
+                    for (var i = 0; Volatile.Read(ref stop) == 0; i++)
+                    {
+                        captured!.AddOrUpdate(new Person($"Name{i}", i));
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The collection is disposed once the task has ended the stream.
+                }
+            });
+            var completer = new Thread(() =>
+            {
+                SpinWait.SpinUntil(() => observer.Values >= 5, TimeSpan.FromSeconds(5));
+                if (fail)
+                {
+                    task.SetException(error);
+                }
+                else
+                {
+                    task.SetResult();
+                }
+            });
+
+            editor.Start();
+            completer.Start();
+            try
+            {
+                await observer.Terminated.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            finally
+            {
+                Volatile.Write(ref stop, 1);
+                editor.Join(TimeSpan.FromSeconds(10));
+                completer.Join(TimeSpan.FromSeconds(10));
+            }
+
+            await Assert.That(observer.MaxConcurrentCalls).IsEqualTo(1).Because("notifications must never overlap");
+            await Assert.That(observer.CallsAfterTerminal).IsEqualTo(0).Because("the terminal notification is the last one");
+            await Assert.That(observer.TerminalCount).IsEqualTo(1);
+            if (fail)
+            {
+                await Assert.That(observer.Error).IsSameReferenceAs(error);
+            }
+            else
+            {
+                await Assert.That(observer.HasCompleted).IsTrue();
+            }
+        }
+    }
+
+    [Test]
     public async Task DisposingTheSubscriptionCancelsTheTask()
     {
         var token = CancellationToken.None;

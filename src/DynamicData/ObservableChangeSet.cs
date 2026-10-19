@@ -243,6 +243,9 @@ public static class ObservableChangeSet
 
         // Publish starts the task only once TakeUntil is subscribed to the cache, so a task that finishes during
         // subscription still delivers its changes.
+        // TakeUntil serializes its two inputs without a lock in both flavours: an outcome that arrives while a change
+        // is being delivered is handed to the delivering thread and follows that change. No SharedDeliveryQueue is
+        // needed; TaskCompletingWhileAChangeIsBeingDeliveredCompletesAfterIt pins this.
         return Observable.Using(() => new SourceCache<TObject, TKey>(keySelector), cache => FromTask(cancellationToken => subscribe(cache, cancellationToken)).Publish(loaded => cache.Connect().TakeUntil(loaded)));
     }
 
@@ -454,6 +457,9 @@ public static class ObservableChangeSet
 
         // Publish starts the task only once TakeUntil is subscribed to the list, so a task that finishes during
         // subscription still delivers its changes.
+        // TakeUntil serializes its two inputs without a lock in both flavours: an outcome that arrives while a change
+        // is being delivered is handed to the delivering thread and follows that change. No SharedDeliveryQueue is
+        // needed; TaskCompletingWhileAChangeIsBeingDeliveredCompletesAfterIt pins this.
         return Observable.Using(static () => new SourceList<T>(), list => FromTask(cancellationToken => subscribe(list, cancellationToken)).Publish(loaded => list.Connect().TakeUntil(loaded)));
     }
 
