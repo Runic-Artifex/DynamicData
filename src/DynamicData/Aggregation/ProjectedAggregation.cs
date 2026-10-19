@@ -43,8 +43,14 @@ internal static class ProjectedAggregation
         return Observable.Defer(() =>
         {
             var projections = new List<(TObject Item, TValue Value)>();
-            return source.Scan(default(TState), (state, changes) =>
+            var accumulated = default(TState);
+
+            // Select rather than Scan: in the Primitives flavour an exception thrown by a Scan
+            // accumulator downstream of another Scan (for example list Transform) is not
+            // delivered as OnError, whereas a Select selector failure is.
+            return source.Select(changes =>
             {
+                var state = accumulated;
                 var hasMembershipChanges = false;
                 var mutations = retainProjections ? changes : WithoutUnchangedPairs(changes, valueSelector);
                 using var iterator = mutations.GetEnumerator();
@@ -128,6 +134,7 @@ internal static class ProjectedAggregation
                     state = default;
                 }
 
+                accumulated = state;
                 return state;
             });
         });
