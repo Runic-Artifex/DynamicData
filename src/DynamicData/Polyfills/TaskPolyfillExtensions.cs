@@ -4,6 +4,7 @@
 
 // Polyfill implementation adapted from SimonCropp/Polyfill (https://github.com/SimonCropp/Polyfill).
 #if !NET6_0_OR_GREATER
+
 namespace System.Threading.Tasks;
 
 /// <summary>Polyfill extensions for <see cref="Task"/> on frameworks without the .NET 6 <c>WaitAsync</c> overloads.</summary>

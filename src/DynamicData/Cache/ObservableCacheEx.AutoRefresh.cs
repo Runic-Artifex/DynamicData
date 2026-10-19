@@ -2,13 +2,6 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Linq.Expressions;
-#if REACTIVE_SHIM
-using DynamicData.Reactive.Binding;
-#else
-using DynamicData.Binding;
-#endif
-
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
 
@@ -38,7 +31,7 @@ public static partial class ObservableCacheEx
         where TObject : INotifyPropertyChanged
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.AutoRefreshOnObservable(
             (t, _) =>
@@ -70,8 +63,8 @@ public static partial class ObservableCacheEx
         where TObject : INotifyPropertyChanged
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(propertyAccessor);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(propertyAccessor);
 
         return source.AutoRefreshOnObservable(
             (t, _) =>

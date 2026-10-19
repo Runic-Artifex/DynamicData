@@ -30,8 +30,8 @@ public static class StdDevEx
     public static IObservable<double> StdDev<T>(this IObservable<IChangeSet<T>> source, Func<T, int> valueSelector, int fallbackValue)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ForAggregation().StdDev(valueSelector, fallbackValue);
     }
@@ -47,8 +47,8 @@ public static class StdDevEx
     public static IObservable<double> StdDev<T>(this IObservable<IChangeSet<T>> source, Func<T, long> valueSelector, long fallbackValue)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ForAggregation().StdDev(valueSelector, fallbackValue);
     }
@@ -64,8 +64,8 @@ public static class StdDevEx
     public static IObservable<double> StdDev<T>(this IObservable<IChangeSet<T>> source, Func<T, double> valueSelector, double fallbackValue)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ForAggregation().StdDev(valueSelector, fallbackValue);
     }
@@ -81,8 +81,8 @@ public static class StdDevEx
     public static IObservable<decimal> StdDev<T>(this IObservable<IChangeSet<T>> source, Func<T, decimal> valueSelector, decimal fallbackValue)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ForAggregation().StdDev(valueSelector, fallbackValue);
     }
@@ -98,8 +98,8 @@ public static class StdDevEx
     public static IObservable<double> StdDev<T>(this IObservable<IChangeSet<T>> source, Func<T, float> valueSelector, float fallbackValue = 0)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ForAggregation().StdDev(valueSelector, fallbackValue);
     }
@@ -117,8 +117,8 @@ public static class StdDevEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ForAggregation().StdDev(valueSelector, fallbackValue);
     }
@@ -136,8 +136,8 @@ public static class StdDevEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ForAggregation().StdDev(valueSelector, fallbackValue);
     }
@@ -155,8 +155,8 @@ public static class StdDevEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ForAggregation().StdDev(valueSelector, fallbackValue);
     }
@@ -174,8 +174,8 @@ public static class StdDevEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ForAggregation().StdDev(valueSelector, fallbackValue);
     }
@@ -193,8 +193,8 @@ public static class StdDevEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.ForAggregation().StdDev(valueSelector, fallbackValue);
     }
@@ -209,8 +209,8 @@ public static class StdDevEx
     /// <returns>An observable which emits the standard deviation value.</returns>
     public static IObservable<double> StdDev<T>(this IObservable<IAggregateChangeSet<T>> source, Func<T, int> valueSelector, int fallbackValue = 0)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
         return source.StdDevCalc(t => (decimal)valueSelector(t), (decimal)fallbackValue).Select(value => (double)value);
     }
 
@@ -224,8 +224,8 @@ public static class StdDevEx
     /// <returns>An observable which emits the standard deviation value.</returns>
     public static IObservable<double> StdDev<T>(this IObservable<IAggregateChangeSet<T>> source, Func<T, long> valueSelector, long fallbackValue = 0)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
         return source.StdDevCalc(t => (decimal)valueSelector(t), (decimal)fallbackValue).Select(value => (double)value);
     }
 
@@ -239,8 +239,8 @@ public static class StdDevEx
     /// <returns>An observable which emits the standard deviation value.</returns>
     public static IObservable<decimal> StdDev<T>(this IObservable<IAggregateChangeSet<T>> source, Func<T, decimal> valueSelector, decimal fallbackValue = 0M)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
         return source.StdDevCalc(valueSelector, fallbackValue);
     }
 
@@ -254,8 +254,8 @@ public static class StdDevEx
     /// <returns>An observable which emits the standard deviation value.</returns>
     public static IObservable<double> StdDev<T>(this IObservable<IAggregateChangeSet<T>> source, Func<T, double> valueSelector, double fallbackValue = 0)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
         return source.StdDevCalc(valueSelector, fallbackValue);
     }
 
@@ -269,8 +269,8 @@ public static class StdDevEx
     /// <returns>An observable which emits the standard deviation value.</returns>
     public static IObservable<double> StdDev<T>(this IObservable<IAggregateChangeSet<T>> source, Func<T, float> valueSelector, float fallbackValue = 0)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
         return source.StdDevCalc(t => valueSelector(t), fallbackValue);
     }
 
@@ -284,8 +284,8 @@ public static class StdDevEx
     /// <returns>The result of the operation.</returns>
     private static IObservable<double> StdDevCalc<TObject>(this IObservable<IAggregateChangeSet<TObject>> source, Func<TObject, double> valueSelector, double fallbackValue)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.Scan(
             default(StdDev<double>),
@@ -310,8 +310,8 @@ public static class StdDevEx
     /// <returns>The result of the operation.</returns>
     private static IObservable<decimal> StdDevCalc<TObject>(this IObservable<IAggregateChangeSet<TObject>> source, Func<TObject, decimal> valueSelector, decimal fallbackValue)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.Scan(
             default(StdDev<decimal>),

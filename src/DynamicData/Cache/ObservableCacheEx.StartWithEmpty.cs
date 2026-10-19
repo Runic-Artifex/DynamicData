@@ -1,13 +1,6 @@
 // Copyright (c) 2011-2025 Roland Pheasant. All rights reserved.
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-#if REACTIVE_SHIM
-
-using DynamicData.Reactive.Cache.Internal;
-#else
-
-using DynamicData.Cache.Internal;
-#endif
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
@@ -36,7 +29,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(ChangeSet<TObject, TKey>.Empty);
     }
@@ -53,7 +46,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(SortedChangeSet<TObject, TKey>.Empty);
     }
@@ -70,7 +63,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(VirtualChangeSet<TObject, TKey>.Empty);
     }
@@ -87,7 +80,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(PagedChangeSet<TObject, TKey>.Empty);
     }
@@ -106,7 +99,7 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TGroupKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(GroupChangeSet<TObject, TKey, TGroupKey>.Empty);
     }
@@ -125,7 +118,7 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TGroupKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(ImmutableGroupChangeSet<TObject, TKey, TGroupKey>.Empty);
     }
@@ -139,7 +132,7 @@ public static partial class ObservableCacheEx
     /// <remarks>Overload for <c>IReadOnlyCollection&lt;T&gt;</c>.</remarks>
     public static IObservable<IReadOnlyCollection<T>> StartWithEmpty<T>(this IObservable<IReadOnlyCollection<T>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.StartWith(ReadOnlyCollectionLight<T>.Empty);
     }

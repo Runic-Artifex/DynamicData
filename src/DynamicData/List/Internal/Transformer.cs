@@ -41,8 +41,8 @@ internal sealed class Transformer<TSource, TDestination>
     /// <param name="transformOnRefresh">The transformOnRefresh value.</param>
     public Transformer(IObservable<IChangeSet<TSource>> source, Func<TSource, ReactiveUI.Primitives.Optional<TDestination>, int, TDestination> factory, bool transformOnRefresh)
     {
-        ArgumentExceptionHelper.ThrowIfNull(factory);
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(factory);
+        ArgumentNullException.ThrowIfNull(source);
 
         _source = source;
         _transformOnRefresh = transformOnRefresh;
@@ -106,7 +106,7 @@ internal sealed class Transformer<TSource, TDestination>
     /// <param name="changes">The changes value.</param>
     private void Transform(ChangeAwareList<TransformedItemContainer> transformed, IChangeSet<TSource> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         foreach (var item in changes)
         {

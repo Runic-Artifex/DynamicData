@@ -2,8 +2,6 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Linq.Expressions;
-using System.Reflection;
 #if REACTIVE_SHIM
 
 namespace DynamicData.Reactive.Binding;
@@ -42,6 +40,8 @@ internal static class ExpressionBuilder
     /// <returns>The result of the operation.</returns>
     internal static Func<object, object?> CreateInvoker(this Expression source)
     {
+        ArgumentNullException.ThrowIfNull(source);
+
         switch (source)
         {
             case MemberExpression memberExpression:
@@ -69,9 +69,6 @@ internal static class ExpressionBuilder
                 var converted = conversion.Update(operand);
 
                 return Expression.Lambda<Func<object, object?>>(Expression.Convert(converted, typeof(object)), parameter).Compile();
-
-            case null:
-                throw new ArgumentNullException(nameof(source));
 
             default:
                 throw new ArgumentException($"Unable to parse expression: Node type {source.NodeType} not supported", nameof(source));

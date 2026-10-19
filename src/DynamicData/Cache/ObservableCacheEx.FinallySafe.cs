@@ -1,13 +1,6 @@
 // Copyright (c) 2011-2025 Roland Pheasant. All rights reserved.
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-#if REACTIVE_SHIM
-
-using DynamicData.Reactive.Cache.Internal;
-#else
-
-using DynamicData.Cache.Internal;
-#endif
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
@@ -33,8 +26,8 @@ public static partial class ObservableCacheEx
     [Obsolete("This can cause unhandled exception issues so do not use")]
     public static IObservable<T> FinallySafe<T>(this IObservable<T> source, Action finallyAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(finallyAction);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(finallyAction);
 
         return new FinallySafe<T>(source, finallyAction).Run();
     }

@@ -2,20 +2,9 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Diagnostics;
-#if REACTIVE_SHIM
-using DynamicData.Reactive.Binding;
-#else
-using DynamicData.Binding;
-#endif
-#if REACTIVE_SHIM
-using DynamicData.Reactive.Cache.Internal;
-#else
-using DynamicData.Cache.Internal;
-#endif
-
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -257,7 +246,7 @@ internal sealed class ObservableCache<TObject, TKey> : IObservableCache<TObject,
     /// <param name="updateAction">The updateAction value.</param>
     internal void UpdateFromIntermediate(Action<ICacheUpdater<TObject, TKey>> updateAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(updateAction);
+        ArgumentNullException.ThrowIfNull(updateAction);
 
         using var notifications = _notifications.AcquireLock();
 
@@ -303,7 +292,7 @@ internal sealed class ObservableCache<TObject, TKey> : IObservableCache<TObject,
     /// <param name="updateAction">The updateAction value.</param>
     internal void UpdateFromSource(Action<ISourceUpdater<TObject, TKey>> updateAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(updateAction);
+        ArgumentNullException.ThrowIfNull(updateAction);
 
         using var notifications = _notifications.AcquireLock();
 

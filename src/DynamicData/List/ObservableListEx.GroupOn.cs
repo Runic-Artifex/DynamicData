@@ -2,15 +2,9 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Linq.Expressions;
-#if REACTIVE_SHIM
-using DynamicData.Reactive.List.Internal;
-#else
-using DynamicData.List.Internal;
-#endif
-
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -53,8 +47,8 @@ public static partial class ObservableListEx
         where TObject : notnull
         where TGroup : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(groupSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(groupSelector);
 
         return new GroupOn<TObject, TGroup>(source, groupSelector, regrouper).Run();
     }

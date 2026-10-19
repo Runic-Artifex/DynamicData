@@ -37,8 +37,8 @@ public static class ForSource<TObject, TKey>
             TimeSpan? pollingInterval = null,
             IScheduler? scheduler = null)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source);
-            ArgumentExceptionHelper.ThrowIfNull(timeSelector);
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(timeSelector);
 
             return Observable.Create<IEnumerable<KeyValuePair<TKey, TObject>>>(observer => (pollingInterval is { } pollingIntervalValue)
                 ? new PollingSubscription(

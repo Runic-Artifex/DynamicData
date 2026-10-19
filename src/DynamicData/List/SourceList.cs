@@ -2,17 +2,9 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Diagnostics;
-#if REACTIVE_SHIM
-
-using DynamicData.Reactive.List.Internal;
-#else
-
-using DynamicData.List.Internal;
-#endif
-
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -263,7 +255,7 @@ public sealed class SourceList<T> : ISourceList<T>
     /// <param name="updateAction">The updateAction value.</param>
     public void Edit(Action<IExtendedList<T>> updateAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(updateAction);
+        ArgumentNullException.ThrowIfNull(updateAction);
 
         using var notifications = _notifications.AcquireLock();
 

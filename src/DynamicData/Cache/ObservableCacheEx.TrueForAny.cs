@@ -60,9 +60,9 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TValue : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
-        ArgumentExceptionHelper.ThrowIfNull(equalityCondition);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(equalityCondition);
 
         return source.TrueFor(observableSelector, items => items.Any(o => o.LatestValue.HasValue && equalityCondition(o.LatestValue.Value)));
     }

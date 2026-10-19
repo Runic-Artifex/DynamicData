@@ -2,7 +2,6 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Collections.Specialized;
 #if REACTIVE_SHIM
 
 namespace DynamicData.Reactive.Binding;
@@ -34,7 +33,7 @@ public static class ObservableCollectionEx
     public static IObservable<IChangeSet<T>> ToObservableChangeSet<T>(this ObservableCollection<T> source)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return ToObservableChangeSet<ObservableCollection<T>, T>(source);
     }
@@ -55,8 +54,8 @@ public static class ObservableCollectionEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(keySelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(keySelector);
 
         return ToObservableChangeSet<ObservableCollection<TObject>, TObject>(source).AddKey(keySelector);
     }
@@ -72,7 +71,7 @@ public static class ObservableCollectionEx
     public static IObservable<IChangeSet<T>> ToObservableChangeSet<T>(this ReadOnlyObservableCollection<T> source)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return ToObservableChangeSet<ReadOnlyObservableCollection<T>, T>(source);
     }
@@ -93,8 +92,8 @@ public static class ObservableCollectionEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(keySelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(keySelector);
 
         return ToObservableChangeSet<ReadOnlyObservableCollection<TObject>, TObject>(source).AddKey(keySelector);
     }
@@ -113,7 +112,7 @@ public static class ObservableCollectionEx
         where TCollection : INotifyCollectionChanged, IEnumerable<T>
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return Observable.Create<IChangeSet<T>>(
             observer =>

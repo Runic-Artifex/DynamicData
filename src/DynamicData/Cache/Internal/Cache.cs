@@ -2,7 +2,6 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Diagnostics;
 #if REACTIVE_SHIM
 
 namespace DynamicData.Reactive.Cache.Internal;
@@ -88,7 +87,7 @@ internal sealed class Cache<TObject, TKey> : ICache<TObject, TKey>
     /// <param name="changes">The changes value.</param>
     public void Clone(IChangeSet<TObject, TKey> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         foreach (var item in changes.ToConcreteType())
         {

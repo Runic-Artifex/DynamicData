@@ -4,6 +4,7 @@
 
 // Polyfill implementation adapted from SimonCropp/Polyfill (https://github.com/SimonCropp/Polyfill).
 #if !NET5_0_OR_GREATER
+
 namespace System.Diagnostics.CodeAnalysis;
 
 /// <summary>Specifies that the listed members are not <see langword="null"/> when the method returns the given value.</summary>

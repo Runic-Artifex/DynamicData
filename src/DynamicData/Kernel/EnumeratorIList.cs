@@ -4,6 +4,7 @@
 
 // Lifted from here https://github.com/benaadams/Ben.Enumerable. Many thanks to the genius of the man.
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive.Kernel;
 #else
 namespace DynamicData.Kernel;

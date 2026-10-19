@@ -65,7 +65,8 @@ public static partial class ObservableCacheEx
                 Action<IObservable<Unit>> disposalsCompletedAccessor)
             where TObject : notnull
             where TKey : notnull
-        => Cache.Internal.AsyncDisposeMany<TObject, TKey>.Create(
+        =>
+            Cache.Internal.AsyncDisposeMany<TObject, TKey>.Create(
             source: source,
             disposalsCompletedAccessor: disposalsCompletedAccessor);
 }

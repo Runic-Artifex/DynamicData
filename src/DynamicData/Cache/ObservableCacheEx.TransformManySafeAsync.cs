@@ -2,13 +2,6 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Collections.Specialized;
-#if REACTIVE_SHIM
-using DynamicData.Reactive.Cache.Internal;
-#else
-using DynamicData.Cache.Internal;
-#endif
-
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
 
@@ -48,9 +41,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TSourceKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(manySelector);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(manySelector);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return new TransformManyAsync<TSource, TSourceKey, TDestination, TDestinationKey>(source, CreateChangeSetTransformer(manySelector, keySelector), equalityComparer, comparer, errorHandler).Run();
     }
@@ -102,9 +95,9 @@ public static partial class ObservableCacheEx
         where TSourceKey : notnull
         where TCollection : INotifyCollectionChanged, IEnumerable<TDestination>
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(manySelector);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(manySelector);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return new TransformManyAsync<TSource, TSourceKey, TDestination, TDestinationKey>(source, CreateChangeSetTransformer(manySelector, keySelector), equalityComparer, comparer, errorHandler).Run();
     }
@@ -155,9 +148,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TSourceKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(manySelector);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(manySelector);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return new TransformManyAsync<TSource, TSourceKey, TDestination, TDestinationKey>(source, CreateChangeSetTransformer(manySelector), equalityComparer, comparer, errorHandler).Run();
     }

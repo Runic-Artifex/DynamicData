@@ -46,7 +46,7 @@ internal sealed class CacheUpdater<TObject, TKey> : ISourceUpdater<TObject, TKey
     /// <param name="keySelector">The keySelector value.</param>
     public CacheUpdater(Dictionary<TKey, TObject> data, Func<TObject, TKey>? keySelector = null)
     {
-        ArgumentExceptionHelper.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(data);
 
         _cache = new Cache<TObject, TKey>(data);
         _keySelector = keySelector;
@@ -78,7 +78,7 @@ internal sealed class CacheUpdater<TObject, TKey> : ISourceUpdater<TObject, TKey
     /// <param name="items">The items value.</param>
     public void AddOrUpdate(IEnumerable<TObject> items)
     {
-        ArgumentExceptionHelper.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(items);
 
         if (_keySelector is null)
         {
@@ -109,8 +109,8 @@ internal sealed class CacheUpdater<TObject, TKey> : ISourceUpdater<TObject, TKey
     /// <param name="comparer">The comparer value.</param>
     public void AddOrUpdate(IEnumerable<TObject> items, IEqualityComparer<TObject> comparer)
     {
-        ArgumentExceptionHelper.ThrowIfNull(items);
-        ArgumentExceptionHelper.ThrowIfNull(comparer);
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(comparer);
 
         if (_keySelector is null)
         {
@@ -280,7 +280,7 @@ internal sealed class CacheUpdater<TObject, TKey> : ISourceUpdater<TObject, TKey
     /// <param name="items">The items value.</param>
     public void Load(IEnumerable<TObject> items)
     {
-        ArgumentExceptionHelper.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(items);
 
         Clear();
         AddOrUpdate(items);
@@ -324,7 +324,7 @@ internal sealed class CacheUpdater<TObject, TKey> : ISourceUpdater<TObject, TKey
     /// <param name="items">The items value.</param>
     public void Refresh(IEnumerable<TObject> items)
     {
-        ArgumentExceptionHelper.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(items);
 
         if (items is IList<TObject> list)
         {
@@ -349,7 +349,7 @@ internal sealed class CacheUpdater<TObject, TKey> : ISourceUpdater<TObject, TKey
     /// <param name="keys">The keys value.</param>
     public void Refresh(IEnumerable<TKey> keys)
     {
-        ArgumentExceptionHelper.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(keys);
 
         if (keys is IList<TKey> list)
         {
@@ -395,7 +395,7 @@ internal sealed class CacheUpdater<TObject, TKey> : ISourceUpdater<TObject, TKey
     /// <param name="items">The items value.</param>
     public void Remove(IEnumerable<TObject> items)
     {
-        ArgumentExceptionHelper.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(items);
 
         if (items is IList<TObject> list)
         {
@@ -420,7 +420,7 @@ internal sealed class CacheUpdater<TObject, TKey> : ISourceUpdater<TObject, TKey
     /// <param name="keys">The keys value.</param>
     public void Remove(IEnumerable<TKey> keys)
     {
-        ArgumentExceptionHelper.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(keys);
 
         if (keys is IList<TKey> list)
         {
@@ -466,7 +466,7 @@ internal sealed class CacheUpdater<TObject, TKey> : ISourceUpdater<TObject, TKey
     /// <param name="items">The items value.</param>
     public void Remove(IEnumerable<KeyValuePair<TKey, TObject>> items)
     {
-        ArgumentExceptionHelper.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(items);
 
         if (items is IList<KeyValuePair<TKey, TObject>> list)
         {
@@ -503,7 +503,7 @@ internal sealed class CacheUpdater<TObject, TKey> : ISourceUpdater<TObject, TKey
     /// <param name="keys">The keys value.</param>
     public void RemoveKeys(IEnumerable<TKey> keys)
     {
-        ArgumentExceptionHelper.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(keys);
 
         _cache.Remove(keys);
     }

@@ -4,6 +4,7 @@
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -55,7 +56,7 @@ public sealed class ChangeAwareCache<TObject, TKey> : ICache<TObject, TKey>
     /// <param name="data">Data to populate the cache with.</param>
     public ChangeAwareCache(Dictionary<TKey, TObject> data)
     {
-        ArgumentExceptionHelper.ThrowIfNull(data);
+        ArgumentNullException.ThrowIfNull(data);
 
         _data = data;
         _changes = [];
@@ -129,7 +130,7 @@ public sealed class ChangeAwareCache<TObject, TKey> : ICache<TObject, TKey>
     /// <param name="changes">The changes value.</param>
     public void Clone(IChangeSet<TObject, TKey> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         foreach (var change in changes.ToConcreteType())
         {
@@ -166,7 +167,7 @@ public sealed class ChangeAwareCache<TObject, TKey> : ICache<TObject, TKey>
     /// <param name="keys">The keys to refresh.</param>
     public void Refresh(IEnumerable<TKey> keys)
     {
-        ArgumentExceptionHelper.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(keys);
 
         if (keys is IList<TKey> list)
         {
@@ -207,7 +208,7 @@ public sealed class ChangeAwareCache<TObject, TKey> : ICache<TObject, TKey>
     /// <param name="keys">The keys.</param>
     public void Remove(IEnumerable<TKey> keys)
     {
-        ArgumentExceptionHelper.ThrowIfNull(keys);
+        ArgumentNullException.ThrowIfNull(keys);
 
         if (keys is IList<TKey> list)
         {

@@ -1,13 +1,6 @@
 // Copyright (c) 2011-2025 Roland Pheasant. All rights reserved.
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-#if REACTIVE_SHIM
-
-using DynamicData.Reactive.Cache.Internal;
-#else
-
-using DynamicData.Cache.Internal;
-#endif
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
@@ -40,9 +33,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return source.TransformSafe((current, _, _) => transformFactory(current), errorHandler, forceTransform.ForForced<TSource, TKey>());
     }
@@ -64,9 +57,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return source.TransformSafe((current, _, key) => transformFactory(current, key), errorHandler, forceTransform);
     }
@@ -97,9 +90,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
         if (forceTransform is not null)
         {
             return new TransformWithForcedTransform<TDestination, TSource, TKey>(source, transformFactory, forceTransform, errorHandler).Run();
@@ -142,9 +135,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(forceTransform);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(forceTransform);
 
         return source.TransformSafe((cur, _, key) => transformFactory(cur, key), errorHandler, forceTransform.ForForced<TSource, TKey>());
     }
@@ -166,9 +159,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(forceTransform);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(forceTransform);
 
         return source.TransformSafe(transformFactory, errorHandler, forceTransform.ForForced<TSource, TKey>());
     }

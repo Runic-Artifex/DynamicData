@@ -2,7 +2,6 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Diagnostics;
 #if REACTIVE_SHIM
 
 namespace DynamicData.Reactive.Cache.Internal;
@@ -38,7 +37,7 @@ internal sealed class AnonymousObservableCache<TObject, TKey> : IObservableCache
     /// <param name="source">The source value.</param>
     public AnonymousObservableCache(IObservable<IChangeSet<TObject, TKey>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         _cache = new ObservableCache<TObject, TKey>(source);
 
@@ -51,7 +50,7 @@ internal sealed class AnonymousObservableCache<TObject, TKey> : IObservableCache
     /// <param name="cache">The cache value.</param>
     public AnonymousObservableCache(IObservableCache<TObject, TKey> cache)
     {
-        ArgumentExceptionHelper.ThrowIfNull(cache);
+        ArgumentNullException.ThrowIfNull(cache);
 
         _cache = cache;
         _cleanUp = Disposable.Empty;

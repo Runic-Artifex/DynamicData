@@ -3,13 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 #if REACTIVE_SHIM
 
-using DynamicData.Reactive.Cache.Internal;
-#else
-
-using DynamicData.Cache.Internal;
-#endif
-#if REACTIVE_SHIM
-
 namespace DynamicData.Reactive.Binding;
 #else
 
@@ -71,7 +64,7 @@ public class ObservableCollectionAdaptor<T>(IObservableCollection<T> collection,
     /// <param name="changes">The changes.</param>
     public void Adapt(IChangeSet<T> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         if (changes.TotalChanges - changes.Refreshes > refreshThreshold || (!_loaded && resetOnFirstTimeLoad))
         {
@@ -132,8 +125,8 @@ public class ObservableCollectionAdaptor<TObject, TKey>(int refreshThreshold = 2
     /// <param name="collection">The collection.</param>
     public void Adapt(IChangeSet<TObject, TKey> changes, IObservableCollection<TObject> collection)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
-        ArgumentExceptionHelper.ThrowIfNull(collection);
+        ArgumentNullException.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(collection);
 
         _cache.Clone(changes);
 

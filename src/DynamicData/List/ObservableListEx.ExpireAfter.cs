@@ -4,6 +4,7 @@
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -43,7 +44,8 @@ public static partial class ObservableListEx
                 TimeSpan? pollingInterval = null,
                 IScheduler? scheduler = null)
             where T : notnull
-        => List.Internal.ExpireAfter<T>.Create(
+        =>
+            List.Internal.ExpireAfter<T>.Create(
             source: source,
             timeSelector: timeSelector,
             pollingInterval: pollingInterval,

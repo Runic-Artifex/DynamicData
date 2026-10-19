@@ -4,6 +4,7 @@
 
 // Polyfill implementation adapted from SimonCropp/Polyfill (https://github.com/SimonCropp/Polyfill).
 #if !NET8_0_OR_GREATER
+
 namespace System.Threading;
 
 /// <summary>Polyfill extensions for <see cref="CancellationTokenSource"/> on frameworks without the .NET 8 async cancellation API.</summary>

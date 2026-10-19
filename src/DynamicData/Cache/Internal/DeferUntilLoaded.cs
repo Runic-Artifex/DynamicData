@@ -29,7 +29,7 @@ internal sealed class DeferUntilLoaded<TObject, TKey>
     /// <param name="source">The source value.</param>
     public DeferUntilLoaded(IObservableCache<TObject, TKey> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         _result = source.CountChanged.Where(count => count != 0).Take(1).Select(_ => new ChangeSet<TObject, TKey>()).Concat(source.Connect()).NotEmpty();
     }

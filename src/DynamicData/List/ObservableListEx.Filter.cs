@@ -4,6 +4,7 @@
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -88,9 +89,9 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> Filter<T>(this IObservable<IChangeSet<T>> source, IObservable<Func<T, bool>> predicate, ListFilterPolicy filterPolicy = ListFilterPolicy.CalculateDiff)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
-        ArgumentExceptionHelper.ThrowIfNull(predicate);
+        ArgumentNullException.ThrowIfNull(predicate);
 
         return new List.Internal.Filter.Dynamic<T>(source, predicate, filterPolicy).Run();
     }

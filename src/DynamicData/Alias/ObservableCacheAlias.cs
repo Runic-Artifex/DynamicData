@@ -34,9 +34,9 @@ public static class ObservableCacheAlias
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(forceTransform);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(forceTransform);
 
         return source.Transform(transformFactory, forceTransform);
     }
@@ -101,8 +101,8 @@ public static class ObservableCacheAlias
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
 
         return source.Transform(transformFactory, forceTransform);
     }
@@ -148,10 +148,10 @@ public static class ObservableCacheAlias
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
-        ArgumentExceptionHelper.ThrowIfNull(forceTransform);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(forceTransform);
 
         return source.TransformSafe(transformFactory, errorHandler, forceTransform);
     }
@@ -180,9 +180,9 @@ public static class ObservableCacheAlias
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return source.TransformSafe(transformFactory, errorHandler, forceTransform);
     }
@@ -211,9 +211,9 @@ public static class ObservableCacheAlias
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return source.TransformSafe(transformFactory, errorHandler, forceTransform);
     }
@@ -254,8 +254,8 @@ public static class ObservableCacheAlias
         where TObject : class
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(pivotOn);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(pivotOn);
 
         return source.TransformToTree(pivotOn);
     }
@@ -272,7 +272,7 @@ public static class ObservableCacheAlias
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.Filter(filter);
     }
@@ -289,8 +289,8 @@ public static class ObservableCacheAlias
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(predicateChanged);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(predicateChanged);
 
         return source.Filter(predicateChanged);
     }
@@ -308,9 +308,9 @@ public static class ObservableCacheAlias
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(predicateChanged);
-        ArgumentExceptionHelper.ThrowIfNull(reapplyFilter);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(predicateChanged);
+        ArgumentNullException.ThrowIfNull(reapplyFilter);
 
         return source.Filter(predicateChanged, reapplyFilter);
     }

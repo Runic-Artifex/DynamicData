@@ -33,8 +33,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(reasons);
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(reasons);
+        ArgumentNullException.ThrowIfNull(source);
 
         if (reasons.Length == 0)
         {

@@ -1,16 +1,10 @@
 // Copyright (c) 2011-2025 Roland Pheasant. All rights reserved.
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-#if REACTIVE_SHIM
-
-using DynamicData.Reactive.Binding;
-#else
-
-using DynamicData.Binding;
-#endif
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -55,8 +49,8 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> Bind<T>(this IObservable<IChangeSet<T>> source, IObservableCollection<T> targetCollection, int resetThreshold = BindingOptions.DefaultResetThreshold)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(targetCollection);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(targetCollection);
 
         // if user has not specified different defaults, use system wide defaults instead.
         // This is a hack to retro fit system wide defaults which override the hard coded defaults above
@@ -81,8 +75,8 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> Bind<T>(this IObservable<IChangeSet<T>> source, IObservableCollection<T> targetCollection, BindingOptions options)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(targetCollection);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(targetCollection);
 
         var adaptor = new ObservableCollectionAdaptor<T>(targetCollection, options);
         return source.Adapt(adaptor);
@@ -106,7 +100,7 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> Bind<T>(this IObservable<IChangeSet<T>> source, out ReadOnlyObservableCollection<T> readOnlyObservableCollection, int resetThreshold = BindingOptions.DefaultResetThreshold)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         // if user has not specified different defaults, use system wide defaults instead.
         // This is a hack to retro fit system wide defaults which override the hard coded defaults above
@@ -136,7 +130,7 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> Bind<T>(this IObservable<IChangeSet<T>> source, out ReadOnlyObservableCollection<T> readOnlyObservableCollection, BindingOptions options)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         var target = new ObservableCollectionExtended<T>();
         var result = new ReadOnlyObservableCollection<T>(target);
@@ -158,8 +152,8 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> Bind<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)] T>(this IObservable<IChangeSet<T>> source, BindingList<T> bindingList, int resetThreshold = BindingOptions.DefaultResetThreshold)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(bindingList);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(bindingList);
 
         return source.Adapt(new BindingListAdaptor<T>(bindingList, resetThreshold));
     }

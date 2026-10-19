@@ -2,15 +2,9 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Diagnostics;
-#if REACTIVE_SHIM
-using DynamicData.Reactive.Binding;
-#else
-using DynamicData.Binding;
-#endif
-
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -39,7 +33,7 @@ public sealed class IntermediateCache<TObject, TKey> : IIntermediateCache<TObjec
     /// <exception cref="ArgumentNullException">source.</exception>
     public IntermediateCache(IObservable<IChangeSet<TObject, TKey>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         _innerCache = new ObservableCache<TObject, TKey>(source);
     }

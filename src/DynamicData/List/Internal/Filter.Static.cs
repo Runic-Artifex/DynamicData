@@ -33,8 +33,8 @@ public static class Static<T>
             Func<T, bool> predicate,
             bool suppressEmptyChangesets)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source);
-            ArgumentExceptionHelper.ThrowIfNull(predicate);
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(predicate);
 
             return Observable.Create<IChangeSet<T>>(downstreamObserver =>
             {

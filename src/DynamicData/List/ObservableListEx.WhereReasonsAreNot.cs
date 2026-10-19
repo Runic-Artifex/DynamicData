@@ -4,6 +4,7 @@
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -38,8 +39,8 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> WhereReasonsAreNot<T>(this IObservable<IChangeSet<T>> source, params ListChangeReason[] reasons)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(reasons);
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(reasons);
+        ArgumentNullException.ThrowIfNull(source);
 
         if (reasons.Length == 0)
         {

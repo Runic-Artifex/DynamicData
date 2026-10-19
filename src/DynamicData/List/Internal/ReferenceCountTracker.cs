@@ -40,7 +40,7 @@ internal sealed class ReferenceCountTracker<T>
     /// <returns>The result of the operation.</returns>
     public bool Add(T item)
     {
-        ArgumentExceptionHelper.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(item);
 
         if (!ReferenceCounts.TryGetValue(item, out var currentCount))
         {
@@ -71,7 +71,7 @@ internal sealed class ReferenceCountTracker<T>
     /// <returns>The result of the operation.</returns>
     public bool Remove(T item)
     {
-        ArgumentExceptionHelper.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(item);
 
         var currentCount = ReferenceCounts[item];
 

@@ -3,16 +3,10 @@
 // See the LICENSE file in the project root for full license information.
 
 #if P_LINQ
-#if REACTIVE_SHIM
-
-using DynamicData.Reactive.Cache.Internal;
-#else
-
-using DynamicData.Cache.Internal;
-#endif
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive.PLinq
 #else
 namespace DynamicData.PLinq

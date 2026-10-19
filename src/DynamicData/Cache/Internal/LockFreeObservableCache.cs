@@ -2,7 +2,6 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Diagnostics;
 #if REACTIVE_SHIM
 
 namespace DynamicData.Reactive.Cache.Internal;
@@ -61,7 +60,7 @@ public sealed class LockFreeObservableCache<TObject, TKey> : IObservableCache<TO
     /// <param name="source">The source.</param>
     public LockFreeObservableCache(IObservable<IChangeSet<TObject, TKey>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         _updater = new CacheUpdater<TObject, TKey>(_innerCache);
 
@@ -143,7 +142,7 @@ public sealed class LockFreeObservableCache<TObject, TKey> : IObservableCache<TO
     /// <param name="editAction">The edit action.</param>
     public void Edit(Action<ICacheUpdater<TObject, TKey>> editAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(editAction);
+        ArgumentNullException.ThrowIfNull(editAction);
 
         editAction(_updater);
         _changes.OnNext(_innerCache.CaptureChanges());

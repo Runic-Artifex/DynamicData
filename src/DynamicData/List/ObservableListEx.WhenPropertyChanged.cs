@@ -2,15 +2,9 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Linq.Expressions;
-#if REACTIVE_SHIM
-using DynamicData.Reactive.Binding;
-#else
-using DynamicData.Binding;
-#endif
-
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -42,8 +36,8 @@ public static partial class ObservableListEx
     public static IObservable<PropertyValue<TObject, TValue>> WhenPropertyChanged<TObject, TValue>(this IObservable<IChangeSet<TObject>> source, Expression<Func<TObject, TValue>> propertyAccessor, bool notifyOnInitialValue = true)
         where TObject : INotifyPropertyChanged
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(propertyAccessor);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(propertyAccessor);
 
         var factory = propertyAccessor.GetFactory();
         return source.MergeMany(t => factory(t, notifyOnInitialValue));

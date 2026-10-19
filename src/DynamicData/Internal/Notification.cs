@@ -53,7 +53,7 @@ internal readonly struct Notification<T>
     /// <returns>The result of the operation.</returns>
     public static Notification<T> CreateError(Exception error)
     {
-        ArgumentExceptionHelper.ThrowIfNull(error);
+        ArgumentNullException.ThrowIfNull(error);
         return new(default, error, NotificationKind.Error);
     }
 

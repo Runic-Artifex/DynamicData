@@ -4,6 +4,7 @@
 
 // Polyfill implementation adapted from SimonCropp/Polyfill (https://github.com/SimonCropp/Polyfill).
 #if !NETCOREAPP3_0_OR_GREATER && !NETSTANDARD2_1_OR_GREATER
+
 namespace System.Diagnostics.CodeAnalysis;
 
 /// <summary>Specifies that <see langword="null"/> is allowed as an input even if the corresponding type disallows it.</summary>

@@ -41,8 +41,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(item);
 
         source.Edit(updater => updater.AddOrUpdate(item));
     }
@@ -60,9 +60,9 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(item);
-        ArgumentExceptionHelper.ThrowIfNull(equalityComparer);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(equalityComparer);
 
         source.Edit(updater => updater.AddOrUpdate(item, equalityComparer));
     }
@@ -79,8 +79,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(items);
 
         source.Edit(updater => updater.AddOrUpdate(items));
     }
@@ -98,9 +98,9 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(items);
-        ArgumentExceptionHelper.ThrowIfNull(equalityComparer);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(equalityComparer);
 
         source.Edit(updater => updater.AddOrUpdate(items, equalityComparer));
     }
@@ -118,9 +118,9 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(item);
-        ArgumentExceptionHelper.ThrowIfNull(key);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(item);
+        ArgumentNullException.ThrowIfNull(key);
 
         source.Edit(updater => updater.AddOrUpdate(item, key));
     }

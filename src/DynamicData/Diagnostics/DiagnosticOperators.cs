@@ -26,7 +26,7 @@ public static class DiagnosticOperators
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.Scan(
             ChangeSummary.Empty,
@@ -56,7 +56,7 @@ public static class DiagnosticOperators
     public static IObservable<ChangeSummary> CollectUpdateStats<TSource>(this IObservable<IChangeSet<TSource>> source)
         where TSource : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.Scan(
             ChangeSummary.Empty,

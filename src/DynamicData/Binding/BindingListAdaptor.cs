@@ -4,11 +4,6 @@
 
 #if SUPPORTS_BINDINGLIST
 #if REACTIVE_SHIM
-using DynamicData.Reactive.Cache.Internal;
-#else
-using DynamicData.Cache.Internal;
-#endif
-#if REACTIVE_SHIM
 
 namespace DynamicData.Reactive.Binding;
 #else
@@ -42,7 +37,7 @@ public class BindingListAdaptor<[DynamicallyAccessedMembers(DynamicallyAccessedM
     /// <param name="changes">The changes value.</param>
     public void Adapt(IChangeSet<T> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         if (changes.TotalChanges - changes.Refreshes > refreshThreshold || !_loaded)
         {
@@ -93,7 +88,7 @@ public class BindingListAdaptor<[DynamicallyAccessedMembers(DynamicallyAccessedM
     /// <param name="changes">The changes value.</param>
     public void Adapt(IChangeSet<TObject, TKey> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
         _cache.Clone(changes);
 
         if (changes.Count - changes.Refreshes > refreshThreshold || !_loaded)

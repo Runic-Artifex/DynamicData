@@ -22,7 +22,7 @@ public static class EnumerableEx
     /// <returns>The array of items.</returns>
     public static T[] AsArray<T>(this IEnumerable<T> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source as T[] ?? source.ToArray();
     }
@@ -35,7 +35,7 @@ public static class EnumerableEx
     /// <returns>The list.</returns>
     public static List<T> AsList<T>(this IEnumerable<T> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source as List<T> ?? source.ToList();
     }
@@ -50,8 +50,8 @@ public static class EnumerableEx
     /// <returns>The enumerable of items.</returns>
     public static IEnumerable<T> Duplicates<T, TValue>(this IEnumerable<T> source, Func<T, TValue> valueSelector)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.GroupBy(valueSelector).Where(group => group.Count() > 1).SelectMany(t => t);
     }
@@ -78,9 +78,9 @@ public static class EnumerableEx
     /// <returns>A result as specified by the result selector.</returns>
     public static IEnumerable<TResult> IndexOfMany<TObject, TResult>(this IEnumerable<TObject> source, IEnumerable<TObject> itemsToFind, Func<TObject, int, TResult> resultSelector)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(itemsToFind);
-        ArgumentExceptionHelper.ThrowIfNull(resultSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(itemsToFind);
+        ArgumentNullException.ThrowIfNull(resultSelector);
 
         var indexed = source.Select((element, index) => new { Element = element, Index = index });
         return itemsToFind.Join(indexed, left => left, right => right.Element, (_, right) => right).Select(x => resultSelector(x.Element, x.Index));

@@ -45,7 +45,8 @@ public static partial class ObservableCacheEx
                 bool suppressEmptyChangeSets = true)
             where TObject : notnull
             where TKey : notnull
-        => Cache.Internal.Filter.Static<TObject, TKey>.Create(
+        =>
+            Cache.Internal.Filter.Static<TObject, TKey>.Create(
             source: source,
             filter: filter,
             suppressEmptyChangeSets: suppressEmptyChangeSets);
@@ -109,7 +110,8 @@ public static partial class ObservableCacheEx
                 bool suppressEmptyChangeSets = true)
             where TObject : notnull
             where TKey : notnull
-        => Cache.Internal.Filter.Dynamic<TObject, TKey, TState>.Create(
+        =>
+            Cache.Internal.Filter.Dynamic<TObject, TKey, TState>.Create(
             source: source,
             predicateState: predicateState,
             predicate: predicate,
@@ -140,7 +142,8 @@ public static partial class ObservableCacheEx
             where TObject : notnull
             where TKey : notnull
 
-        => Cache.Internal.Filter.Dynamic<TObject, TKey, Func<TObject, bool>>.Create(
+        =>
+            Cache.Internal.Filter.Dynamic<TObject, TKey, Func<TObject, bool>>.Create(
             source: source,
             predicateState: predicateChanged,
             predicate: static (predicate, item) => predicate.Invoke(item),

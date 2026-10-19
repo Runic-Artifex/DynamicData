@@ -2,9 +2,8 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Runtime.CompilerServices;
-
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive.Internal;
 #else
 namespace DynamicData.Internal;
@@ -40,11 +39,7 @@ internal sealed class SharedDeliveryQueue : IDisposable
     /// </summary>
     private readonly Queue<DrainableBase> _order = new();
 
-#if NET9_0_OR_GREATER
     private readonly Lock _gate;
-#else
-    private readonly object _gate;
-#endif
 
     private int _drainThreadId = -1;
     private volatile bool _isTerminated;
@@ -52,20 +47,11 @@ internal sealed class SharedDeliveryQueue : IDisposable
     /// <summary>Initializes a new instance of the <see cref="SharedDeliveryQueue"/> class with its own internal lock.</summary>
     public SharedDeliveryQueue()
     {
-#if NET9_0_OR_GREATER
         _gate = new Lock();
-#else
-        _gate = new object();
-#endif
     }
 
-#if NET9_0_OR_GREATER
     /// <summary>Initializes a new instance of the <see cref="SharedDeliveryQueue"/> class with a caller-provided lock.</summary>
     public SharedDeliveryQueue(Lock gate) => _gate = gate;
-#else
-    /// <summary>Initializes a new instance of the <see cref="SharedDeliveryQueue"/> class with a caller-provided lock.</summary>
-    public SharedDeliveryQueue(object gate) => _gate = gate;
-#endif
 
     /// <summary>Gets a value indicating whether this queue has been terminated.</summary>
     public bool IsTerminated
@@ -88,18 +74,18 @@ internal sealed class SharedDeliveryQueue : IDisposable
     /// </summary>
     public void Dispose()
     {
-        EnterLock();
+        _gate.Enter();
 
         _isTerminated = true;
         _order.Clear();
 
         if (_drainThreadId == Environment.CurrentManagedThreadId)
         {
-            ExitLock();
+            _gate.Exit();
             return;
         }
 
-        ExitLock();
+        _gate.Exit();
 
         SpinWait spinner = default;
         while (Volatile.Read(ref _drainThreadId) != -1)
@@ -110,19 +96,11 @@ internal sealed class SharedDeliveryQueue : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void EnqueueOrder(DrainableBase source) => _order.Enqueue(source);
 
-#if NET9_0_OR_GREATER
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void EnterLock() => _gate.Enter();
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     internal void ExitLock() => _gate.Exit();
-#else
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void EnterLock() => Monitor.Enter(_gate);
-
-    [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    internal void ExitLock() => Monitor.Exit(_gate);
-#endif
 
     /// <summary>
     /// Releases the lock after <paramref name="source"/> has enqueued, and delivers.
@@ -141,7 +119,7 @@ internal sealed class SharedDeliveryQueue : IDisposable
         if (_drainThreadId == currentThreadId)
         {
             var inlineCount = _isTerminated ? 0 : source.InlineDeliverableCount;
-            ExitLock();
+            _gate.Exit();
             DeliverInline(source, inlineCount);
             return;
         }
@@ -153,7 +131,7 @@ internal sealed class SharedDeliveryQueue : IDisposable
             shouldDrain = true;
         }
 
-        ExitLock();
+        _gate.Exit();
 
         if (shouldDrain)
         {
@@ -176,16 +154,16 @@ internal sealed class SharedDeliveryQueue : IDisposable
                 // Atomically re-check for work and release ownership if there is none. Checking
                 // and releasing in separate lock scopes would let a producer enqueue in between,
                 // see that a drain is in progress, and rely on us to deliver an item we never saw.
-                EnterLock();
+                _gate.Enter();
 
                 if (_order.Count != 0 && !_isTerminated)
                 {
-                    ExitLock();
+                    _gate.Exit();
                     continue;
                 }
 
                 _drainThreadId = -1;
-                ExitLock();
+                _gate.Exit();
                 return;
             }
         }
@@ -199,9 +177,9 @@ internal sealed class SharedDeliveryQueue : IDisposable
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private void ReleaseDrainOwnership()
     {
-        EnterLock();
+        _gate.Enter();
         _drainThreadId = -1;
-        ExitLock();
+        _gate.Exit();
     }
 
     /// <summary>
@@ -213,17 +191,17 @@ internal sealed class SharedDeliveryQueue : IDisposable
     {
         while (true)
         {
-            EnterLock();
+            _gate.Enter();
 
             if (_isTerminated)
             {
-                ExitLock();
+                _gate.Exit();
                 return false;
             }
 
             if (_order.Count == 0)
             {
-                ExitLock();
+                _gate.Exit();
                 return true;
             }
 
@@ -233,7 +211,7 @@ internal sealed class SharedDeliveryQueue : IDisposable
             // has been disposed since, which drops its pending notifications. Skip it.
             if (!source.TryStageNext())
             {
-                ExitLock();
+                _gate.Exit();
                 continue;
             }
 
@@ -256,11 +234,11 @@ internal sealed class SharedDeliveryQueue : IDisposable
     {
         for (var i = 0; i < count; i++)
         {
-            EnterLock();
+            _gate.Enter();
 
             if (_isTerminated || !source.TryStageInline())
             {
-                ExitLock();
+                _gate.Exit();
                 return;
             }
 
@@ -281,7 +259,7 @@ internal sealed class SharedDeliveryQueue : IDisposable
     {
         var isError = source.IsStagedError;
 
-        ExitLock();
+        _gate.Exit();
 
         source.DeliverStaged();
 
@@ -290,10 +268,10 @@ internal sealed class SharedDeliveryQueue : IDisposable
             return true;
         }
 
-        EnterLock();
+        _gate.Enter();
         _isTerminated = true;
         _order.Clear();
-        ExitLock();
+        _gate.Exit();
         return false;
     }
 
@@ -306,7 +284,7 @@ internal sealed class SharedDeliveryQueue : IDisposable
         internal ReadOnlyScopedAccess(SharedDeliveryQueue owner)
         {
             _owner = owner;
-            owner.EnterLock();
+            owner._gate.Enter();
         }
 
         /// <summary>Gets a value indicating whether any notification is pending or in flight.</summary>
@@ -327,7 +305,7 @@ internal sealed class SharedDeliveryQueue : IDisposable
             }
 
             _owner = null;
-            owner.ExitLock();
+            owner._gate.Exit();
         }
     }
 }

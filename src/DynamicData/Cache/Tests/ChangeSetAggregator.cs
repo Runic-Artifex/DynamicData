@@ -3,13 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 #if REACTIVE_SHIM
 
-using DynamicData.Reactive.Diagnostics;
-#else
-
-using DynamicData.Diagnostics;
-#endif
-#if REACTIVE_SHIM
-
 namespace DynamicData.Reactive.Tests;
 #else
 
@@ -37,7 +30,7 @@ public sealed class ChangeSetAggregator<TObject, TKey, TContext> : IDisposable
     /// <param name="source">The source.</param>
     public ChangeSetAggregator(IObservable<IChangeSet<TObject, TKey, TContext>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         var published = source.Publish();
 
@@ -123,7 +116,7 @@ public sealed class ChangeSetAggregator<TObject, TKey> : IDisposable
     /// <param name="source">The source.</param>
     public ChangeSetAggregator(IObservable<IChangeSet<TObject, TKey>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         var published = source.Publish();
 

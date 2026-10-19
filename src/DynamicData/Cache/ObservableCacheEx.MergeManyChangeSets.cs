@@ -1,13 +1,6 @@
 // Copyright (c) 2011-2025 Roland Pheasant. All rights reserved.
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-#if REACTIVE_SHIM
-
-using DynamicData.Reactive.Cache.Internal;
-#else
-
-using DynamicData.Cache.Internal;
-#endif
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
@@ -44,7 +37,7 @@ public static partial class ObservableCacheEx
         where TDestination : notnull
         where TDestinationKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(observableSelector);
 
         return source.MergeManyChangeSets((t, _) => observableSelector(t), comparer);
     }
@@ -68,9 +61,9 @@ public static partial class ObservableCacheEx
         where TDestination : notnull
         where TDestinationKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
-        ArgumentExceptionHelper.ThrowIfNull(comparer);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(comparer);
 
         return source.MergeManyChangeSets(observableSelector, equalityComparer: null, comparer: comparer);
     }
@@ -95,8 +88,8 @@ public static partial class ObservableCacheEx
         where TDestination : notnull
         where TDestinationKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(observableSelector);
 
         return source.MergeManyChangeSets((t, _) => observableSelector(t), equalityComparer, comparer);
     }
@@ -167,8 +160,8 @@ public static partial class ObservableCacheEx
         where TDestination : notnull
         where TDestinationKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(observableSelector);
 
         return new MergeManyCacheChangeSets<TObject, TKey, TDestination, TDestinationKey>(source, observableSelector, equalityComparer, comparer).Run();
     }
@@ -195,8 +188,8 @@ public static partial class ObservableCacheEx
         where TDestination : notnull
         where TDestinationKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(observableSelector);
 
         return source.MergeManyChangeSets((t, _) => observableSelector(t), sourceComparer, DefaultResortOnSourceRefresh, equalityComparer: null, childComparer);
     }
@@ -243,8 +236,8 @@ public static partial class ObservableCacheEx
         where TDestination : notnull
         where TDestinationKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(observableSelector);
 
         return source.MergeManyChangeSets((t, _) => observableSelector(t), sourceComparer, resortOnSourceRefresh, equalityComparer: null, childComparer);
     }
@@ -292,8 +285,8 @@ public static partial class ObservableCacheEx
         where TDestination : notnull
         where TDestinationKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(observableSelector);
 
         return source.MergeManyChangeSets((t, _) => observableSelector(t), sourceComparer, DefaultResortOnSourceRefresh, equalityComparer, childComparer);
     }
@@ -341,8 +334,8 @@ public static partial class ObservableCacheEx
         where TDestination : notnull
         where TDestinationKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(observableSelector);
 
         return source.MergeManyChangeSets((t, _) => observableSelector(t), sourceComparer, resortOnSourceRefresh, equalityComparer, childComparer);
     }
@@ -381,9 +374,9 @@ public static partial class ObservableCacheEx
         where TDestination : notnull
         where TDestinationKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
-        ArgumentExceptionHelper.ThrowIfNull(sourceComparer);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(sourceComparer);
 
         return new MergeManyCacheChangeSetsSourceCompare<TObject, TKey, TDestination, TDestinationKey>(source, observableSelector, sourceComparer, equalityComparer, childComparer, resortOnSourceRefresh).Run();
     }
@@ -405,8 +398,8 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TDestination : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(observableSelector);
 
         return new MergeManyListChangeSets<TObject, TKey, TDestination>(source, observableSelector, equalityComparer).Run();
     }
@@ -427,7 +420,7 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TDestination : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(observableSelector);
         return source.MergeManyChangeSets((obj, _) => observableSelector(obj), equalityComparer);
     }
 

@@ -26,8 +26,8 @@ internal static class OnItemRefreshed<T>
         IObservable<IChangeSet<T>> source,
         Action<T> refreshAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(refreshAction);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(refreshAction);
 
         return source.Do(changeSet =>
         {

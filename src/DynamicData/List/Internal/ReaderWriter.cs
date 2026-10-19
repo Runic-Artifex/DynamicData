@@ -68,7 +68,7 @@ internal sealed class ReaderWriter<T>
     /// <returns>The result of the operation.</returns>
     public IChangeSet<T> Write(IChangeSet<T> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         IChangeSet<T> result;
 
@@ -88,7 +88,7 @@ internal sealed class ReaderWriter<T>
     /// <returns>The result of the operation.</returns>
     public IChangeSet<T> Write(Action<IExtendedList<T>> updateAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(updateAction);
+        ArgumentNullException.ThrowIfNull(updateAction);
 
         IChangeSet<T> result;
 
@@ -112,7 +112,7 @@ internal sealed class ReaderWriter<T>
     /// <param name="updateAction">The action to perform on the list.</param>
     public void WriteNested(Action<IExtendedList<T>> updateAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(updateAction);
+        ArgumentNullException.ThrowIfNull(updateAction);
 
         lock (_locker)
         {
@@ -133,8 +133,8 @@ internal sealed class ReaderWriter<T>
     /// <returns>The result of the operation.</returns>
     public IChangeSet<T> WriteWithPreview(Action<IExtendedList<T>> updateAction, Action<IChangeSet<T>> previewHandler)
     {
-        ArgumentExceptionHelper.ThrowIfNull(updateAction);
-        ArgumentExceptionHelper.ThrowIfNull(previewHandler);
+        ArgumentNullException.ThrowIfNull(updateAction);
+        ArgumentNullException.ThrowIfNull(previewHandler);
 
         IChangeSet<T> result;
 

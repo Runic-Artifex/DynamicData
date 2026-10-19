@@ -89,6 +89,19 @@ src/
 │   └── Domain/                     # Test domain types using Bogus fakers
 ```
 
+## Usings and Namespaces
+
+**Do not add `using` directives to library source files.** In this fork they declare their namespaces once in `src/DynamicData/Global.cs`, which both flavours compile: the DynamicData namespaces switch on `REACTIVE_SHIM`, and each library csproj adds its Rx stack (ReactiveUI.Primitives or System.Reactive) as `<Using>` items. `ImplicitUsings` stays enabled. The TUnit test and benchmark projects declare their namespaces as `<Using>` items in their csproj files. If you need a namespace that is not in scope, add it there.
+
+Two DynamicData namespaces are the exception and **must** stay file-level, because importing them globally silently rebinds existing calls:
+
+| Namespace | Why |
+|---|---|
+| `DynamicData.Alias` | Supplies `Select`, `Where` and `SelectMany` for changeset streams. They are more specific than the Rx operators of the same name, so importing globally silently rebinds calls such as `.Where(_ => flag)` to `Filter`. |
+| `DynamicData.Aggregation` | Supplies `Count`, `Sum`, `Avg`, `Maximum` and `Minimum` for changeset streams. `Count()` is more specific than Rx's `Count()` and returns the same type, so importing globally silently turns a count of emitted changesets into a live item count. |
+
+If a global namespace makes a name ambiguous, qualify the call site or add a global alias in `Global.cs`. Do not move the namespace back into the file.
+
 ## Operator Architecture Pattern
 
 Most operators follow the same two-part pattern:

@@ -3,13 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 #if REACTIVE_SHIM
 
-using DynamicData.Reactive.Diagnostics;
-#else
-
-using DynamicData.Diagnostics;
-#endif
-#if REACTIVE_SHIM
-
 namespace DynamicData.Reactive.Tests;
 #else
 
@@ -48,7 +41,7 @@ public class GroupChangeSetAggregator<TObject, TKey, TGroupKey> : IDisposable
     /// <param name="source">The source.</param>
     public GroupChangeSetAggregator(IObservable<IGroupChangeSet<TObject, TKey, TGroupKey>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         var published = source.Publish();
 

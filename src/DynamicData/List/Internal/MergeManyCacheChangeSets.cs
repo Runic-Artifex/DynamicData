@@ -3,15 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 #if REACTIVE_SHIM
 
-using DynamicData.Reactive.Cache.Internal;
-using DynamicData.Reactive.Internal;
-#else
-
-using DynamicData.Cache.Internal;
-using DynamicData.Internal;
-#endif
-#if REACTIVE_SHIM
-
 namespace DynamicData.Reactive.List.Internal;
 #else
 

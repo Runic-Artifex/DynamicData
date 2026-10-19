@@ -2,7 +2,6 @@
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
 
-using System.Diagnostics;
 #if REACTIVE_SHIM
 
 namespace DynamicData.Reactive.List.Internal;
@@ -36,7 +35,7 @@ internal sealed class AnonymousObservableList<T> : IObservableList<T>
     /// <param name="source">The source value.</param>
     public AnonymousObservableList(IObservable<IChangeSet<T>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         _sourceList = new SourceList<T>(source);
         _cleanUp = _sourceList;
@@ -48,7 +47,7 @@ internal sealed class AnonymousObservableList<T> : IObservableList<T>
     /// <param name="sourceList">The sourceList value.</param>
     public AnonymousObservableList(ISourceList<T> sourceList)
     {
-        ArgumentExceptionHelper.ThrowIfNull(sourceList);
+        ArgumentNullException.ThrowIfNull(sourceList);
         _sourceList = sourceList;
         _cleanUp = Disposable.Empty;
     }

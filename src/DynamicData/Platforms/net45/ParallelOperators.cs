@@ -6,6 +6,7 @@
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive.PLinq
 #else
 namespace DynamicData.PLinq
@@ -30,7 +31,7 @@ public static class ParallelOperators
             where TObject : notnull
             where TKey : notnull
         {
-            ArgumentExceptionHelper.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(source);
 
             return new PFilter<TObject, TKey>(source, filter, parallelisationOptions).Run();
         }
@@ -54,9 +55,9 @@ public static class ParallelOperators
             where TObject : notnull
             where TKey : notnull
         {
-            ArgumentExceptionHelper.ThrowIfNull(source);
-            ArgumentExceptionHelper.ThrowIfNull(subscriptionFactory);
-            ArgumentExceptionHelper.ThrowIfNull(parallelisationOptions);
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(subscriptionFactory);
+            ArgumentNullException.ThrowIfNull(parallelisationOptions);
 
             return new PSubscribeMany<TObject, TKey>(source, (t, _) => subscriptionFactory(t), parallelisationOptions).Run();
         }
@@ -80,9 +81,9 @@ public static class ParallelOperators
             where TObject : notnull
             where TKey : notnull
         {
-            ArgumentExceptionHelper.ThrowIfNull(source);
-            ArgumentExceptionHelper.ThrowIfNull(subscriptionFactory);
-            ArgumentExceptionHelper.ThrowIfNull(parallelisationOptions);
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(subscriptionFactory);
+            ArgumentNullException.ThrowIfNull(parallelisationOptions);
 
             return new PSubscribeMany<TObject, TKey>(source, subscriptionFactory, parallelisationOptions).Run();
         }
@@ -107,9 +108,9 @@ public static class ParallelOperators
             where TSource : notnull
             where TKey : notnull
         {
-            ArgumentExceptionHelper.ThrowIfNull(source);
-            ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-            ArgumentExceptionHelper.ThrowIfNull(parallelisationOptions);
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(transformFactory);
+            ArgumentNullException.ThrowIfNull(parallelisationOptions);
 
             return new PTransform<TDestination, TSource, TKey>(source, (t, _, k) => transformFactory(t, k), parallelisationOptions).Run();
         }
@@ -158,10 +159,10 @@ public static class ParallelOperators
             where TSource : notnull
             where TKey : notnull
         {
-            ArgumentExceptionHelper.ThrowIfNull(source);
-            ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-            ArgumentExceptionHelper.ThrowIfNull(errorHandler);
-            ArgumentExceptionHelper.ThrowIfNull(parallelisationOptions);
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(transformFactory);
+            ArgumentNullException.ThrowIfNull(errorHandler);
+            ArgumentNullException.ThrowIfNull(parallelisationOptions);
 
             return new PTransform<TDestination, TSource, TKey>(source, (t, _, _) => transformFactory(t), parallelisationOptions, errorHandler).Run();
         }

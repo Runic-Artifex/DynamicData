@@ -12,19 +12,10 @@ Dynamic Data is a comprehensive caching and data manipulation solution which int
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ReactiveUI.Primitives" Version="$(ReactiveUIPrimitivesVersion)" ExcludeAssets="analyzers" />
+    <PackageReference Include="ReactiveUI.Primitives" ExcludeAssets="analyzers" />
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="System" />
-    <Using Include="System.Collections" />
-    <Using Include="System.Diagnostics.CodeAnalysis" />
-    <Using Include="System.ComponentModel" />
-    <Using Include="System.Runtime.CompilerServices" />
-    <Using Include="System.Collections.ObjectModel" />
-    <Using Include="DynamicData.Cache" />
-    <Using Include="DynamicData.Kernel" />
-    <Using Include="DynamicData.Internal" />
     <Using Include="ReactiveUI.Primitives" />
     <Using Include="ReactiveUI.Primitives.LinqExtensions" Alias="PrimitivesLinqExtensions" />
     <Using Include="ReactiveUI.Primitives.Advanced" />
@@ -62,15 +53,5 @@ Dynamic Data is a comprehensive caching and data manipulation solution which int
   <!-- AsyncDisposeMany is only supported on platforms that have IAsyncDisposable. -->
   <ItemGroup Condition="!$(DefineConstants.Contains('SUPPORTS_ASYNC_DISPOSABLE'))">
     <Compile Remove="Cache\ObservableCacheEx.AsyncDisposeMany.cs" />
-  </ItemGroup>
-
-  <ItemGroup Condition="$(TargetFramework.StartsWith('net4'))">
-    <Using Include="DynamicData.ArgumentExceptionHelper" Alias="ArgumentExceptionHelper" />
-    <Using Include="DynamicData.ArgumentOutOfRangeExceptionHelper" Alias="ArgumentOutOfRangeExceptionHelper" />
-  </ItemGroup>
-
-  <ItemGroup Condition="!$(TargetFramework.StartsWith('net4'))">
-    <Using Include="System.ArgumentNullException" Alias="ArgumentExceptionHelper" />
-    <Using Include="System.ArgumentOutOfRangeException" Alias="ArgumentOutOfRangeExceptionHelper" />
   </ItemGroup>
 </Project>

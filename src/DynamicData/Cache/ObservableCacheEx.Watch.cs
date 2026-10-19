@@ -39,7 +39,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.SelectMany(updates => updates).Where(update => update.Key.Equals(key));
     }

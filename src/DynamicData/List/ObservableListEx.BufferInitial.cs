@@ -4,6 +4,7 @@
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -35,7 +36,7 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<TObject>> BufferInitial<TObject>(this IObservable<IChangeSet<TObject>> source, TimeSpan initialBuffer, IScheduler? scheduler = null)
         where TObject : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         if (initialBuffer < TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(initialBuffer), initialBuffer, "The initial buffer duration must be non-negative.");

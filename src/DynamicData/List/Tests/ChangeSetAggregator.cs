@@ -4,6 +4,7 @@
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive.Tests;
 #else
 namespace DynamicData.Tests;
@@ -32,7 +33,7 @@ public class ChangeSetAggregator<TObject> : IDisposable
     /// <param name="source">The source.</param>
     public ChangeSetAggregator(IObservable<IChangeSet<TObject>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         var published = source.Publish();
 

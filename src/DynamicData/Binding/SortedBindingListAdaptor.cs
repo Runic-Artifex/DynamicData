@@ -4,6 +4,7 @@
 
 #if SUPPORTS_BINDINGLIST
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive.Binding;
 #else
 namespace DynamicData.Binding;
@@ -33,7 +34,7 @@ public class SortedBindingListAdaptor<[DynamicallyAccessedMembers(DynamicallyAcc
     /// <param name="changes">The changes value.</param>
     public void Adapt(ISortedChangeSet<TObject, TKey> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         switch (changes.SortedItems.SortReason)
         {

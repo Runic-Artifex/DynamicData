@@ -41,7 +41,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         if (initialBuffer < TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(initialBuffer), initialBuffer, "The initial buffer duration must be non-negative.");

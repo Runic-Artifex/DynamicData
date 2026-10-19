@@ -28,8 +28,8 @@ internal static class OnItemRemoved<T>
         Action<T> removeAction,
         bool invokeOnUnsubscribe)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(removeAction);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(removeAction);
 
         var removalProcessor = source.Do(changeSet =>
         {

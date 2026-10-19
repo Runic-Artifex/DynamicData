@@ -3,13 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 #if REACTIVE_SHIM
 
-using DynamicData.Reactive.Binding;
-#else
-
-using DynamicData.Binding;
-#endif
-#if REACTIVE_SHIM
-
 namespace DynamicData.Reactive;
 #else
 
@@ -265,7 +258,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return new SortAndBind<TObject, TKey>(source, comparer, options, targetList).Run();
     }
@@ -393,7 +386,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         // allow options to set initial capacity for efficiency
         var observableCollection = options.InitialCapacity > 0

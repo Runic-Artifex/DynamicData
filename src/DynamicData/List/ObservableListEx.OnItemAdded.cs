@@ -4,6 +4,7 @@
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -44,7 +45,7 @@ public static partial class ObservableListEx
                 Action<T> addAction)
             where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return List.Internal.OnItemAdded<T>.Create(
                 source: source,
                 addAction: addAction);

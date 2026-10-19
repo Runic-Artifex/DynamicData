@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive.Cache.Internal;
 #else
 namespace DynamicData.Cache.Internal;
