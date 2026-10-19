@@ -91,7 +91,7 @@ src/
 
 ## Usings and Namespaces
 
-**Do not add `using` directives to source files.** Each project declares its namespaces once, as `global using` directives in its own `Global.cs` (`src/DynamicData/Global.cs`, `src/DynamicData.Tests/Global.cs`, `src/DynamicData.Benchmarks/Global.cs`). `ImplicitUsings` is disabled, so `Global.cs` is the complete list. If you need a namespace that is not in scope, add it there.
+**Do not add `using` directives to library source files.** In this fork they declare their namespaces once in `src/DynamicData/Global.cs`, which both flavours compile: the DynamicData namespaces switch on `REACTIVE_SHIM`, and each library csproj adds its Rx stack (ReactiveUI.Primitives or System.Reactive) as `<Using>` items. `ImplicitUsings` stays enabled. The TUnit test and benchmark projects declare their namespaces as `<Using>` items in their csproj files. If you need a namespace that is not in scope, add it there.
 
 Two DynamicData namespaces are the exception and **must** stay file-level, because importing them globally silently rebinds existing calls:
 
@@ -100,7 +100,7 @@ Two DynamicData namespaces are the exception and **must** stay file-level, becau
 | `DynamicData.Alias` | Supplies `Select`, `Where` and `SelectMany` for changeset streams. They are more specific than the Rx operators of the same name, so importing globally silently rebinds calls such as `.Where(_ => flag)` to `Filter`. |
 | `DynamicData.Aggregation` | Supplies `Count`, `Sum`, `Avg`, `Maximum` and `Minimum` for changeset streams. `Count()` is more specific than Rx's `Count()` and returns the same type, so importing globally silently turns a count of emitted changesets into a live item count. |
 
-If a global namespace makes a name ambiguous, qualify the call site or add a global alias in `Global.cs`. Do not move the namespace back into the file. Already handled: `System.Reactive.Notification<T>` is qualified wherever the tests mean the Rx type rather than `DynamicData.Internal.Notification<T>`, and the tests' `Global.cs` aliases `Person` to the domain type so it wins over `Bogus.Person`.
+If a global namespace makes a name ambiguous, qualify the call site or add a global alias in `Global.cs`. Do not move the namespace back into the file.
 
 ## Operator Architecture Pattern
 
