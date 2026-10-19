@@ -44,7 +44,7 @@ internal sealed class TransformAsync<TSource, TDestination>
         Func<TSource, ReactiveUI.Primitives.Optional<TDestination>, int, CancellationToken, Task<TDestination>> factory,
         bool transformOnRefresh)
     {
-        ArgumentExceptionHelper.ThrowIfNull(factory);
+        ArgumentNullException.ThrowIfNull(factory);
 
         _source = source ?? throw new ArgumentNullException(nameof(source));
         _transformOnRefresh = transformOnRefresh;
@@ -157,7 +157,7 @@ internal sealed class TransformAsync<TSource, TDestination>
         IChangeSet<TSource> changes,
         CancellationToken cancel)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         foreach (var item in changes)
         {

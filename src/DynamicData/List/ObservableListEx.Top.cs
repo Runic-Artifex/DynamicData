@@ -32,7 +32,7 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> Top<T>(this IObservable<IChangeSet<T>> source, int numberOfItems)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         if (numberOfItems <= 0)
         {

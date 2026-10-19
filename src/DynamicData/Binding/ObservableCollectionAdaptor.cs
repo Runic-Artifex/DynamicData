@@ -71,7 +71,7 @@ public class ObservableCollectionAdaptor<T>(IObservableCollection<T> collection,
     /// <param name="changes">The changes.</param>
     public void Adapt(IChangeSet<T> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         if (changes.TotalChanges - changes.Refreshes > refreshThreshold || (!_loaded && resetOnFirstTimeLoad))
         {
@@ -132,8 +132,8 @@ public class ObservableCollectionAdaptor<TObject, TKey>(int refreshThreshold = 2
     /// <param name="collection">The collection.</param>
     public void Adapt(IChangeSet<TObject, TKey> changes, IObservableCollection<TObject> collection)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
-        ArgumentExceptionHelper.ThrowIfNull(collection);
+        ArgumentNullException.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(collection);
 
         _cache.Clone(changes);
 

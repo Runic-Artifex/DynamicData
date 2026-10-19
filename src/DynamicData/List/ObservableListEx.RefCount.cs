@@ -36,7 +36,7 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> RefCount<T>(this IObservable<IChangeSet<T>> source)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return new RefCount<T>(source).Run();
     }

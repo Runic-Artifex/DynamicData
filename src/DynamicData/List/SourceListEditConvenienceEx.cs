@@ -30,7 +30,7 @@ public static class SourceListEditConvenienceEx
     public static void Add<T>(this ISourceList<T> source, T item)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         source.Edit(list => list.Add(item));
     }
@@ -44,8 +44,8 @@ public static class SourceListEditConvenienceEx
     public static void AddRange<T>(this ISourceList<T> source, IEnumerable<T> items)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(items);
 
         source.Edit(list => list.AddRange(items));
     }
@@ -58,7 +58,7 @@ public static class SourceListEditConvenienceEx
     public static void Clear<T>(this ISourceList<T> source)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         source.Edit(list => list.Clear());
     }
@@ -74,8 +74,8 @@ public static class SourceListEditConvenienceEx
     public static void EditDiff<T>(this ISourceList<T> source, IEnumerable<T> allItems, IEqualityComparer<T>? equalityComparer = null)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(allItems);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(allItems);
 
         var editDiff = new EditDiff<T>(source, equalityComparer);
         editDiff.Edit(allItems);
@@ -91,7 +91,7 @@ public static class SourceListEditConvenienceEx
     public static void Insert<T>(this ISourceList<T> source, int index, T item)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         source.Edit(list => list.Insert(index, item));
     }
@@ -106,7 +106,7 @@ public static class SourceListEditConvenienceEx
     public static void InsertRange<T>(this ISourceList<T> source, IEnumerable<T> items, int index)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         source.Edit(list => list.AddRange(items, index));
     }
@@ -121,7 +121,7 @@ public static class SourceListEditConvenienceEx
     public static void Move<T>(this ISourceList<T> source, int original, int destination)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         source.Edit(list => list.Move(original, destination));
     }
@@ -137,7 +137,7 @@ public static class SourceListEditConvenienceEx
         where T : notnull
     {
         var removed = false;
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         source.Edit(list => removed = list.Remove(item));
         return removed;
@@ -152,7 +152,7 @@ public static class SourceListEditConvenienceEx
     public static void RemoveAt<T>(this ISourceList<T> source, int index)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         source.Edit(list => list.RemoveAt(index));
     }
@@ -166,7 +166,7 @@ public static class SourceListEditConvenienceEx
     public static void RemoveMany<T>(this ISourceList<T> source, IEnumerable<T> itemsToRemove)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         source.Edit(list => list.RemoveMany(itemsToRemove));
     }
@@ -183,7 +183,7 @@ public static class SourceListEditConvenienceEx
     public static void RemoveRange<T>(this ISourceList<T> source, int index, int count)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         source.Edit(list => list.RemoveRange(index, count));
     }
@@ -198,7 +198,7 @@ public static class SourceListEditConvenienceEx
     public static void Replace<T>(this ISourceList<T> source, T original, T destination)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         source.Edit(list => list.Replace(original, destination));
     }
@@ -213,7 +213,7 @@ public static class SourceListEditConvenienceEx
     public static void ReplaceAt<T>(this ISourceList<T> source, int index, T item)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         source.Edit(list => list[index] = item);
     }

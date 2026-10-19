@@ -36,7 +36,7 @@ public static partial class ObservableListEx
         where T : notnull
     {
         var reverser = new Reverser<T>();
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.Select(changes => new ChangeSet<T>(reverser.Reverse(changes)));
     }

@@ -25,8 +25,8 @@ internal static class ParallelEx
     /// <returns>The result of the operation.</returns>
     public static async Task<IEnumerable<TDestination>> SelectParallel<TSource, TDestination>(this IEnumerable<TSource> source, Func<TSource, Task<TDestination>> selector, int maximumThreads = 5)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(selector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(selector);
 
         var semaphore = new SemaphoreSlim(maximumThreads);
         var tasks = new List<Task<TDestination>>();

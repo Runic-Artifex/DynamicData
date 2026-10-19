@@ -38,11 +38,11 @@ public static class WithPredicateState<T, TState>
             ListFilterPolicy filterPolicy = ListFilterPolicy.CalculateDiff,
             bool suppressEmptyChangeSets = true)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source);
-            ArgumentExceptionHelper.ThrowIfNull(predicateState);
-            ArgumentExceptionHelper.ThrowIfNull(predicate);
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(predicateState);
+            ArgumentNullException.ThrowIfNull(predicate);
 
-            if (!EnumEx.IsDefined(filterPolicy))
+            if (!Enum.IsDefined(filterPolicy))
                 throw new ArgumentException($"Invalid {nameof(ListFilterPolicy)} value {filterPolicy}");
 
             return Observable.Create<IChangeSet<T>>(observer =>

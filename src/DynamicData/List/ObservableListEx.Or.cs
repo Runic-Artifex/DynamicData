@@ -62,7 +62,7 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> Or<T>(this IObservable<IChangeSet<T>> source, params IObservable<IChangeSet<T>>[] others)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(others);
+        ArgumentNullException.ThrowIfNull(others);
 
         return source.Combine(CombineOperator.Or, others);
     }

@@ -47,7 +47,7 @@ public static class TestEx
     public static DistinctChangeSetAggregator<TValue> AsAggregator<TValue>(this IObservable<IDistinctChangeSet<TValue>> source)
         where TValue : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return new DistinctChangeSetAggregator<TValue>(source);
     }
@@ -66,7 +66,7 @@ public static class TestEx
         where TKey : notnull
         where TGroupKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return new GroupChangeSetAggregator<TValue, TKey, TGroupKey>(source);
     }
@@ -83,7 +83,7 @@ public static class TestEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return new SortedChangeSetAggregator<TObject, TKey>(source);
     }
@@ -100,7 +100,7 @@ public static class TestEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return new VirtualChangeSetAggregator<TObject, TKey>(source);
     }
@@ -116,7 +116,7 @@ public static class TestEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return new PagedChangeSetAggregator<TObject, TKey>(source);
     }

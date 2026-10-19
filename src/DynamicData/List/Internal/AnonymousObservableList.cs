@@ -36,7 +36,7 @@ internal sealed class AnonymousObservableList<T> : IObservableList<T>
     /// <param name="source">The source value.</param>
     public AnonymousObservableList(IObservable<IChangeSet<T>> source)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         _sourceList = new SourceList<T>(source);
         _cleanUp = _sourceList;

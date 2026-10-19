@@ -58,8 +58,8 @@ public static partial class ObservableCacheEx
         where TObject : INotifyPropertyChanged
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(propertyAccessor);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(propertyAccessor);
 
         return source.MergeMany(t => t.WhenChanged(propertyAccessor, notifyOnInitialValue));
     }

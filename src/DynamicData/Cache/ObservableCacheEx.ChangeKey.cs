@@ -41,8 +41,8 @@ public static partial class ObservableCacheEx
         where TSourceKey : notnull
         where TDestinationKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(keySelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(keySelector);
 
         return source.Select(
             updates =>
@@ -70,8 +70,8 @@ public static partial class ObservableCacheEx
         where TSourceKey : notnull
         where TDestinationKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(keySelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(keySelector);
 
         return source.Select(
             updates =>

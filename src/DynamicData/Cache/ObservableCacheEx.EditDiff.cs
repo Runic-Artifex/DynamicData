@@ -39,9 +39,9 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(allItems);
-        ArgumentExceptionHelper.ThrowIfNull(equalityComparer);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(allItems);
+        ArgumentNullException.ThrowIfNull(equalityComparer);
 
         source.EditDiff(allItems, equalityComparer.Equals);
     }
@@ -69,9 +69,9 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(allItems);
-        ArgumentExceptionHelper.ThrowIfNull(areItemsEqual);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(allItems);
+        ArgumentNullException.ThrowIfNull(areItemsEqual);
 
         var editDiff = new EditDiff<TObject, TKey>(source, areItemsEqual);
         editDiff.Edit(allItems);
@@ -103,8 +103,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(keySelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(keySelector);
 
         return new EditDiffChangeSet<TObject, TKey>(source, keySelector, equalityComparer).Run();
     }
@@ -133,8 +133,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(keySelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(keySelector);
 
         return new EditDiffChangeSetOptional<TObject, TKey>(source, keySelector, equalityComparer).Run();
     }

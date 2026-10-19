@@ -39,8 +39,8 @@ public static partial class ObservableListEx
     public static IObservable<TValue?> WhenValueChanged<TObject, TValue>(this IObservable<IChangeSet<TObject>> source, Expression<Func<TObject, TValue>> propertyAccessor, bool notifyOnInitialValue = true)
         where TObject : INotifyPropertyChanged
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(propertyAccessor);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(propertyAccessor);
 
         var factory = propertyAccessor.GetFactory();
         return source.MergeMany(t => factory(t, notifyOnInitialValue).Select(pv => pv.Value));

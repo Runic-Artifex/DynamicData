@@ -35,8 +35,8 @@ public static class Static<TObject, TKey>
             Func<TObject, bool> filter,
             bool suppressEmptyChangeSets)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source);
-            ArgumentExceptionHelper.ThrowIfNull(filter);
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(filter);
 
             return Observable.Create<IChangeSet<TObject, TKey>>(downstreamObserver =>
             {

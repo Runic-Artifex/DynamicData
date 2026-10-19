@@ -37,7 +37,7 @@ public sealed class OptionElse
     /// <exception cref="ArgumentNullException">action.</exception>
     public void Else(Action action)
     {
-        ArgumentExceptionHelper.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(action);
 
         if (_shouldRunAction)
         {

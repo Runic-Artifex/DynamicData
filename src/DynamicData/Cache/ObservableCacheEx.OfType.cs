@@ -48,7 +48,7 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TDestination : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return new OfType<TObject, TKey, TDestination>(source, suppressEmptyChangeSets).Run();
     }

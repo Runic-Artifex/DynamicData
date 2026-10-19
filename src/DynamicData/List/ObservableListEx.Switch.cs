@@ -36,7 +36,7 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> Switch<T>(this IObservable<IObservableList<T>> sources)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(sources);
 
         return sources.Select(cache => cache.Connect()).Switch();
     }
@@ -57,7 +57,7 @@ public static partial class ObservableListEx
     public static IObservable<IChangeSet<T>> Switch<T>(this IObservable<IObservable<IChangeSet<T>>> sources)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(sources);
 
         return new Switch<T>(sources).Run();
     }

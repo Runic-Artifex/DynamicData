@@ -29,8 +29,8 @@ public static class OptionObservableExtensions
         where TSource : notnull
         where TDestination : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(converter);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(converter);
 
         return source.Select(optional => optional.HasValue ? converter(optional.Value) : ReactiveUI.Primitives.Optional<TDestination>.None);
     }
@@ -50,8 +50,8 @@ public static class OptionObservableExtensions
         where TSource : notnull
         where TDestination : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(converter);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(converter);
 
         return source.Select(optional => optional.HasValue ? converter(optional.Value) : ReactiveUI.Primitives.Optional<TDestination>.None);
     }
@@ -76,9 +76,9 @@ public static class OptionObservableExtensions
     public static IObservable<TDestination?> ConvertOr<TSource, TDestination>(this IObservable<ReactiveUI.Primitives.Optional<TSource>> source, Func<TSource, TDestination?> converter, Func<TDestination?> fallbackConverter)
         where TSource : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(converter);
-        ArgumentExceptionHelper.ThrowIfNull(fallbackConverter);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(converter);
+        ArgumentNullException.ThrowIfNull(fallbackConverter);
 
         return source.Select(optional => optional.HasValue ? converter(optional.Value) : fallbackConverter());
     }
@@ -99,8 +99,8 @@ public static class OptionObservableExtensions
     public static IObservable<ReactiveUI.Primitives.Optional<T>> OrElse<T>(this IObservable<ReactiveUI.Primitives.Optional<T>> source, Func<ReactiveUI.Primitives.Optional<T>> fallbackOperation)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(fallbackOperation);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(fallbackOperation);
 
         return source.Select(optional => optional.HasValue ? optional : fallbackOperation());
     }
@@ -117,8 +117,8 @@ public static class OptionObservableExtensions
     public static IObservable<ReactiveUI.Primitives.Optional<T>> OnHasValue<T>(this IObservable<ReactiveUI.Primitives.Optional<T>> source, Action<T> action, Action? elseAction = null)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(action);
 
         return source.Do(optional => optional.IfHasValue(action).Else(() => elseAction?.Invoke()));
     }
@@ -134,8 +134,8 @@ public static class OptionObservableExtensions
     public static IObservable<ReactiveUI.Primitives.Optional<T>> OnHasNoValue<T>(this IObservable<ReactiveUI.Primitives.Optional<T>> source, Action action, Action<T>? elseAction = null)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(action);
 
         return source.Do(optional => optional.IfHasValue(val => elseAction?.Invoke(val)).Else(action));
     }
@@ -169,8 +169,8 @@ public static class OptionObservableExtensions
     public static IObservable<T> ValueOr<T>(this IObservable<ReactiveUI.Primitives.Optional<T>> source, Func<T> valueSelector)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(valueSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(valueSelector);
 
         return source.Select(optional => optional.HasValue ? optional.Value : valueSelector());
     }
@@ -185,7 +185,7 @@ public static class OptionObservableExtensions
     public static IObservable<T?> ValueOrDefault<T>(this IObservable<ReactiveUI.Primitives.Optional<T>> source)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return source.Select(optional => optional.ValueOrDefault());
     }
@@ -203,8 +203,8 @@ public static class OptionObservableExtensions
     public static IObservable<T> ValueOrThrow<T>(this IObservable<ReactiveUI.Primitives.Optional<T>> source, Func<Exception> exceptionGenerator)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(exceptionGenerator);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(exceptionGenerator);
 
         return Observable.Create<T>(observer =>
             source.Subscribe(

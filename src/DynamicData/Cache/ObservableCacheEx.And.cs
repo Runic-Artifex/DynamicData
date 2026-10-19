@@ -38,10 +38,11 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(others);
 
-        return others is null || others.Length == 0
-            ? throw new ArgumentNullException(nameof(others))
+        return others.Length == 0
+            ? throw new ArgumentException("At least one additional stream must be supplied", nameof(others))
             : source.Combine(CombineOperator.And, others);
     }
 
@@ -61,7 +62,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(sources);
 
         return sources.Combine(CombineOperator.And);
     }
@@ -78,7 +79,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(sources);
 
         return sources.Combine(CombineOperator.And);
     }
@@ -95,7 +96,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(sources);
 
         return sources.Combine(CombineOperator.And);
     }
@@ -112,7 +113,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(sources);
+        ArgumentNullException.ThrowIfNull(sources);
 
         return sources.Combine(CombineOperator.And);
     }

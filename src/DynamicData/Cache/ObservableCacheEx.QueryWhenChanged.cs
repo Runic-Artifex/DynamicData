@@ -49,8 +49,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(resultSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(resultSelector);
 
         return source.QueryWhenChanged().Select(resultSelector);
     }
@@ -67,7 +67,7 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return new QueryWhenChanged<TObject, TKey, Unit>(source).Run();
     }
@@ -86,8 +86,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(itemChangedTrigger);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(itemChangedTrigger);
 
         return new QueryWhenChanged<TObject, TKey, TValue>(source, itemChangedTrigger).Run();
     }

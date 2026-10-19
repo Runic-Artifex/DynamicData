@@ -31,7 +31,7 @@ public static partial class ObservableListEx
     public static IObservableList<T> AsObservableList<T>(this ISourceList<T> source)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return new AnonymousObservableList<T>(source);
     }
@@ -55,7 +55,7 @@ public static partial class ObservableListEx
     public static IObservableList<T> AsObservableList<T>(this IObservable<IChangeSet<T>> source)
         where T : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
 
         return new AnonymousObservableList<T>(source);
     }

@@ -40,10 +40,10 @@ public static class Dynamic<TObject, TKey, TState>
             IObservable<Unit> reapplyFilter,
             bool suppressEmptyChangeSets)
         {
-            ArgumentExceptionHelper.ThrowIfNull(source);
-            ArgumentExceptionHelper.ThrowIfNull(predicateState);
-            ArgumentExceptionHelper.ThrowIfNull(predicate);
-            ArgumentExceptionHelper.ThrowIfNull(reapplyFilter);
+            ArgumentNullException.ThrowIfNull(source);
+            ArgumentNullException.ThrowIfNull(predicateState);
+            ArgumentNullException.ThrowIfNull(predicate);
+            ArgumentNullException.ThrowIfNull(reapplyFilter);
 
             return Observable.Create<IChangeSet<TObject, TKey>>(downstreamObserver => new Subscription(
                 downstreamObserver: downstreamObserver,

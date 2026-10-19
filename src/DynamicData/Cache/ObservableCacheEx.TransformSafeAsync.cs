@@ -41,9 +41,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return source.TransformSafeAsync((current, _, _) => transformFactory(current), errorHandler, forceTransform);
     }
@@ -66,9 +66,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return source.TransformSafeAsync((current, _, key) => transformFactory(current, key), errorHandler, forceTransform);
     }
@@ -80,9 +80,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return source.TransformSafeAsync((s, p, k, t) => transformFactory(s, p, k), errorHandler, forceTransform);
     }
@@ -107,9 +107,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return new TransformAsync<TDestination, TSource, TKey>(source, transformFactory, errorHandler, forceTransform).Run();
     }
@@ -132,9 +132,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return source.TransformSafeAsync((current, _, _) => transformFactory(current), errorHandler, options);
     }
@@ -157,9 +157,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return source.TransformSafeAsync((current, _, key) => transformFactory(current, key), errorHandler, options);
     }
@@ -182,9 +182,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return source.TransformSafeAsync((current, previous, key, _) => transformFactory(current, previous, key), errorHandler, options);
     }
@@ -197,9 +197,9 @@ public static partial class ObservableCacheEx
         where TSource : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(transformFactory);
-        ArgumentExceptionHelper.ThrowIfNull(errorHandler);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(transformFactory);
+        ArgumentNullException.ThrowIfNull(errorHandler);
 
         return new TransformAsync<TDestination, TSource, TKey>(source, transformFactory, errorHandler, null, options.MaximumConcurrency, options.TransformOnRefresh).Run();
     }

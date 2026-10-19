@@ -45,9 +45,9 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TGroupKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(groupSelector);
-        ArgumentExceptionHelper.ThrowIfNull(resultGroupSource);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(groupSelector);
+        ArgumentNullException.ThrowIfNull(resultGroupSource);
 
         return new SpecifiedGrouper<TObject, TKey, TGroupKey>(source, groupSelector, resultGroupSource).Run();
     }
@@ -88,8 +88,8 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TGroupKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(groupSelectorKey);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(groupSelectorKey);
 
         return new GroupOn<TObject, TKey, TGroupKey>(source, groupSelectorKey, null).Run();
     }
@@ -115,9 +115,9 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TGroupKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(groupSelectorKey);
-        ArgumentExceptionHelper.ThrowIfNull(regrouper);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(groupSelectorKey);
+        ArgumentNullException.ThrowIfNull(regrouper);
 
         return new GroupOn<TObject, TKey, TGroupKey>(source, groupSelectorKey, regrouper).Run();
     }
@@ -154,8 +154,8 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TGroupKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(groupSelectorKeyObservable);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(groupSelectorKeyObservable);
 
         return new GroupOnDynamic<TObject, TKey, TGroupKey>(source, groupSelectorKeyObservable, regrouper).Run();
     }
@@ -176,7 +176,7 @@ public static partial class ObservableCacheEx
         where TKey : notnull
         where TGroupKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(groupSelectorKeyObservable);
+        ArgumentNullException.ThrowIfNull(groupSelectorKeyObservable);
 
         return source.Group(groupSelectorKeyObservable.Select(AdaptSelector<TObject, TKey, TGroupKey>), regrouper);
     }

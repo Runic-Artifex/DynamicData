@@ -143,7 +143,7 @@ public sealed class LockFreeObservableCache<TObject, TKey> : IObservableCache<TO
     /// <param name="editAction">The edit action.</param>
     public void Edit(Action<ICacheUpdater<TObject, TKey>> editAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(editAction);
+        ArgumentNullException.ThrowIfNull(editAction);
 
         editAction(_updater);
         _changes.OnNext(_innerCache.CaptureChanges());

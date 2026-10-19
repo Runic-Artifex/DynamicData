@@ -50,8 +50,8 @@ internal sealed class MergeManyItems<TObject, TKey, TDestination>
     /// <param name="observableSelector">The observableSelector value.</param>
     public MergeManyItems(IObservable<IChangeSet<TObject, TKey>> source, Func<TObject, IObservable<TDestination>> observableSelector)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(observableSelector);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(observableSelector);
 
         _source = source;
         _observableSelector = (t, _) => observableSelector(t);

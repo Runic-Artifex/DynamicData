@@ -110,9 +110,9 @@ public static class InternalEx
     /// <returns>A disposable that will stop the schedule.</returns>
     public static IDisposable ScheduleRecurringAction(this IScheduler scheduler, Func<TimeSpan> interval, Action action)
     {
-        ArgumentExceptionHelper.ThrowIfNull(interval);
-        ArgumentExceptionHelper.ThrowIfNull(scheduler);
-        ArgumentExceptionHelper.ThrowIfNull(action);
+        ArgumentNullException.ThrowIfNull(interval);
+        ArgumentNullException.ThrowIfNull(scheduler);
+        ArgumentNullException.ThrowIfNull(action);
 
         var disposable = new SerialDisposable();
 

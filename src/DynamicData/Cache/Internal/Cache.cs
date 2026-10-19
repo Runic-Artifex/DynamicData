@@ -88,7 +88,7 @@ internal sealed class Cache<TObject, TKey> : ICache<TObject, TKey>
     /// <param name="changes">The changes value.</param>
     public void Clone(IChangeSet<TObject, TKey> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         foreach (var item in changes.ToConcreteType())
         {

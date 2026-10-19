@@ -142,7 +142,7 @@ internal sealed class ReaderWriter<TObject, TKey>(Func<TObject, TKey>? keySelect
     /// <returns>The result of the operation.</returns>
     public ChangeSet<TObject, TKey> Write(IChangeSet<TObject, TKey> changes, Action<ChangeSet<TObject, TKey>>? previewHandler, bool collectChanges)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         return DoUpdate(updater => updater.Clone(changes), previewHandler, collectChanges);
     }
@@ -156,7 +156,7 @@ internal sealed class ReaderWriter<TObject, TKey>(Func<TObject, TKey>? keySelect
     /// <returns>The result of the operation.</returns>
     public ChangeSet<TObject, TKey> Write(Action<ICacheUpdater<TObject, TKey>> updateAction, Action<ChangeSet<TObject, TKey>>? previewHandler, bool collectChanges)
     {
-        ArgumentExceptionHelper.ThrowIfNull(updateAction);
+        ArgumentNullException.ThrowIfNull(updateAction);
 
         return DoUpdate(updateAction, previewHandler, collectChanges);
     }
@@ -170,7 +170,7 @@ internal sealed class ReaderWriter<TObject, TKey>(Func<TObject, TKey>? keySelect
     /// <returns>The result of the operation.</returns>
     public ChangeSet<TObject, TKey> Write(Action<ISourceUpdater<TObject, TKey>> updateAction, Action<ChangeSet<TObject, TKey>>? previewHandler, bool collectChanges)
     {
-        ArgumentExceptionHelper.ThrowIfNull(updateAction);
+        ArgumentNullException.ThrowIfNull(updateAction);
 
         return DoUpdate(updateAction, previewHandler, collectChanges);
     }

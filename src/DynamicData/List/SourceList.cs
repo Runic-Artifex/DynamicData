@@ -263,7 +263,7 @@ public sealed class SourceList<T> : ISourceList<T>
     /// <param name="updateAction">The updateAction value.</param>
     public void Edit(Action<IExtendedList<T>> updateAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(updateAction);
+        ArgumentNullException.ThrowIfNull(updateAction);
 
         using var notifications = _notifications.AcquireLock();
 

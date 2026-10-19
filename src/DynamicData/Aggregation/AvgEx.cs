@@ -424,7 +424,7 @@ public static class AvgEx
     /// </returns>
     public static IObservable<float> Avg<T>(this IObservable<IAggregateChangeSet<T>> source, Func<T, float> valueSelector, float emptyValue = 0)
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(source);
         return source.AvgCalc(valueSelector, emptyValue, (current, item) => new Avg<float>(current.Count + 1, current.Sum + item), (current, item) => new Avg<float>(current.Count - 1, current.Sum - item), values => values.Sum / values.Count);
     }
 

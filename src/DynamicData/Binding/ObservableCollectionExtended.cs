@@ -59,7 +59,7 @@ public class ObservableCollectionExtended<T> : ObservableCollection<T>, IObserva
     /// <exception cref="ArgumentNullException"><paramref name="collection" /> is null.</exception>
     public void AddRange(IEnumerable<T> collection)
     {
-        ArgumentExceptionHelper.ThrowIfNull(collection);
+        ArgumentNullException.ThrowIfNull(collection);
 
         foreach (var item in collection)
         {
@@ -76,7 +76,7 @@ public class ObservableCollectionExtended<T> : ObservableCollection<T>, IObserva
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="index" /> is less than 0.-or-<paramref name="index" /> is greater than Count.</exception>
     public void InsertRange(IEnumerable<T> collection, int index)
     {
-        ArgumentExceptionHelper.ThrowIfNull(collection);
+        ArgumentNullException.ThrowIfNull(collection);
 
         foreach (var item in collection)
         {
@@ -90,7 +90,7 @@ public class ObservableCollectionExtended<T> : ObservableCollection<T>, IObserva
     /// <param name="items">The items.</param>
     public void Load(IEnumerable<T> items)
     {
-        ArgumentExceptionHelper.ThrowIfNull(items);
+        ArgumentNullException.ThrowIfNull(items);
 
         CheckReentrancy();
         Clear();
@@ -172,7 +172,7 @@ public class ObservableCollectionExtended<T> : ObservableCollection<T>, IObserva
     /// <param name="e">The <see cref="PropertyChangedEventArgs"/> instance containing the event data.</param>
     protected override void OnPropertyChanged(PropertyChangedEventArgs e)
     {
-        ArgumentExceptionHelper.ThrowIfNull(e);
+        ArgumentNullException.ThrowIfNull(e);
 
         if (_suspendCount && e.PropertyName == "Count")
         {

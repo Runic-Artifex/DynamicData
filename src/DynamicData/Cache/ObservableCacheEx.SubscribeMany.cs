@@ -61,8 +61,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(subscriptionFactory);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(subscriptionFactory);
 
         return new SubscribeMany<TObject, TKey>(source, subscriptionFactory).Run();
     }
@@ -80,8 +80,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(subscriptionFactory);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(subscriptionFactory);
 
         return new SubscribeMany<TObject, TKey>(source, subscriptionFactory).Run();
     }

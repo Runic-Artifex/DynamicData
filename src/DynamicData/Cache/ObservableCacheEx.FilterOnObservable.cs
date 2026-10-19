@@ -71,8 +71,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(filterFactory);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(filterFactory);
 
         return new FilterOnObservable<TObject, TKey>(source, filterFactory, buffer, scheduler).Run();
     }
@@ -94,8 +94,8 @@ public static partial class ObservableCacheEx
         where TObject : notnull
         where TKey : notnull
     {
-        ArgumentExceptionHelper.ThrowIfNull(source);
-        ArgumentExceptionHelper.ThrowIfNull(filterFactory);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(filterFactory);
 
         return source.FilterOnObservable((obj, _) => filterFactory(obj), buffer, scheduler);
     }

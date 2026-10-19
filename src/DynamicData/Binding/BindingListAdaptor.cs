@@ -42,7 +42,7 @@ public class BindingListAdaptor<[DynamicallyAccessedMembers(DynamicallyAccessedM
     /// <param name="changes">The changes value.</param>
     public void Adapt(IChangeSet<T> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
 
         if (changes.TotalChanges - changes.Refreshes > refreshThreshold || !_loaded)
         {
@@ -93,7 +93,7 @@ public class BindingListAdaptor<[DynamicallyAccessedMembers(DynamicallyAccessedM
     /// <param name="changes">The changes value.</param>
     public void Adapt(IChangeSet<TObject, TKey> changes)
     {
-        ArgumentExceptionHelper.ThrowIfNull(changes);
+        ArgumentNullException.ThrowIfNull(changes);
         _cache.Clone(changes);
 
         if (changes.Count - changes.Refreshes > refreshThreshold || !_loaded)

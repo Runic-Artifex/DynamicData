@@ -257,7 +257,7 @@ internal sealed class ObservableCache<TObject, TKey> : IObservableCache<TObject,
     /// <param name="updateAction">The updateAction value.</param>
     internal void UpdateFromIntermediate(Action<ICacheUpdater<TObject, TKey>> updateAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(updateAction);
+        ArgumentNullException.ThrowIfNull(updateAction);
 
         using var notifications = _notifications.AcquireLock();
 
@@ -303,7 +303,7 @@ internal sealed class ObservableCache<TObject, TKey> : IObservableCache<TObject,
     /// <param name="updateAction">The updateAction value.</param>
     internal void UpdateFromSource(Action<ISourceUpdater<TObject, TKey>> updateAction)
     {
-        ArgumentExceptionHelper.ThrowIfNull(updateAction);
+        ArgumentNullException.ThrowIfNull(updateAction);
 
         using var notifications = _notifications.AcquireLock();
 
