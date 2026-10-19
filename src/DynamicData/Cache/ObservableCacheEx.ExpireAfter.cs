@@ -44,7 +44,8 @@ public static partial class ObservableCacheEx
                 Func<TObject, TimeSpan?> timeSelector)
             where TObject : notnull
             where TKey : notnull
-        => Cache.Internal.ExpireAfter.ForStream<TObject, TKey>.Create(
+        =>
+            Cache.Internal.ExpireAfter.ForStream<TObject, TKey>.Create(
             source: source,
             timeSelector: timeSelector);
 
@@ -63,7 +64,8 @@ public static partial class ObservableCacheEx
                 IScheduler scheduler)
             where TObject : notnull
             where TKey : notnull
-        => Cache.Internal.ExpireAfter.ForStream<TObject, TKey>.Create(
+        =>
+            Cache.Internal.ExpireAfter.ForStream<TObject, TKey>.Create(
             source: source,
             timeSelector: timeSelector,
             scheduler: scheduler);
@@ -87,7 +89,8 @@ public static partial class ObservableCacheEx
                 TimeSpan? pollingInterval)
             where TObject : notnull
             where TKey : notnull
-        => Cache.Internal.ExpireAfter.ForStream<TObject, TKey>.Create(
+        =>
+            Cache.Internal.ExpireAfter.ForStream<TObject, TKey>.Create(
             source: source,
             timeSelector: timeSelector,
             pollingInterval: pollingInterval);
@@ -109,7 +112,8 @@ public static partial class ObservableCacheEx
                 IScheduler scheduler)
             where TObject : notnull
             where TKey : notnull
-        => Cache.Internal.ExpireAfter.ForStream<TObject, TKey>.Create(
+        =>
+            Cache.Internal.ExpireAfter.ForStream<TObject, TKey>.Create(
             source: source,
             timeSelector: timeSelector,
             pollingInterval: pollingInterval,
@@ -139,7 +143,8 @@ public static partial class ObservableCacheEx
                 IScheduler? scheduler = null)
             where TObject : notnull
             where TKey : notnull
-        => Cache.Internal.ExpireAfter.ForSource<TObject, TKey>.Create(
+        =>
+            Cache.Internal.ExpireAfter.ForSource<TObject, TKey>.Create(
             source: source,
             timeSelector: timeSelector,
             pollingInterval: pollingInterval,

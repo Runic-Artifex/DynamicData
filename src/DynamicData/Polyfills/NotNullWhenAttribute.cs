@@ -4,6 +4,7 @@
 
 // Polyfill implementation adapted from SimonCropp/Polyfill (https://github.com/SimonCropp/Polyfill).
 #if !NETCOREAPP3_0_OR_GREATER && !NETSTANDARD2_1_OR_GREATER
+
 namespace System.Diagnostics.CodeAnalysis;
 
 /// <summary>Specifies that when a method returns <see cref="ReturnValue"/>, the parameter is not <see langword="null"/>.</summary>

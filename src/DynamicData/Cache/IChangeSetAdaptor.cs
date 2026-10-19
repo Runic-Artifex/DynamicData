@@ -4,6 +4,7 @@
 
 // ReSharper disable CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;

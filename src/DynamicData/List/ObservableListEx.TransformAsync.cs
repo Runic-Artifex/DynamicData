@@ -1,16 +1,10 @@
 // Copyright (c) 2011-2025 Roland Pheasant. All rights reserved.
 // Roland Pheasant licenses this file to you under the MIT license.
 // See the LICENSE file in the project root for full license information.
-#if REACTIVE_SHIM
-
-using DynamicData.Reactive.List.Internal;
-#else
-
-using DynamicData.List.Internal;
-#endif
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -138,7 +132,7 @@ public static partial class ObservableListEx
     /// <summary>
     /// Async transform overload receiving the source item, previously transformed value, index, and CancellationToken attached to the underlying subscription. This is the terminal overload that all other TransformAsync overloads delegate to.
     /// </summary>
-    [System.Diagnostics.CodeAnalysis.SuppressMessage("Roslynator", "RCS1047:Non-asynchronous method name should not end with 'Async'.", Justification = "By Design.")]
+    [SuppressMessage("Roslynator", "RCS1047:Non-asynchronous method name should not end with 'Async'.", Justification = "By Design.")]
     public static IObservable<IChangeSet<TDestination>> TransformAsync<TSource, TDestination>(
         this IObservable<IChangeSet<TSource>> source,
         Func<TSource, ReactiveUI.Primitives.Optional<TDestination>, int, CancellationToken, Task<TDestination>> transformFactory,

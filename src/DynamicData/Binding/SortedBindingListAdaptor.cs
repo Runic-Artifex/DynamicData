@@ -4,6 +4,7 @@
 
 #if SUPPORTS_BINDINGLIST
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive.Binding;
 #else
 namespace DynamicData.Binding;

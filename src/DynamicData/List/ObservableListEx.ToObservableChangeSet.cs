@@ -4,6 +4,7 @@
 
 // ReSharper disable once CheckNamespace
 #if REACTIVE_SHIM
+
 namespace DynamicData.Reactive;
 #else
 namespace DynamicData;
@@ -37,7 +38,8 @@ public static partial class ObservableListEx
                 this IObservable<T> source,
                 IScheduler? scheduler = null)
             where T : notnull
-        => List.Internal.ToObservableChangeSet<T>.Create(
+        =>
+            List.Internal.ToObservableChangeSet<T>.Create(
             source: source,
             expireAfter: null,
             limitSizeTo: -1,
@@ -58,7 +60,8 @@ public static partial class ObservableListEx
                 Func<T, TimeSpan?> expireAfter,
                 IScheduler? scheduler = null)
             where T : notnull
-        => List.Internal.ToObservableChangeSet<T>.Create(
+        =>
+            List.Internal.ToObservableChangeSet<T>.Create(
             source: source,
             expireAfter: expireAfter,
             limitSizeTo: -1,
@@ -79,7 +82,8 @@ public static partial class ObservableListEx
                 int limitSizeTo,
                 IScheduler? scheduler = null)
             where T : notnull
-        => List.Internal.ToObservableChangeSet<T>.Create(
+        =>
+            List.Internal.ToObservableChangeSet<T>.Create(
             source: source,
             expireAfter: null,
             limitSizeTo: limitSizeTo,
@@ -101,7 +105,8 @@ public static partial class ObservableListEx
                 int limitSizeTo,
                 IScheduler? scheduler = null)
             where T : notnull
-        => List.Internal.ToObservableChangeSet<T>.Create(
+        =>
+            List.Internal.ToObservableChangeSet<T>.Create(
             source: source,
             expireAfter: expireAfter,
             limitSizeTo: limitSizeTo,
@@ -120,7 +125,8 @@ public static partial class ObservableListEx
                 this IObservable<IEnumerable<T>> source,
                 IScheduler? scheduler = null)
             where T : notnull
-        => List.Internal.ToObservableChangeSet<T>.Create(
+        =>
+            List.Internal.ToObservableChangeSet<T>.Create(
             source: source,
             expireAfter: null,
             limitSizeTo: -1,
@@ -140,7 +146,8 @@ public static partial class ObservableListEx
                 int limitSizeTo,
                 IScheduler? scheduler = null)
             where T : notnull
-        => List.Internal.ToObservableChangeSet<T>.Create(
+        =>
+            List.Internal.ToObservableChangeSet<T>.Create(
             source: source,
             expireAfter: null,
             limitSizeTo: limitSizeTo,
@@ -160,7 +167,8 @@ public static partial class ObservableListEx
                 Func<T, TimeSpan?> expireAfter,
                 IScheduler? scheduler = null)
             where T : notnull
-        => List.Internal.ToObservableChangeSet<T>.Create(
+        =>
+            List.Internal.ToObservableChangeSet<T>.Create(
             source: source,
             expireAfter: expireAfter,
             limitSizeTo: -1,
@@ -182,7 +190,8 @@ public static partial class ObservableListEx
                 int limitSizeTo,
                 IScheduler? scheduler = null)
             where T : notnull
-        => List.Internal.ToObservableChangeSet<T>.Create(
+        =>
+            List.Internal.ToObservableChangeSet<T>.Create(
             source: source,
             expireAfter: expireAfter,
             limitSizeTo: limitSizeTo,

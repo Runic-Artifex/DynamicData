@@ -17,15 +17,6 @@
     <PackageReference Include="ReactiveUI.Primitives.Reactive" />
   </ItemGroup>
   <ItemGroup>
-    <Using Include="System" />
-    <Using Include="System.Collections" />
-    <Using Include="System.Diagnostics.CodeAnalysis" />
-    <Using Include="System.ComponentModel" />
-    <Using Include="System.Runtime.CompilerServices" />
-    <Using Include="System.Collections.ObjectModel" />
-    <Using Include="DynamicData.Reactive.Cache" />
-    <Using Include="DynamicData.Reactive.Kernel" />
-    <Using Include="DynamicData.Reactive.Internal" />
     <Using Include="System.Reactive" />
     <Using Include="System.Reactive.Concurrency" />
     <Using Include="System.Reactive.Disposables" />

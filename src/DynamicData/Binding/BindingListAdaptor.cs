@@ -4,11 +4,6 @@
 
 #if SUPPORTS_BINDINGLIST
 #if REACTIVE_SHIM
-using DynamicData.Reactive.Cache.Internal;
-#else
-using DynamicData.Cache.Internal;
-#endif
-#if REACTIVE_SHIM
 
 namespace DynamicData.Reactive.Binding;
 #else

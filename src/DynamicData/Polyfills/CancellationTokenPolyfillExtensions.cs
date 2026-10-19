@@ -4,6 +4,7 @@
 
 // Polyfill implementation adapted from SimonCropp/Polyfill (https://github.com/SimonCropp/Polyfill).
 #if !NETCOREAPP3_0_OR_GREATER && !NETSTANDARD2_1_OR_GREATER
+
 namespace System.Threading;
 
 /// <summary>Polyfill extensions for <see cref="CancellationToken"/> on frameworks without <c>UnsafeRegister</c>.</summary>

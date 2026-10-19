@@ -3,13 +3,6 @@
 // See the LICENSE file in the project root for full license information.
 #if REACTIVE_SHIM
 
-using DynamicData.Reactive.Binding;
-#else
-
-using DynamicData.Binding;
-#endif
-#if REACTIVE_SHIM
-
 namespace DynamicData.Reactive;
 #else
 
