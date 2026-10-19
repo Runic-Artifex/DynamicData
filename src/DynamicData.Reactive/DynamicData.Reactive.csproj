@@ -14,7 +14,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="ReactiveUI.Primitives.Reactive" Version="$(ReactiveUIPrimitivesVersion)" />
+    <PackageReference Include="ReactiveUI.Primitives.Reactive" />
   </ItemGroup>
   <ItemGroup>
     <Using Include="System" />
