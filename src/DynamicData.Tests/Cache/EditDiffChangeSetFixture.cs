@@ -143,6 +143,24 @@ public class EditDiffChangeSetFixture
         await Assert.That(messages).IsEqualTo(1).Because("nothing follows the error");
     }
 
+    [Test]
+    public async Task DisposingTheResultUnsubscribesFromTheSource()
+    {
+        // having
+        using var source = new Signal<IEnumerable<Person>>();
+        var messages = 0;
+
+        // when
+        var results = source.EditDiff(p => p.Id).Subscribe(_ => messages++);
+        source.OnNext(CreatePeople(0, MaxItems, "Name"));
+        results.Dispose();
+        source.OnNext(CreatePeople(0, MaxItems, "Update"));
+
+        // then
+        await Assert.That(source.HasObservers).IsFalse();
+        await Assert.That(messages).IsEqualTo(1);
+    }
+
     private static Person CreatePerson(int id, string name) => new(id, name);
 
     private static IEnumerable<Person> CreatePeople(int baseId, int count, string baseName) =>

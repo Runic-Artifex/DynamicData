@@ -228,6 +228,28 @@ checkContentAction: async result => { await Assert.That(result.Count).IsEqualTo(
     }
 
     [Test]
+    public async Task TaskOutcomeIsNotPostedToTheCompletingThreadsSynchronizationContext()
+    {
+        var task = new TaskCompletionSource();
+        var context = new RecordingSynchronizationContext();
+        var completedBeforeSetResultReturned = false;
+
+        using var subscription = ObservableChangeSet.Create<Person, string>((_, _) => task.Task, p => p.Name).RecordCacheItems(out var results);
+
+        var thread = new Thread(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+            task.SetResult();
+            completedBeforeSetResultReturned = results.HasCompleted;
+        });
+        thread.Start();
+        thread.Join();
+
+        await Assert.That(completedBeforeSetResultReturned).IsTrue().Because("completion arrives on the thread that completes the task");
+        await Assert.That(context.Posts).IsEqualTo(0);
+    }
+
+    [Test]
     public async Task DisposingTheSubscriptionCancelsTheTask()
     {
         var token = CancellationToken.None;
@@ -275,5 +297,16 @@ checkContentAction: async result => { await Assert.That(result.Count).IsEqualTo(
         }
 
         await Assert.That(complete).IsTrue();
+    }
+
+    private sealed class RecordingSynchronizationContext : SynchronizationContext
+    {
+        public int Posts { get; private set; }
+
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            Posts++;
+            base.Post(d, state);
+        }
     }
 }
