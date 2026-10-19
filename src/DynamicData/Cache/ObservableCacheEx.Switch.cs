@@ -42,8 +42,9 @@ public static partial class ObservableCacheEx
     /// <returns>Base keyed changesets from the selected source, with removals on each switch.</returns>
     /// <remarks>
     /// This overload returns the base keyed type, so viewport ordering and <see cref="VirtualContext{TObject}"/>
-    /// are not guaranteed on every batch. Incoming batches may retain their runtime context type, but
-    /// clearing batches contain no viewport context. Switch the keyed source before each presentation's
+    /// are not guaranteed on every batch. Incoming batches may retain their runtime context type, but a
+    /// handoff batch (the removals, together with the new source's first non-empty changeset when it arrives during
+    /// subscription) is a base keyed changeset without viewport context or indexes. Switch the keyed source before each presentation's
     /// SortAndVirtualize when context is needed. Context-preserving switching requires a separate contract.
     /// </remarks>
     public static IObservable<IChangeSet<TObject, TKey>> Switch<TObject, TKey>(this IObservable<IObservable<IChangeSet<TObject, TKey, VirtualContext<TObject>>>> sources)
