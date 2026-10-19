@@ -195,6 +195,61 @@ checkContentAction: async result => { await Assert.That(result.Count).IsEqualTo(
         await Assert.That(isDisposed).IsTrue();
     }
 
+    [Test]
+    public async Task TaskCompletesTheStreamAfterItsChanges()
+    {
+        var task = new TaskCompletionSource();
+        ISourceCache<Person, string>? captured = null;
+        var person = new Person("Name1", 10);
+
+        using var subscription = ObservableChangeSet.Create<Person, string>((cache, _) => { captured = cache; return task.Task; }, p => p.Name).RecordCacheItems(out var results);
+
+        captured!.AddOrUpdate(person);
+        await Assert.That(results.HasCompleted).IsFalse().Because("the task has not completed yet");
+
+        task.SetResult();
+
+        await Assert.That(results.RecordedItemsByKey.Values.ToArray()).IsEquivalentTo(new[] { person }).Because("changes made by the task arrive ahead of completion");
+        await Assert.That(results.HasCompleted).IsTrue().Because("nothing can follow the end of the task");
+        await Assert.That(results.Error).IsNull();
+    }
+
+    [Test]
+    public async Task TaskFailureIsDeliveredOnTheThreadThatFailsIt()
+    {
+        var task = new TaskCompletionSource();
+
+        using var subscription = ObservableChangeSet.Create<Person, string>((_, _) => task.Task, p => p.Name).RecordCacheItems(out var results);
+
+        var expectedError = new Exception("Test Exception");
+        task.SetException(expectedError);
+
+        await Assert.That(results.Error).IsSameReferenceAs(expectedError).Because("the failure should arrive before SetException returns, not later on another thread");
+    }
+
+    [Test]
+    public async Task DisposingTheSubscriptionCancelsTheTask()
+    {
+        var token = CancellationToken.None;
+
+        var subscription = ObservableChangeSet.Create<Person, string>((_, cancellationToken) => { token = cancellationToken; return new TaskCompletionSource().Task; }, p => p.Name).RecordCacheItems(out _);
+        subscription.Dispose();
+
+        await Assert.That(token.IsCancellationRequested).IsTrue();
+    }
+
+    [Test]
+    public async Task TaskThatFinishesDuringSubscriptionStillDeliversItsChanges()
+    {
+        var person = new Person("Name1", 10);
+
+        using var subscription = ObservableChangeSet.Create<Person, string>((cache, _) => { cache.AddOrUpdate(person); return Task.CompletedTask; }, p => p.Name).RecordCacheItems(out var results);
+
+        await Assert.That(results.RecordedItemsByKey.Values.ToArray()).IsEquivalentTo(new[] { person }).Because("the change was made before the task finished");
+        await Assert.That(results.HasCompleted).IsTrue();
+        await Assert.That(results.Error).IsNull();
+    }
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Accetable for test.")]
     private async Task SubscribeAndAssert<TObject, TKey>(IObservable<IChangeSet<TObject, TKey>> observableChangeset, bool expectsError = false, Func<IObservableCache<TObject, TKey>, Task>? checkContentAction = null)
         where TKey : notnull

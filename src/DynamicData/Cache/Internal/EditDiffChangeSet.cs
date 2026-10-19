@@ -40,13 +40,6 @@ internal sealed class EditDiffChangeSet<TObject, TKey>(IObservable<IEnumerable<T
     /// Executes the Run operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    public IObservable<IChangeSet<TObject, TKey>> Run() => Observable.Create<IChangeSet<TObject, TKey>>(
-            observer =>
-            {
-                var cache = new SourceCache<TObject, TKey>(_keySelector);
-                var changes = cache.Connect().SubscribeSafe(observer);
-                var loader = PrimitivesLinqExtensions.SubscribeSafe(_source, items => cache.EditDiff(items, _equalityComparer), observer.OnError, observer.OnCompleted);
-
-                return new CompositeDisposable(loader, changes, cache);
-            });
+    public IObservable<IChangeSet<TObject, TKey>> Run() =>
+        ObservableChangeSet.Create<TObject, TKey>((cache, cancellationToken) => _source.ForEachAsync(items => cache.EditDiff(items, _equalityComparer), cancellationToken), _keySelector);
 }

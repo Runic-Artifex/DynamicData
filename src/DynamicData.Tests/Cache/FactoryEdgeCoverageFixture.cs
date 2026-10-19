@@ -262,11 +262,12 @@ public class FactoryEdgeCoverageFixture
     }
 
     [Test]
-    public async Task ListCancellableTaskFactoryPublishesOnlyAfterSuccessfulDelegateCompletion()
+    public async Task ListCancellableTaskFactoryPublishesWhileDelegateIsAwaitingAndCompletesWithIt()
     {
         var allowReturn = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var exited = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var received = new TaskCompletionSource<IChangeSet<int>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         var changes = ObservableChangeSet.Create<int>(
             async (list, _) =>
@@ -282,25 +283,25 @@ public class FactoryEdgeCoverageFixture
                 }
             });
 
-        using var subscription = changes.Subscribe(value => received.TrySetResult(value));
+        using var subscription = changes.Subscribe(value => received.TrySetResult(value), () => completed.TrySetResult());
 
         try
         {
-            await Assert.That(received.Task.IsCompleted).IsFalse();
+            var changeSet = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(GetCurrentItems(changeSet)).IsEquivalentTo(new[] { 9, 10 });
+            await Assert.That(completed.Task.IsCompleted).IsFalse();
         }
         finally
         {
             allowReturn.TrySetResult();
         }
 
-        var changeSet = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
-
-        await Assert.That(GetCurrentItems(changeSet)).IsEquivalentTo(new[] { 9, 10 });
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await exited.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
     [Test]
-    public async Task ListCancellableTaskFactoryPropagatesErrorsWithoutPublishingPendingEdits()
+    public async Task ListCancellableTaskFactoryPropagatesErrorsAfterPublishingPendingEdits()
     {
         var error = new InvalidOperationException("list cancellable task failed");
         var allowError = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -325,11 +326,18 @@ public class FactoryEdgeCoverageFixture
 
         using var subscription = changes.Subscribe(value => received.TrySetResult(value), failure => receivedError.TrySetResult(failure));
 
-        allowError.TrySetResult();
-        var observed = await receivedError.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        try
+        {
+            var changeSet = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await Assert.That(GetCurrentItems(changeSet)).IsEquivalentTo(new[] { 11, 12 });
+        }
+        finally
+        {
+            allowError.TrySetResult();
+        }
 
+        var observed = await receivedError.Task.WaitAsync(TimeSpan.FromSeconds(10));
         await Assert.That(observed).IsSameReferenceAs(error);
-        await Assert.That(received.Task.IsCompleted).IsFalse();
         await exited.Task.WaitAsync(TimeSpan.FromSeconds(10));
     }
 
