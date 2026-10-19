@@ -38,11 +38,13 @@ internal sealed class AutoRefresh<TObject, TAny>(IObservable<IChangeSet<TObject>
     public IObservable<IChangeSet<TObject>> Run() => Observable.Create<IChangeSet<TObject>>(
             observer =>
             {
-                var locker = InternalEx.NewMonitorGate();
+                // Source changes and refresh lookups share one delivery queue, so allItems is only
+                // touched on the queue and no lock is held while the downstream observer runs.
+                var queue = new SharedDeliveryQueue();
 
                 var allItems = new List<TObject>();
 
-                var shared = _source.Synchronize(locker).Clone(allItems) // clone all items so we can look up the index when a change has been made
+                var shared = _source.SynchronizeSafe(queue).Clone(allItems) // clone all items so we can look up the index when a change has been made
                     .Publish();
 
                 // monitor each item observable and create change
@@ -53,13 +55,13 @@ internal sealed class AutoRefresh<TObject, TAny>(IObservable<IChangeSet<TObject>
                     itemHasChanged.Select(t => new[] { t }) :
                     itemHasChanged.Buffer(buffer.Value, scheduler ?? GlobalConfig.DefaultScheduler).Where(list => list.Count > 0);
 
-                IObservable<IChangeSet<TObject>> requiresRefresh = itemsChanged.Synchronize(locker).Select(
+                IObservable<IChangeSet<TObject>> requiresRefresh = itemsChanged.SynchronizeSafe(queue).Select(
                     items => // catch all the indices of items which have been refreshed
                         allItems.IndexOfMany(items, (t, idx) => new Change<TObject>(ListChangeReason.Refresh, t, idx))).Select(changes => new ChangeSet<TObject>(changes));
 
-                // publish refreshes and underlying changes
-                var publisher = shared.Merge(requiresRefresh).SubscribeSafe(observer);
+                // publish refreshes and underlying changes; both inputs are serialized by the same queue
+                var publisher = shared.UnsynchronizedMerge(requiresRefresh).SubscribeSafe(observer);
 
-                return new CompositeDisposable(publisher, shared.Connect());
+                return new CompositeDisposable(publisher, shared.Connect(), queue);
             });
 }
