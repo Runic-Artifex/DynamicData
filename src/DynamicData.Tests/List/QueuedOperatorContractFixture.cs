@@ -21,6 +21,7 @@ public class QueuedOperatorContractFixture
     [Arguments("dispose")]
     [Arguments("page")]
     [Arguments("auto-refresh")]
+    [Arguments("filter-on-observable")]
     public async Task ConcurrentCrossWritesReleaseOperatorGates(string operation)
     {
         var first = new DirectSource<IChangeSet<int>>();
@@ -76,6 +77,7 @@ public class QueuedOperatorContractFixture
 
     [Test]
     [Arguments("auto-refresh")]
+    [Arguments("filter-on-observable")]
     public async Task ConcurrentCrossPropertyChangesReleaseOperatorGates(string operation)
     {
         var firstCell = new Cell(1);
@@ -156,6 +158,7 @@ public class QueuedOperatorContractFixture
     private static IObservable<IChangeSet<Cell>> PropertyPipeline(IObservable<IChangeSet<Cell>> input, string operation) => operation switch
     {
         "auto-refresh" => input.AutoRefresh(static cell => cell.Value),
+        "filter-on-observable" => input.FilterOnObservable(static cell => cell.WhenValueChanged(static c => c.Value).Select(static value => value > 2)),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
@@ -173,6 +176,7 @@ public class QueuedOperatorContractFixture
         "dispose" => input.DisposeMany().Select(changes => changes.Count),
         "page" => input.Page(Observable.Return<IPageRequest>(new PageRequest(1, 25))).Select(changes => changes.Count),
         "auto-refresh" => input.AutoRefreshOnObservable(static _ => Observable.Never<Unit>()).Select(changes => changes.Count),
+        "filter-on-observable" => input.FilterOnObservable(static _ => Observable.Return(true)).Select(changes => changes.Count),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
