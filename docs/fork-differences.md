@@ -35,10 +35,10 @@ entry `retired`. Upstream status is as last reviewed; open gaps are tracked as
 | DD-032 | List `ExpireAfter` tracks deadlines per occurrence. | Duplicate rows expired together (#1115, #1025). | Fork only. |
 | DD-033 | List observable filtering excludes initially false items and tracks occurrences. | #1039, #1044. | Open issues. |
 | DD-034 | `Sort` emits one move for a single outlier. | Move amplification (#1066). | Open issue. |
-| DD-039 | Lock-free cache `Watch`/`WatchValue`, `CountChanged` and `Preview` end with the source (and `Watch` on disposal); experimental `AsWatcher` ends watches with the source through its scheduler and subscribes to the source once. Ported ahead of a sync with `git cherry-pick -x`. | Lost completion and errors rethrown on the producer (#1142, fork issue [#5](https://github.com/Runic-Artifex/DynamicData/issues/5)). | Open PRs [#1205](https://github.com/reactivemarbles/DynamicData/pull/1205), [#1207](https://github.com/reactivemarbles/DynamicData/pull/1207). |
 | DD-036 | Monthly [upstream review](maintenance.md#monthly-upstream-review) as workflow artifact plus tracking issue. | Fork maintenance. | Fork only. |
 | DD-037 | [Release guard](../eng/release/README.md) for immutable branded GitHub releases. | Fork distribution. | Fork only. |
 | DD-038 | [Packaged acceptance](../eng/acceptance/README.md) of the released package pair, managed and NativeAOT. | Fork distribution. | Fork only. |
+| DD-039 | Lock-free cache `Watch`/`WatchValue`, `CountChanged` and `Preview` end with the source (and `Watch` on disposal); experimental `AsWatcher` ends watches with the source through its scheduler and subscribes to the source once. Ported ahead of a sync with `git cherry-pick -x`. | Lost completion and errors rethrown on the producer (#1142, fork issue [#5](https://github.com/Runic-Artifex/DynamicData/issues/5)). | Open PRs [#1205](https://github.com/reactivemarbles/DynamicData/pull/1205), [#1207](https://github.com/reactivemarbles/DynamicData/pull/1207). |
 
 DD-008 to DD-015 were upstream fixes (#1185–#1194) that upstream has since
 merged, and DD-035 was a test-only audit; they are no longer fork differences,
