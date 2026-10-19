@@ -38,6 +38,7 @@ entry `retired`. Upstream status is as last reviewed; open gaps are tracked as
 | DD-036 | Monthly [upstream review](maintenance.md#monthly-upstream-review) as workflow artifact plus tracking issue. | Fork maintenance. | Fork only. |
 | DD-037 | [Release guard](../eng/release/README.md) for immutable branded GitHub releases. | Fork distribution. | Fork only. |
 | DD-038 | [Packaged acceptance](../eng/acceptance/README.md) of the released package pair, managed and NativeAOT. | Fork distribution. | Fork only. |
+| DD-044 | Primitives flavour: an internal `Scan` in the root `DynamicData` namespace ([ScanExtensions.cs](../src/DynamicData/Internal/ScanExtensions.cs)) takes precedence over ReactiveUI.Primitives' `Scan` for library call sites; it delivers accumulator exceptions as `OnError` and does not terminate when a downstream `OnNext` throws. The System.Reactive flavour keeps `Observable.Scan`. | Primitives 8.4/9.0 `Scan` throws accumulator exceptions to the producer and disposes itself on downstream exceptions, so failures in `Transform`, `Sum`, `Maximum`/`Minimum`, `TransformWithInlineUpdate`, `ToObservableChangeSet` and similar operators were lost or thrown to the editor, notably after another `Scan`-based operator (#17). | Fork only (Primitives flavour). |
 
 DD-008 to DD-015 were upstream fixes (#1185–#1194) that upstream has since
 merged, and DD-035 was a test-only audit; they are no longer fork differences,
