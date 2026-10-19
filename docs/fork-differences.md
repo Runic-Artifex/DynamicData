@@ -38,6 +38,7 @@ entry `retired`. Upstream status is as last reviewed; open gaps are tracked as
 | DD-036 | Monthly [upstream review](maintenance.md#monthly-upstream-review) as workflow artifact plus tracking issue. | Fork maintenance. | Fork only. |
 | DD-037 | [Release guard](../eng/release/README.md) for immutable branded GitHub releases. | Fork distribution. | Fork only. |
 | DD-038 | [Packaged acceptance](../eng/acceptance/README.md) of the released package pair, managed and NativeAOT. | Fork distribution. | Fork only. |
+| DD-039 | Cache, list and virtualized `Switch` publish the previous source's removals with the new source's first non-empty changeset delivered during subscription as one changeset (cache: Remove, Update for re-added keys, then the new changes, without indexes; list: Clear, then the new changes). Delayed or empty sources still get the removals first; pending removals precede a terminal notification. | Subscribers saw an empty collection between sources (fork issue #8). | Open issue [#1150](https://github.com/reactivemarbles/DynamicData/issues/1150). |
 
 DD-008 to DD-015 were upstream fixes (#1185–#1194) that upstream has since
 merged, and DD-035 was a test-only audit; they are no longer fork differences,
