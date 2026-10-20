@@ -59,7 +59,9 @@ local feed. The verifier parses the generated XML back and checks those sources
 and mappings before restore; it does not pass repeated `--source` arguments.
 
 Use the release tag, version and hashes copied from the immutable GitHub release
-record. The published packages declare the shipping `ReactiveUI.Primitives`
+record. The same packages are on nuget.org, but nuget.org adds its repository
+signature, so its copies have different hashes; the GitHub release assets are the
+reference bytes for this gate. The published packages declare the shipping `ReactiveUI.Primitives`
 `9.0.0` cohort, so packaged managed and native acceptance each run that cohort
 in both flavors. DynamicData's source CI separately establishes the `8.4.0`
 and `9.0.0` source compatibility matrix. This gate must never force a package

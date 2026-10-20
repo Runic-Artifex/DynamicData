@@ -95,8 +95,33 @@ free disk space before large local matrices.
 
 The manual [release workflow](../.github/workflows/release.yml) builds, tests and
 packs `main`, then the [release guard](../eng/release/README.md) requires a green
-Build run at the same SHA, validates the `RunicArtifex.DynamicData` and
-`RunicArtifex.DynamicData.Reactive` pair and publishes them as prerelease GitHub release
-assets. Published versions, tags and assets are immutable: never retag or
+Build run at the same SHA and validates the `RunicArtifex.DynamicData` and
+`RunicArtifex.DynamicData.Reactive` pair. It creates a prerelease GitHub release
+with those assets and the release notes, then pushes the pair to nuget.org with
+trusted publishing from the protected `nuget` environment, and finally waits up
+to an hour until nuget.org lists both versions. Versions come from NBGV
+(`version.json`): `10.0.0-runic.N` from `main`. Earlier previews were GitHub
+release assets only, under the IDs `Runic.DynamicData` and
+`Runic.DynamicData.Reactive`.
+
+1. Wait for a green Build run of the `main` commit.
+2. Run **Package release** on `main` with `dry-run` checked (the default). It
+   builds, tests, packs and runs every check, including keyless nuget.org lookups
+   for the package globs, ID ownership and already published versions, without
+   creating the release or pushing.
+3. Run it again with `dry-run` unchecked and approve the `nuget` environment.
+4. Wait for the `indexed` job before depending on the new version.
+
+If the `nuget` job fails, use **Re-run failed jobs** in the same run; it skips
+versions nuget.org already has with identical contents and refuses changed ones.
+See the [release guide](../eng/release/README.md#retries) for retries and for the
+one-time [nuget.org account setup](../eng/release/README.md#nugetorg-account-setup):
+the trusted publishing policy for `Runic-Artifex`/`DynamicData`, workflow
+`release.yml`, environment `nuget`; the `NUGET_USER` repository variable; the
+`nuget` environment protection; and the optional `RunicArtifex.*` prefix
+reservation. Keep [`nuget-policy.json`](../eng/release/nuget-policy.json) in step
+with the nuget.org policy.
+
+Published versions, tags and assets are immutable: never retag or
 replace them; a correction gets a new version. Upstream's `RELEASING.md` does not
 apply to this fork.
