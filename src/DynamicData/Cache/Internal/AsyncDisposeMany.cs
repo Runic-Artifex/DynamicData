@@ -32,7 +32,7 @@ internal static class AsyncDisposeMany<TObject, TKey>
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(disposalsCompletedAccessor);
 
-        return Observable
+        return OperatorSubscription
             .Create<IChangeSet<TObject, TKey>>(downstreamObserver =>
             {
                 var gate = new Lock();
@@ -48,7 +48,7 @@ internal static class AsyncDisposeMany<TObject, TKey>
 
                 disposalsCompletedAccessor.Invoke(disposalsCompleted);
 
-                var sourceSubscription = PrimitivesLinqExtensions.SubscribeSafe(
+                var sourceSubscription = OperatorSubscription.SubscribeSafe(
                     source.SynchronizeSafe(queuedTeardown),
                     onNext: upstreamChanges =>
                     {

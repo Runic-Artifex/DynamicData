@@ -45,7 +45,11 @@ internal abstract class CacheParentSubscription<TParent, TKey, TChild, TObserver
     /// <param name="observer">Observer to use for emitting events.</param>
     protected CacheParentSubscription(IObserver<TObserver> observer)
     {
-        _observer = observer;
+        // Runic (DD-044): a subscriber's exception propagates to the producer and detaches this
+        // subscription; a failure in ParentOnNext, ChildOnNext or EmitChanges is delivered as OnError.
+        var guard = SubscriberFault.Guard(observer);
+        guard.DetachOnFault(this);
+        _observer = guard;
         _queue = new SharedDeliveryQueue();
     }
 
@@ -82,7 +86,7 @@ internal abstract class CacheParentSubscription<TParent, TKey, TChild, TObserver
         // on normal completion (not disposal), so RemoveChildSubscription is NOT called when the
         // parent disposes child subscriptions during Dispose(). This asymmetry is intentional:
         // disposal cleanup is handled by KeyedDisposable, not by individual completion callbacks.
-        disposableContainer.Disposable = PrimitivesLinqExtensions.SubscribeSafe(
+        disposableContainer.Disposable = OperatorSubscription.SubscribeSafe(
             observable.Finally(CheckCompleted),
             onNext: val => DeliverChild(val, parentKey, subscriptionId),
             onError: TerminalError,
@@ -97,7 +101,7 @@ internal abstract class CacheParentSubscription<TParent, TKey, TChild, TObserver
 
     protected void CreateParentSubscription(IObservable<IChangeSet<TParent, TKey>> source) =>
         _parentSubscription.Disposable =
-            PrimitivesLinqExtensions.SubscribeSafe(
+            OperatorSubscription.SubscribeSafe(
                 source.SynchronizeSafe(_queue),
                 onNext: DeliverParent,
                 onError: TerminalError,

@@ -22,7 +22,7 @@ namespace DynamicData.Tests.Internal;
 /// ReactiveUI.Primitives' <c>SubscribeSafe</c>, <c>Do</c>, <c>DistinctUntilChanged</c> and
 /// <c>CombineLatest</c> previously converted, threw or lost these exceptions in the Primitives flavour.
 /// </summary>
-public class CallbackErrorDeliveryFixture
+public partial class CallbackErrorDeliveryFixture
 {
     public static IEnumerable<Func<string>> ListPipelines() =>
         new[] { "Connect", "ConnectWithPredicate", "Transform", "Filter", "Sort", "DeferUntilLoaded", "SkipInitial", "QueryWhenChanged", "Sum", "IsEmpty", "CountChanged" }
