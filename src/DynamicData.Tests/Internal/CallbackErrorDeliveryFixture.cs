@@ -25,11 +25,11 @@ namespace DynamicData.Tests.Internal;
 public partial class CallbackErrorDeliveryFixture
 {
     public static IEnumerable<Func<string>> ListPipelines() =>
-        new[] { "Connect", "ConnectWithPredicate", "Transform", "Filter", "Sort", "DeferUntilLoaded", "SkipInitial", "QueryWhenChanged", "Sum", "IsEmpty", "CountChanged" }
+        new[] { "Connect", "ConnectWithPredicate", "Transform", "Filter", "Sort", "DeferUntilLoaded", "SkipInitial", "QueryWhenChanged", "Sum", "IsEmpty", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "FilterPredicateChanges", "BufferIf", "AutoRefreshOnObservable" }
             .Select(name => (Func<string>)(() => name));
 
     public static IEnumerable<Func<string>> CachePipelines() =>
-        new[] { "Connect", "Transform", "Filter", "Sort", "ToCollection", "Group", "CountChanged" }
+        new[] { "Connect", "Transform", "Filter", "Sort", "ToCollection", "Group", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "SortAndPage", "SortAndVirtualize", "TransformForced", "TransformAsyncForced", "BatchIf", "GroupWithRegrouper", "GroupWithImmutableStateWithRegrouper" }
             .Select(name => (Func<string>)(() => name));
 
     [Test]
@@ -243,6 +243,12 @@ public partial class CallbackErrorDeliveryFixture
         "Sum" => list.Connect().Sum(static value => value).Select(static value => (object)value),
         "IsEmpty" => list.Connect().IsEmpty().Select(static value => (object)value),
         "CountChanged" => list.CountChanged.Select(static value => (object)value),
+        "SortWithComparerChanges" => list.Connect().Sort(Observable.Return<IComparer<int>>(Comparer<int>.Default)),
+        "Page" => list.Connect().Page(Observable.Return(new PageRequest(1, 10))),
+        "Virtualise" => list.Connect().Virtualise(Observable.Return<IVirtualRequest>(new VirtualRequest(0, 10))),
+        "FilterPredicateChanges" => list.Connect().Filter(Observable.Return<Func<int, bool>>(static _ => true)),
+        "BufferIf" => list.Connect().BufferIf(Observable.Return(false), new TestScheduler()),
+        "AutoRefreshOnObservable" => list.Connect().AutoRefreshOnObservable(static _ => Observable.Never<Unit>()),
         _ => throw new ArgumentOutOfRangeException(nameof(pipeline), pipeline, null),
     };
 
@@ -255,6 +261,16 @@ public partial class CallbackErrorDeliveryFixture
         "ToCollection" => cache.Connect().ToCollection(),
         "Group" => cache.Connect().Group(static value => value % 2),
         "CountChanged" => cache.CountChanged.Select(static value => (object)value),
+        "SortWithComparerChanges" => cache.Connect().Sort(Observable.Return<IComparer<int>>(SortExpressionComparer<int>.Ascending(static value => value))),
+        "Page" => cache.Connect().Sort(SortExpressionComparer<int>.Ascending(static value => value)).Page(Observable.Return(new PageRequest(1, 10))),
+        "Virtualise" => cache.Connect().Sort(SortExpressionComparer<int>.Ascending(static value => value)).Virtualise(Observable.Return<IVirtualRequest>(new VirtualRequest(0, 10))),
+        "SortAndPage" => cache.Connect().SortAndPage(SortExpressionComparer<int>.Ascending(static value => value), Observable.Return(new PageRequest(1, 10))),
+        "SortAndVirtualize" => cache.Connect().SortAndVirtualize(SortExpressionComparer<int>.Ascending(static value => value), Observable.Return<IVirtualRequest>(new VirtualRequest(0, 10))),
+        "TransformForced" => cache.Connect().Transform(static value => value, Observable.Never<Func<int, bool>>()),
+        "TransformAsyncForced" => cache.Connect().TransformAsync(static value => Task.FromResult(value), Observable.Never<Func<int, int, bool>>()),
+        "BatchIf" => cache.Connect().BatchIf(Observable.Return(false), false, (TimeSpan?)null),
+        "GroupWithRegrouper" => cache.Connect().Group(static value => value % 2, Observable.Never<Unit>()),
+        "GroupWithImmutableStateWithRegrouper" => cache.Connect().GroupWithImmutableState(static value => value % 2, Observable.Never<Unit>()),
         _ => throw new ArgumentOutOfRangeException(nameof(pipeline), pipeline, null),
     };
 
