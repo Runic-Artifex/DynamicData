@@ -22,6 +22,8 @@ public class QueuedOperatorContractFixture
     [Arguments("page")]
     [Arguments("auto-refresh")]
     [Arguments("filter-on-observable")]
+    [Arguments("to-observable-change-set")]
+    [Arguments("filter-predicate-state")]
     public async Task ConcurrentCrossWritesReleaseOperatorGates(string operation)
     {
         var first = new DirectSource<IChangeSet<int>>();
@@ -155,6 +157,128 @@ public class QueuedOperatorContractFixture
         }
     }
 
+    [Test]
+    [Arguments("expire-after")]
+    [Arguments("expire-after-polling")]
+    [Arguments("to-observable-change-set")]
+    public async Task ConcurrentCrossExpirationsReleaseOperatorGates(string operation)
+    {
+        var first = ExpiringPipeline(operation);
+        var second = ExpiringPipeline(operation);
+        using var rendezvous = new Barrier(2);
+        var armed = 0;
+        var firstEntered = 0;
+        var secondEntered = 0;
+        var firstUpdates = 0;
+        var secondUpdates = 0;
+        Exception? firstError = null;
+        Exception? secondError = null;
+
+        // Each observer, on its first expiration, waits until the other observer is running and then
+        // writes a non-expiring item into the other operator's source.
+        var firstSubscription = first.Emissions.Subscribe(_ =>
+        {
+            if (Volatile.Read(ref armed) == 0)
+            {
+                return;
+            }
+
+            Interlocked.Increment(ref firstUpdates);
+            if (Interlocked.Exchange(ref firstEntered, 1) == 0)
+            {
+                if (!rendezvous.SignalAndWait(TimeSpan.FromSeconds(10)))
+                {
+                    throw new TimeoutException("The other expiration did not enter its observer.");
+                }
+
+                second.Write(NonExpiring + 2);
+            }
+        }, error => firstError = error);
+        var secondSubscription = second.Emissions.Subscribe(_ =>
+        {
+            if (Volatile.Read(ref armed) == 0)
+            {
+                return;
+            }
+
+            Interlocked.Increment(ref secondUpdates);
+            if (Interlocked.Exchange(ref secondEntered, 1) == 0)
+            {
+                if (!rendezvous.SignalAndWait(TimeSpan.FromSeconds(10)))
+                {
+                    throw new TimeoutException("The other expiration did not enter its observer.");
+                }
+
+                first.Write(NonExpiring + 1);
+            }
+        }, error => secondError = error);
+        first.Write(1);
+        second.Write(1);
+        Volatile.Write(ref armed, 1);
+
+        // Each scheduler is advanced on its own thread, so both expirations are delivered at once.
+        var firstWriter = Task.Factory.StartNew(() => first.Scheduler.AdvanceBy(Lifetime.Ticks), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        var secondWriter = Task.Factory.StartNew(() => second.Scheduler.AdvanceBy(Lifetime.Ticks), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+        // A deadlocked delivery is left undisposed: disposal can wait for it and hang the run.
+        await Task.WhenAll(firstWriter, secondWriter).WaitAsync(TimeSpan.FromSeconds(15));
+        firstSubscription.Dispose();
+        secondSubscription.Dispose();
+        first.Dispose();
+        second.Dispose();
+        await Assert.That(firstError).IsNull();
+        await Assert.That(secondError).IsNull();
+
+        // The expiration, then (for changeset operators) the other observer's write.
+        await Assert.That(firstUpdates).IsEqualTo(first.UpdatesPerRound);
+        await Assert.That(secondUpdates).IsEqualTo(second.UpdatesPerRound);
+    }
+
+    private const int NonExpiring = 100;
+
+    private static readonly TimeSpan Lifetime = TimeSpan.FromMilliseconds(10);
+
+    private static TimeSpan? ExpireBelowNonExpiring(int value) => value < NonExpiring ? Lifetime : null;
+
+    private static ExpiringOperator ExpiringPipeline(string operation)
+    {
+        var scheduler = new TestScheduler();
+        switch (operation)
+        {
+            case "expire-after":
+            case "expire-after-polling":
+                {
+                    var source = new SourceList<int>();
+                    var polling = operation == "expire-after-polling" ? Lifetime : (TimeSpan?)null;
+                    return new(
+                        source.ExpireAfter(ExpireBelowNonExpiring, polling, scheduler).Select(static items => items.Count()),
+                        source.Add,
+                        scheduler,
+                        UpdatesPerRound: 1,
+                        source);
+                }
+
+            case "to-observable-change-set":
+                {
+                    var source = new DirectSource<int>();
+                    return new(
+                        source.ToObservableChangeSet(ExpireBelowNonExpiring, scheduler).Select(static changes => changes.Count),
+                        source.Push,
+                        scheduler,
+                        UpdatesPerRound: 2,
+                        Disposable.Empty);
+                }
+
+            default:
+                throw new ArgumentOutOfRangeException(nameof(operation));
+        }
+    }
+
+    private sealed record ExpiringOperator(IObservable<int> Emissions, Action<int> Write, TestScheduler Scheduler, int UpdatesPerRound, IDisposable Owner) : IDisposable
+    {
+        public void Dispose() => Owner.Dispose();
+    }
+
     private static IObservable<IChangeSet<Cell>> PropertyPipeline(IObservable<IChangeSet<Cell>> input, string operation) => operation switch
     {
         "auto-refresh" => input.AutoRefresh(static cell => cell.Value),
@@ -177,6 +301,10 @@ public class QueuedOperatorContractFixture
         "page" => input.Page(Observable.Return<IPageRequest>(new PageRequest(1, 25))).Select(changes => changes.Count),
         "auto-refresh" => input.AutoRefreshOnObservable(static _ => Observable.Never<Unit>()).Select(changes => changes.Count),
         "filter-on-observable" => input.FilterOnObservable(static _ => Observable.Return(true)).Select(changes => changes.Count),
+
+        // ToObservableChangeSet publishes an initial empty changeset on subscription.
+        "to-observable-change-set" => input.Select(static changes => changes.First().Item.Current).ToObservableChangeSet().Skip(1).Select(changes => changes.Count),
+        "filter-predicate-state" => input.Filter(Observable.Return(true), static (include, _) => include).Select(changes => changes.Count),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
