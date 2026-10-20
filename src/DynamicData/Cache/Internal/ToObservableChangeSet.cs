@@ -88,7 +88,7 @@ private sealed class Subscription
         /// <summary>
         /// The _downstreamObserver field.
         /// </summary>
-        private readonly IObserver<IChangeSet<TObject, TKey>> _downstreamObserver;
+        private readonly DeliveryQueue<IChangeSet<TObject, TKey>> _downstreamObserver;
 
         /// <summary>
         /// The _evictionQueue field.
@@ -168,7 +168,6 @@ private sealed class Subscription
             IObservable<IEnumerable<TObject>> source)
         {
             _downstreamItems = new();
-            _downstreamObserver = downstreamObserver;
             _evictionQueue = new();
             _expirationQueue = [];
             _expireAfter = expireAfter;
@@ -178,15 +177,20 @@ private sealed class Subscription
             _scheduler = scheduler ?? GlobalConfig.DefaultScheduler;
             _synchronizationGate = new();
 
+            // Notifications are queued under the gate and delivered after it is released, so a
+            // downstream observer that writes into another pipeline cannot deadlock against a
+            // producer of this one.
+            _downstreamObserver = new(_synchronizationGate, downstreamObserver);
+
             _sourceSubscription = PrimitivesLinqExtensions.SubscribeSafe(
                 source,
                 onNext: OnSourceNext,
-                onError: downstreamObserver.OnError,
+                onError: _downstreamObserver.OnError,
                 onCompleted: OnSourceCompleted);
 
             // Make sure we always publish an initial changeset, if subscribing to the source didn't generate one.
             // Also make sure we never complete, before the initial changeset.
-            lock (_synchronizationGate)
+            using (_downstreamObserver.AcquireLock())
             {
                 TryPublishDownstreamChanges();
                 TryPublishCompletion();
@@ -200,6 +204,7 @@ private sealed class Subscription
         {
             _sourceSubscription.Dispose();
             _scheduledExpiration?.Cancellation.Dispose();
+            _downstreamObserver.Dispose();
         }
 
         /// <summary>
@@ -213,7 +218,7 @@ private sealed class Subscription
             {
                 ScheduledExpiration? unfinishedExpiration;
 
-                lock (_synchronizationGate)
+                using (_downstreamObserver.AcquireLock())
                 {
                     // There is no longer an expiration scheduled, we're in it
                     _scheduledExpiration = null;
@@ -270,7 +275,7 @@ private sealed class Subscription
             {
                 var unfinishedExpiration = null as ScheduledExpiration?;
 
-                lock (_synchronizationGate)
+                using (_downstreamObserver.AcquireLock())
                 {
                     var now = _scheduler.Now;
 
@@ -336,7 +341,7 @@ private sealed class Subscription
         /// </summary>
         private void OnSourceCompleted()
         {
-            lock (_synchronizationGate)
+            using (_downstreamObserver.AcquireLock())
             {
                 _hasSourceCompleted = true;
 
