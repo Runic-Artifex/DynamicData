@@ -33,17 +33,22 @@ internal sealed class MergeMany<T, TDestination>(IObservable<IChangeSet<T>> sour
     /// Executes the Run operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    public IObservable<TDestination> Run() => Observable.Create<TDestination>(
+    /// <remarks>
+    /// Runic (DD-044, fork issue #34): the observer is guarded, so its own exception is thrown to the producer
+    /// and detaches the subscription, also when a child delivers to it while it is being subscribed.
+    /// </remarks>
+    public IObservable<TDestination> Run() => OperatorSubscription.Create<TDestination>(
             observer =>
             {
                 var counter = new SubscriptionCounter();
                 var queue = new SharedDeliveryQueue();
+                var faults = new SubscriberFaultRelay();
 
                 // Runic (DD-045): deliver through the queue too, so a value an observer causes through another
                 // child or the source while it is being delivered to arrives after it returns, not re-entrantly.
                 var output = queue.CreateQueue(observer);
-                var disposable = _source.SynchronizeSafe(queue).Concat(counter.DeferCleanup)
-                                                .SubscribeMany(t => SubscribeChild(t, queue, counter, output))
+                var disposable = faults.RethrowAfter(_source.SynchronizeSafe(queue)).Concat(counter.DeferCleanup)
+                                                .SubscribeMany(t => SubscribeChild(t, queue, counter, output, faults))
                                                 .Subscribe(_ => { }, output.OnError, output.OnCompleted);
 
                 return new CompositeDisposable(Disposable.Create(queue.Terminate), disposable, counter);
@@ -56,8 +61,9 @@ internal sealed class MergeMany<T, TDestination>(IObservable<IChangeSet<T>> sour
     /// <param name="queue">The serialization queue.</param>
     /// <param name="counter">The counter value.</param>
     /// <param name="observer">The observer value.</param>
+    /// <param name="faults">Carries a subscriber exception thrown while the child is subscribed out of the subscription factory.</param>
     /// <returns>The result of the operation.</returns>
-    private IDisposable SubscribeChild(T item, SharedDeliveryQueue queue, SubscriptionCounter counter, IObserver<TDestination> observer)
+    private IDisposable SubscribeChild(T item, SharedDeliveryQueue queue, SubscriptionCounter counter, IObserver<TDestination> observer, SubscriberFaultRelay faults)
     {
         counter.Added();
         var finalized = 0;
@@ -75,6 +81,13 @@ internal sealed class MergeMany<T, TDestination>(IObservable<IChangeSet<T>> sour
         }
         catch (ObjectDisposedException) when (counter.IsDisposed)
         {
+            Finish();
+            return Disposable.Empty;
+        }
+        catch (Exception error) when (faults.TryCapture(error))
+        {
+            // The subscriber threw at a value the child emitted while being subscribed. Thrown from here,
+            // SubscribeMany's transform would deliver it as OnError; the relay throws it to the producer.
             Finish();
             return Disposable.Empty;
         }

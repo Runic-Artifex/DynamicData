@@ -57,23 +57,38 @@ internal sealed class MergeMany<TObject, TKey, TDestination>
     /// Executes the Run operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    public IObservable<TDestination> Run() => Observable.Create<TDestination>(
+    /// <remarks>
+    /// Runic (DD-044, fork issue #34): the observer is guarded, so its own exception is thrown to the producer
+    /// and detaches the subscription, also when a child delivers to it while it is being subscribed.
+    /// </remarks>
+    public IObservable<TDestination> Run() => OperatorSubscription.Create<TDestination>(
             observer =>
             {
                 var counter = new StrongBox<int>(1);
                 var queue = new DeliveryQueue<TDestination>(observer);
+                var faults = new SubscriberFaultRelay();
 
                 // Queue first: terminate before subscription disposal to prevent
                 // Finally callbacks from delivering spurious OnCompleted during teardown.
-                return new CompositeDisposable(Disposable.Create(queue.Terminate), _source
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), faults.RethrowAfter(_source)
                     .Do(static _ => { }, static _ => { }, () => CheckCompleted(counter, queue))
                     .Concat(Observable.Never<IChangeSet<TObject, TKey>>())
                     .SubscribeMany((t, key) =>
                     {
                         Interlocked.Increment(ref counter.Value);
-                        return _observableSelector(t, key)
-                            .Finally(() => CheckCompleted(counter, queue))
-                            .Subscribe(queue.OnNext, queue.OnError);
+                        try
+                        {
+                            return _observableSelector(t, key)
+                                .Finally(() => CheckCompleted(counter, queue))
+                                .Subscribe(queue.OnNext, queue.OnError);
+                        }
+                        catch (Exception error) when (faults.TryCapture(error))
+                        {
+                            // The subscriber threw at a value the child emitted while being subscribed. Thrown from
+                            // here, SubscribeMany's transform would deliver it as OnError; the relay throws it to
+                            // the producer.
+                            return Disposable.Empty;
+                        }
                     })
                     .Subscribe(static _ => { }, queue.OnError));
             });

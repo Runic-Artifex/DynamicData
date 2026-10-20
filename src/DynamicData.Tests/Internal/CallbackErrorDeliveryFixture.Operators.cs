@@ -7,6 +7,9 @@ namespace DynamicData.Tests.Internal;
 /// <c>PrimitivesLinqExtensions.SubscribeSafe(source, onNext, ...)</c> in both flavours. A subscriber's
 /// own exception is thrown to the producer and ends the subscription; an exception thrown by the
 /// operator's own callbacks (predicates, selectors, comparers) is delivered as <c>OnError</c>.
+/// Fork issue #34 adds <c>MergeMany</c> and the operators built on it (<c>WhenValueChanged</c>,
+/// <c>FilterOnObservable</c>) when a child emits while it is being subscribed, and cache
+/// <c>AutoRefreshOnObservable</c>.
 /// </summary>
 public partial class CallbackErrorDeliveryFixture
 {
@@ -210,6 +213,60 @@ public partial class CallbackErrorDeliveryFixture
     {
         using var cache = new SourceCache<int, int>(static value => value);
         var outcome = CallbackOutcome.Run(error => cache.Connect().TransformOnObservable(value => value == 1 ? throw error : Observable.Return(value)), () => cache.AddOrUpdate(1));
+
+        await outcome.AssertDeliveredAsOnError();
+    }
+
+    [Test]
+    public async Task ListMergeManySelectorFailureIsDeliveredAsOnError()
+    {
+        using var list = new SourceList<int>();
+        var outcome = CallbackOutcome.Run(error => list.Connect().MergeMany(value => value == 1 ? throw error : Observable.Return(value)), () => list.Add(1));
+
+        await outcome.AssertDeliveredAsOnError();
+    }
+
+    [Test]
+    public async Task ListMergeManyChildFailureOnSubscribeIsDeliveredAsOnError()
+    {
+        using var list = new SourceList<int>();
+        var outcome = CallbackOutcome.Run(error => list.Connect().MergeMany(_ => Observable.Throw<int>(error)), () => list.Add(1));
+
+        await outcome.AssertDeliveredAsOnError();
+    }
+
+    [Test]
+    public async Task CacheMergeManySelectorFailureIsDeliveredAsOnError()
+    {
+        using var cache = new SourceCache<int, int>(static value => value);
+        var outcome = CallbackOutcome.Run(error => cache.Connect().MergeMany(value => value == 1 ? throw error : Observable.Return(value)), () => cache.AddOrUpdate(1));
+
+        await outcome.AssertDeliveredAsOnError();
+    }
+
+    [Test]
+    public async Task CacheMergeManyChildFailureOnSubscribeIsDeliveredAsOnError()
+    {
+        using var cache = new SourceCache<int, int>(static value => value);
+        var outcome = CallbackOutcome.Run(error => cache.Connect().MergeMany(_ => Observable.Throw<int>(error)), () => cache.AddOrUpdate(1));
+
+        await outcome.AssertDeliveredAsOnError();
+    }
+
+    [Test]
+    public async Task CacheAutoRefreshOnObservableReevaluatorFailureIsDeliveredAsOnError()
+    {
+        using var cache = new SourceCache<int, int>(static value => value);
+        var outcome = CallbackOutcome.Run(error => cache.Connect().AutoRefreshOnObservable(value => value == 1 ? throw error : Observable.Never<Unit>()), () => cache.AddOrUpdate(1));
+
+        await outcome.AssertDeliveredAsOnError();
+    }
+
+    [Test]
+    public async Task ListFilterOnObservableFilterFailureIsDeliveredAsOnError()
+    {
+        using var list = new SourceList<int>();
+        var outcome = CallbackOutcome.Run(error => list.Connect().FilterOnObservable(_ => Observable.Throw<bool>(error)), () => list.Add(1));
 
         await outcome.AssertDeliveredAsOnError();
     }
