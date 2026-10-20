@@ -168,12 +168,33 @@ public class AccumulatorErrorDeliveryFixture
         await Assert.That(error).IsSameReferenceAs(expected);
     }
 
+#if !REACTIVE_TESTS
     [Test]
     public async Task ScanForwardsErrorAfterDownstreamFailureIsConvertedUpstream()
     {
-        // SourceList's Connect uses SubscribeSafe. In the Primitives flavour it converts an
-        // exception thrown by a downstream OnNext into OnError; the fork's Scan must stay alive to
-        // forward it. In the System.Reactive flavour the exception reaches the editing caller.
+        // An upstream operator that converts a downstream OnNext exception into OnError (as
+        // ReactiveUI.Primitives' SubscribeSafe does) must find the fork's Scan still alive to
+        // forward it. Primitives flavour only: System.Reactive's subscription safeguard detaches
+        // the subscriber before the converted OnError arrives.
+        using var source = new Signal<int>();
+        var expected = new InvalidOperationException("observer");
+        Exception? error = null;
+
+        using var subscription = new ConvertingObservable<int>(source)
+            .Scan(0, static (sum, value) => sum + value)
+            .Subscribe(sum => { if (sum == 3) throw expected; }, ex => error = ex);
+
+        source.OnNext(1);
+        source.OnNext(2);
+
+        await Assert.That(error).IsSameReferenceAs(expected);
+    }
+#endif
+
+    [Test]
+    public async Task ScanAfterSourceListPropagatesDownstreamFailureToEditor()
+    {
+        // DD-044 (#19): in both flavours a subscriber's exception reaches the editing caller.
         using var list = new SourceList<int>();
         var expected = new InvalidOperationException("observer");
         Exception? error = null;
@@ -193,8 +214,35 @@ public class AccumulatorErrorDeliveryFixture
             thrown = ex;
         }
 
-        await Assert.That(error ?? thrown).IsSameReferenceAs(expected);
+        await Assert.That(thrown).IsSameReferenceAs(expected);
+        await Assert.That(error).IsNull();
     }
 
     private sealed record Mutable(int Id, int Value);
+
+#if !REACTIVE_TESTS
+    private sealed class ConvertingObservable<T>(IObservable<T> source) : IObservable<T>
+    {
+        public IDisposable Subscribe(IObserver<T> observer) => source.Subscribe(new ConvertingObserver(observer));
+
+        private sealed class ConvertingObserver(IObserver<T> observer) : IObserver<T>
+        {
+            public void OnNext(T value)
+            {
+                try
+                {
+                    observer.OnNext(value);
+                }
+                catch (Exception ex)
+                {
+                    observer.OnError(ex);
+                }
+            }
+
+            public void OnError(Exception error) => observer.OnError(error);
+
+            public void OnCompleted() => observer.OnCompleted();
+        }
+    }
+#endif
 }
