@@ -196,7 +196,9 @@ public class GroupOnDynamicFixture : IDisposable
         // Assert
         await Assert.That(_results.Data.Count).IsEqualTo(InitialCount).Because("Only replacements were made");
         await Assert.That(_results.Messages.Count).IsEqualTo(2).Because("1 for Adds and 1 for Updates");
-        foreach (var group in _groupResults.Groups.Items) { await Assert.That(group.Messages.Count).IsLessThanOrEqualTo(2); }
+
+        // A group that loses items to other groups publishes those removals before the other changes (fork issue #29).
+        foreach (var group in _groupResults.Groups.Items) { await Assert.That(group.Messages.Count).IsLessThanOrEqualTo(3); }
         await VerifyGroupingResults();
     }
 
@@ -253,7 +255,7 @@ public class GroupOnDynamicFixture : IDisposable
         // Assert
         await Assert.That(_results.Data.Count).IsEqualTo(InitialCount);
         await Assert.That(_results.Messages.Count).IsEqualTo(1).Because("The child observables fire on subscription so everything should appear as a single changeset");
-        foreach (var group in _groupResults.Groups.Items) { await Assert.That(group.Messages.Count).IsLessThanOrEqualTo(2).Because("1 for adds and 1 for regrouping"); }
+        foreach (var group in _groupResults.Groups.Items) { await Assert.That(group.Messages.Count).IsLessThanOrEqualTo(3).Because("1 for adds, then 1 for the items regrouped elsewhere and 1 for the rest of the regrouping (fork issue #29)"); }
         await VerifyGroupingResults();
     }
 

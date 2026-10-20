@@ -65,11 +65,8 @@ public sealed class DeadlockTortureTest
 
             // Each destination must end up mirroring what a fresh subscription to the same pipeline
             // over the other source produces.
-            if (propagation != Propagation.Unspecified)
-            {
-                await AssertPropagated(pipeline, sourceA, sourceB, "A", iter, propagation);
-                await AssertPropagated(pipeline, sourceB, sourceA, "B", iter, propagation);
-            }
+            await AssertPropagated(pipeline, sourceA, sourceB, "A", iter, propagation);
+            await AssertPropagated(pipeline, sourceB, sourceA, "B", iter, propagation);
 
             await Assert.That(errors.IsEmpty).IsTrue().Because("iteration " + iter + ": " + string.Join(Environment.NewLine, errors));
         }
@@ -125,13 +122,6 @@ public sealed class DeadlockTortureTest
 
         /// <summary>The destination mirrors the pipeline's current window over the other source.</summary>
         Window,
-
-        /// <summary>
-        /// The final contents depend on the order of concurrent inputs: regrouping moves items between
-        /// group caches, and MergeMany applies the old group's removal and the new group's addition in
-        /// the order the groups publish them.
-        /// </summary>
-        Unspecified,
     }
 
     private static Task RunOnDedicatedThread(Action action) =>
@@ -170,8 +160,7 @@ public sealed class DeadlockTortureTest
                     selector.OnNext((p, _) => p.Age % (2 + (j % 4)));
                     regrouper.OnNext(default(Unit));
                 }
-            },
-            propagation: Propagation.Unspecified))).IsTrue();
+            }))).IsTrue();
     }
 
     [Test] public async Task TransformAsyncWithForce_DoesNotDeadlock()
