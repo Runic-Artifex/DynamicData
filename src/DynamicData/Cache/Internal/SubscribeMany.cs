@@ -60,15 +60,19 @@ internal sealed class SubscribeMany<TObject, TKey>
             observer =>
             {
                 var published = _source.Publish();
+
+                // Runic (DD-044, fork issue #39): owned from the moment the factory returns it, so a subscription
+                // made while this subscription is disposed from inside the factory is disposed too.
+                var owned = new OwnedSubscriptions();
                 var subscriptions = published
-                    .Transform((t, k) => _subscriptionFactory(t, k))
+                    .Transform((t, k) => owned.Own(_subscriptionFactory(t, k)))
                     .DisposeMany()
                     .SubscribeSafe(Observer.Create<IChangeSet<IDisposable, TKey>>(
                         onNext: static _ => { },
                         onError: observer.OnError,
                         onCompleted: static () => { }));
 
-                var disposables = new CompositeDisposable(subscriptions, published.SubscribeSafe(observer));
+                var disposables = new CompositeDisposable(subscriptions, published.SubscribeSafe(observer), owned);
                 try
                 {
                     disposables.Add(published.Connect());
