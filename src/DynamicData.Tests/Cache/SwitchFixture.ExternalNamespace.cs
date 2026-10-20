@@ -34,6 +34,34 @@ public sealed class SpecializedSwitchFixture
     }
 
     [Test]
+    public async Task VirtualizedSwitchHandsOffInOneBaseBatchAndKeepsLaterContext()
+    {
+        using var first = new SourceCache<int, int>(value => value);
+        using var second = new SourceCache<int, int>(value => value);
+        first.AddOrUpdate(new[] { 1, 2 });
+        second.AddOrUpdate(new[] { 2, 3 });
+        using var requests = new StateSignal<IVirtualRequest>(new VirtualRequest(0, 2));
+        using var feeds = new StateSignal<IObservable<IChangeSet<int, int, VirtualContext<int>>>>(
+            first.Connect().SortAndVirtualize(Comparer<int>.Default, requests));
+        using var result = feeds.Switch().AsAggregator();
+        await Assert.That(result.Messages.Single() is IChangeSet<int, int, VirtualContext<int>>).IsTrue();
+
+        feeds.OnNext(second.Connect().SortAndVirtualize(Comparer<int>.Default, requests));
+
+        // The removals and the new viewport arrive together, as a base batch: no empty viewport in between.
+        await Assert.That(result.Messages.Count).IsEqualTo(2);
+        var handoff = result.Messages[1];
+        await Assert.That(handoff is IChangeSet<int, int, VirtualContext<int>>).IsFalse();
+        await Assert.That(handoff.Select(change => (change.Reason, change.Key, change.CurrentIndex)))
+            .IsEquivalentTo(new[] { (ChangeReason.Remove, 1, -1), (ChangeReason.Update, 2, -1), (ChangeReason.Add, 3, -1) }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        await Assert.That(result.Data.Items).IsEquivalentTo(new[] { 2, 3 });
+
+        second.AddOrUpdate(0);
+        await Assert.That(result.Messages.Last() is IChangeSet<int, int, VirtualContext<int>>).IsTrue();
+        await Assert.That(result.Data.Items).IsEquivalentTo(new[] { 0, 2 });
+    }
+
+    [Test]
     public async Task KeyedSwitchBeforeVirtualizationKeepsCurrentMetadata()
     {
         using var first = new SourceCache<int, int>(value => value);
