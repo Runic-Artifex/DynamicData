@@ -36,15 +36,19 @@ internal sealed class SubscribeMany<T>(IObservable<IChangeSet<T>> source, Func<T
             observer =>
             {
                 var shared = _source.Publish();
+
+                // Runic (DD-044, fork issue #39): owned from the moment the factory returns it, so a subscription
+                // made while this subscription is disposed from inside the factory is disposed too.
+                var owned = new OwnedSubscriptions();
                 var subscriptions = shared
-                    .Transform(t => _subscriptionFactory(t))
+                    .Transform(t => owned.Own(_subscriptionFactory(t)))
                     .DisposeMany()
                     .SubscribeSafe(Observer.Create<IChangeSet<IDisposable>>(
                         onNext: static _ => { },
                         onError: observer.OnError,
                         onCompleted: static () => { }));
 
-                var disposables = new CompositeDisposable(subscriptions, shared.SubscribeSafe(observer));
+                var disposables = new CompositeDisposable(subscriptions, shared.SubscribeSafe(observer), owned);
                 try
                 {
                     disposables.Add(shared.Connect());

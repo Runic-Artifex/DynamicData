@@ -22,7 +22,7 @@ public partial class CallbackErrorDeliveryFixture
     private static readonly HashSet<string> PipelinesWithoutInitialValue = ["SkipInitial"];
 
     public static IEnumerable<Func<string>> CacheLiveInputPipelines() =>
-        new[] { "LeftJoin", "RightJoin", "FullJoin", "InnerJoin", "Or", "And", "Xor", "Except", "MergeChangeSets", "Sort", "Page", "Virtualise", "SortAndPage", "SortAndVirtualize", "Filter", "FilterPredicateState", "FilterReapply", "TransformForced", "BatchIf", "GroupWithRegrouper", "GroupWithImmutableStateWithRegrouper", "GroupDynamic", "GroupOnObservable", "QueryWhenChangedWithItemTrigger", "TransformOnObservable", "MergeMany", "AutoRefreshOnObservable", "TrueForAll", "TransformToTree", "MergeManyChangeSets", "Switch" }
+        new[] { "LeftJoin", "RightJoin", "FullJoin", "InnerJoin", "Or", "And", "Xor", "Except", "DynamicOr", "DynamicAnd", "DynamicXor", "DynamicExcept", "MergeChangeSets", "Sort", "Page", "Virtualise", "SortAndPage", "SortAndVirtualize", "Filter", "FilterPredicateState", "FilterReapply", "TransformForced", "BatchIf", "GroupWithRegrouper", "GroupWithImmutableStateWithRegrouper", "GroupDynamic", "GroupOnObservable", "QueryWhenChangedWithItemTrigger", "TransformOnObservable", "MergeMany", "AutoRefreshOnObservable", "TrueForAll", "TransformToTree", "MergeManyChangeSets", "Switch" }
             .Select(name => (Func<string>)(() => name));
 
     public static IEnumerable<Func<string>> ListLiveInputPipelines() =>
@@ -112,6 +112,10 @@ public partial class CallbackErrorDeliveryFixture
         "And" => new List<IObservable<IChangeSet<int, int>>> { other.Connect().Or(cache.Connect()), cache.Connect() }.And(),
         "Xor" => other.Connect().Xor(cache.Connect()),
         "Except" => cache.Connect().Except(other.Connect()),
+        "DynamicOr" => Sources(other.Connect(), cache.Connect()).Or(),
+        "DynamicAnd" => Sources(other.Connect().Or(cache.Connect()), cache.Connect()).And(),
+        "DynamicXor" => Sources(other.Connect(), cache.Connect()).Xor(),
+        "DynamicExcept" => Sources(cache.Connect(), other.Connect()).Except(),
         "MergeChangeSets" => new[] { other.Connect(), cache.Connect() }.MergeChangeSets(),
         "Sort" => cache.Connect().Sort(LiveParameter<IComparer<int>>(SortExpressionComparer<int>.Ascending(static value => value), signal, static _ => SortExpressionComparer<int>.Descending(static value => value))),
         "Page" => cache.Connect().Sort(SortExpressionComparer<int>.Ascending(static value => value)).Page(LiveParameter(new PageRequest(1, 10), signal, static size => new PageRequest(1, size + 1))),

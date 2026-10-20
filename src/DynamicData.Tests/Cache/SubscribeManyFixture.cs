@@ -55,6 +55,31 @@ public class SubscribeManyFixture : IDisposable
         await Assert.That(_results.Messages[1].First().Current.IsSubscribed).IsFalse().Because("Should be be unsubscribed");
     }
 
+    // DD-044 (fork issue #39): a subscription the factory makes while the SubscribeMany subscription is disposed
+    // from inside the factory (as a MergeMany subscriber fault does) is disposed too.
+    [Test]
+    public async Task SubscriptionMadeWhileDisposedFromFactoryIsDisposed()
+    {
+        using var source = new SourceCache<int, int>(static value => value);
+        var subscribed = new List<int>();
+        IDisposable? subscription = null;
+        subscription = source.Connect().SubscribeMany(value =>
+        {
+            subscribed.Add(value);
+            if (value == 2)
+            {
+                subscription!.Dispose();
+            }
+
+            return Disposable.Create(() => subscribed.Remove(value));
+        }).Subscribe();
+
+        source.AddOrUpdate(1);
+        source.AddOrUpdate([2, 3]);
+
+        await Assert.That(subscribed).IsEmpty();
+    }
+
     [Test]
     public async Task UpdateUnsubscribesPrevious()
     {
