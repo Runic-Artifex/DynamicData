@@ -205,12 +205,14 @@ public class FactoryCoverageFixture
             });
 
         using var subscription = changes.Subscribe(value => received.TrySetResult(value), error => receivedError.TrySetResult(error));
+        var changeSet = await received.Task.WaitAsync(TimeSpan.FromSeconds(10));
+
+        await Assert.That(GetCurrentItems(changeSet)).IsEquivalentTo(new[] { 11, 12 }).Because("the list async factory publishes edits as they happen, before the delegate fails");
 
         allowError.SetResult();
         var observed = await receivedError.Task.WaitAsync(TimeSpan.FromSeconds(10));
 
         await Assert.That(observed).IsSameReferenceAs(error);
-        await Assert.That(received.Task.IsCompleted).IsFalse().Because("the list async factory does not publish pending list edits before the async delegate terminates with an error");
     }
 
     [Test]
