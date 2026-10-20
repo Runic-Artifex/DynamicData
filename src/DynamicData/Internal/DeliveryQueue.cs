@@ -63,6 +63,11 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
     private Action? _pendingTeardown;
 
     /// <summary>
+    /// Runic (DD-044, fork issue #37): the exception the observer threw while a notification was delivered.
+    /// </summary>
+    private DeliveryFault? _deliveryFault;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="DeliveryQueue{T}"/> class with its own internal lock.
     /// </summary>
     /// <param name="observer">The observer that receives delivered items.</param>
@@ -227,6 +232,8 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
     /// <param name="error">The error value.</param>
     public void OnError(Exception error)
     {
+        DeliveryFault.ThrowIfReturned(Volatile.Read(ref _deliveryFault), error);
+
         using var scope = AcquireLock();
         scope.EnqueueError(error);
     }
@@ -391,9 +398,10 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
                     }
                 }
             }
-            catch
+            catch (Exception error)
             {
                 HasDeliveryFailure = true;
+                DeliveryFault.Record(ref _deliveryFault, error);
                 teardown = StopDelivery();
                 throw;
             }
