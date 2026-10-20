@@ -158,12 +158,14 @@ internal sealed class SortAndVirtualize<TObject, TKey>
                         return ApplyVirtualChanges(changes);
                     });
 
+                // Deliver through the queue too: a notification raised from inside the observer, through
+                // another input, is then delivered after the observer returns instead of re-entrantly.
                 return new CompositeDisposable(
                     Disposable.Create(queue.Terminate),
                     comparerChanged
                         .UnsynchronizedMerge(paramsChanged, dataChange)
                         .Where(changes => !ReferenceEquals(changes, Empty))
-                        .SubscribeSafe(observer));
+                        .SubscribeSafe(queue.CreateQueue(observer)));
 
                 ChangeSet<TObject, TKey, VirtualContext<TObject>> ApplyVirtualChanges(IChangeSet<TObject, TKey>? changeSet = null)
                 {

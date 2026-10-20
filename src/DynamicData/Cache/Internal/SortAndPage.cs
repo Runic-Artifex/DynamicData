@@ -160,7 +160,7 @@ internal sealed class SortAndPage<TObject, TKey>
                         .UnsynchronizedMerge(
                             paramsChanged.Where(changes => changes.Count is not 0),
                             dataChange.Where(changes => changes.Count is not 0))
-                    .SubscribeSafe(observer));
+                    .SubscribeSafe(queue.CreateQueue(observer)));
 
                 ChangeSet<TObject, TKey, PageContext<TObject>> ApplyPagedChanges(IChangeSet<TObject, TKey>? changeSet = null)
                 {

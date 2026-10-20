@@ -46,7 +46,7 @@ internal sealed class Virtualise<TObject, TKey>(IObservable<ISortedChangeSet<TOb
                 return new CompositeDisposable(Disposable.Create(queue.Terminate), request.UnsynchronizedMerge(dataChange)
                     .Where(updates => updates is not null)
                     .Select(x => x!)
-                    .SubscribeSafe(observer));
+                    .SubscribeSafe(queue.CreateQueue(observer)));
             });
 
 /// <summary>

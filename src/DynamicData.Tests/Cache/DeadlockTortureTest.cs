@@ -3,6 +3,7 @@
 // See the LICENSE file in the project root for full license information.
 
 using System;
+using System.Collections.Concurrent;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -35,15 +36,17 @@ public sealed class DeadlockTortureTest
     private static async Task<bool> RunBidirectionalDeadlockTest(
         Func<IObservable<IChangeSet<Person, string>>, IObservable<IChangeSet<Person, string>>> pipeline,
         Action? subjectPusher = null,
-        int iterations = Iterations)
+        int iterations = Iterations,
+        Propagation propagation = Propagation.All)
     {
         for (var iter = 0; iter < iterations; iter++)
         {
             using var sourceA = new SourceCache<Person, string>(p => p.UniqueKey);
             using var sourceB = new SourceCache<Person, string>(p => p.UniqueKey);
+            var errors = new ConcurrentQueue<Exception>();
 
-            using var aToB = pipeline(sourceA.Connect().Filter(x => x.Name.StartsWith("A"))).ValidateSynchronization().PopulateInto(sourceB);
-            using var bToA = pipeline(sourceB.Connect().Filter(x => x.Name.StartsWith("B"))).ValidateSynchronization().PopulateInto(sourceA);
+            using var aToB = pipeline(sourceA.Connect().Filter(x => x.Name.StartsWith("A"))).ValidateSynchronization().RecordErrors(errors).PopulateInto(sourceB);
+            using var bToA = pipeline(sourceB.Connect().Filter(x => x.Name.StartsWith("B"))).ValidateSynchronization().RecordErrors(errors).PopulateInto(sourceA);
 
             var participants = subjectPusher is null ? 2 : 3;
             using var barrier = new Barrier(participants);
@@ -56,10 +59,79 @@ public sealed class DeadlockTortureTest
                 return false;
 
             await completed;
+            await Assert.That(errors.IsEmpty).IsTrue().Because("iteration " + iter + ": " + string.Join(Environment.NewLine, errors));
             await Assert.That(sourceA.Items.Count(p => p.Name.StartsWith("A-" + iter + "-"))).IsEqualTo(ItemCount);
             await Assert.That(sourceB.Items.Count(p => p.Name.StartsWith("B-" + iter + "-"))).IsEqualTo(ItemCount);
+
+            // Each destination must end up mirroring what a fresh subscription to the same pipeline
+            // over the other source produces.
+            if (propagation != Propagation.Unspecified)
+            {
+                await AssertPropagated(pipeline, sourceA, sourceB, "A", iter, propagation);
+                await AssertPropagated(pipeline, sourceB, sourceA, "B", iter, propagation);
+            }
+
+            await Assert.That(errors.IsEmpty).IsTrue().Because("iteration " + iter + ": " + string.Join(Environment.NewLine, errors));
         }
         return true;
+    }
+
+    private static async Task AssertPropagated(
+        Func<IObservable<IChangeSet<Person, string>>, IObservable<IChangeSet<Person, string>>> pipeline,
+        SourceCache<Person, string> from,
+        SourceCache<Person, string> to,
+        string prefix,
+        int iter,
+        Propagation propagation)
+    {
+        // Operators that hop to a scheduler can still be delivering on a pool thread after the writers
+        // return, so wait for quiescence.
+        var deadline = DateTime.UtcNow.AddSeconds(TimeoutSeconds);
+        Dictionary<string, string> expected;
+        Dictionary<string, string> actual;
+        while (true)
+        {
+            expected = [];
+            using (pipeline(from.Connect().Filter(x => x.Name.StartsWith(prefix))).Subscribe(changes =>
+            {
+                foreach (var change in changes)
+                {
+                    if (change.Reason == ChangeReason.Remove)
+                        expected.Remove(change.Key);
+                    else
+                        expected[change.Key] = change.Current.Name;
+                }
+            }))
+            {
+            }
+
+            var ownKeys = from.KeyValues.Where(kv => kv.Value.Name.StartsWith(prefix + "-")).Select(kv => kv.Key).ToHashSet();
+            actual = to.KeyValues.Where(kv => ownKeys.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value.Name);
+            if ((actual.Count == expected.Count && !actual.Except(expected).Any()) || DateTime.UtcNow > deadline)
+                break;
+
+            await Task.Delay(10);
+        }
+
+        await Assert.That(actual).IsEquivalentTo(expected).Because("items from " + prefix + " in iteration " + iter);
+        if (propagation == Propagation.All)
+            await Assert.That(actual.Count).IsEqualTo(ItemCount).Because("items from " + prefix + " in iteration " + iter);
+    }
+
+    private enum Propagation
+    {
+        /// <summary>Every item written to one source reaches the other.</summary>
+        All,
+
+        /// <summary>The destination mirrors the pipeline's current window over the other source.</summary>
+        Window,
+
+        /// <summary>
+        /// The final contents depend on the order of concurrent inputs: regrouping moves items between
+        /// group caches, and MergeMany applies the old group's removal and the new group's addition in
+        /// the order the groups publish them.
+        /// </summary>
+        Unspecified,
     }
 
     private static Task RunOnDedicatedThread(Action action) =>
@@ -98,7 +170,8 @@ public sealed class DeadlockTortureTest
                     selector.OnNext((p, _) => p.Age % (2 + (j % 4)));
                     regrouper.OnNext(default(Unit));
                 }
-            }))).IsTrue();
+            },
+            propagation: Propagation.Unspecified))).IsTrue();
     }
 
     [Test] public async Task TransformAsyncWithForce_DoesNotDeadlock()
@@ -114,7 +187,8 @@ public sealed class DeadlockTortureTest
         using var req = new ReactiveUI.Primitives.Signals.StateSignal<IPageRequest>(new PageRequest(1, 50));
         await Assert.That((await RunBidirectionalDeadlockTest(
             s => s.Sort(SortExpressionComparer<Person>.Ascending(p => p.Age)).Page(req),
-            subjectPusher: () => { for (var j = 0; j < ItemCount; j++) req.OnNext(new PageRequest(1 + (j % 4), 25 + (j % 4) * 25)); }))).IsTrue();
+            subjectPusher: () => { for (var j = 0; j < ItemCount; j++) req.OnNext(new PageRequest(1 + (j % 4), 25 + (j % 4) * 25)); },
+            propagation: Propagation.Window))).IsTrue();
     }
 
     [Test] public async Task SortAndPage_DoesNotDeadlock()
@@ -122,7 +196,8 @@ public sealed class DeadlockTortureTest
         using var req = new ReactiveUI.Primitives.Signals.StateSignal<IPageRequest>(new PageRequest(1, 50));
         await Assert.That((await RunBidirectionalDeadlockTest(
             s => s.SortAndPage(SortExpressionComparer<Person>.Ascending(p => p.Age), req),
-            subjectPusher: () => { for (var j = 0; j < ItemCount; j++) req.OnNext(new PageRequest(1 + (j % 4), 25 + (j % 4) * 25)); }))).IsTrue();
+            subjectPusher: () => { for (var j = 0; j < ItemCount; j++) req.OnNext(new PageRequest(1 + (j % 4), 25 + (j % 4) * 25)); },
+            propagation: Propagation.Window))).IsTrue();
     }
 
     [Test] public async Task Virtualise_DoesNotDeadlock()
@@ -130,7 +205,8 @@ public sealed class DeadlockTortureTest
         using var req = new ReactiveUI.Primitives.Signals.StateSignal<IVirtualRequest>(new VirtualRequest(0, 50));
         await Assert.That((await RunBidirectionalDeadlockTest(
             s => s.Sort(SortExpressionComparer<Person>.Ascending(p => p.Age)).Virtualise(req),
-            subjectPusher: () => { for (var j = 0; j < ItemCount; j++) req.OnNext(new VirtualRequest(j * 5, 25 + (j % 4) * 25)); }))).IsTrue();
+            subjectPusher: () => { for (var j = 0; j < ItemCount; j++) req.OnNext(new VirtualRequest(j * 5, 25 + (j % 4) * 25)); },
+            propagation: Propagation.Window))).IsTrue();
     }
 
     [Test] public async Task SortAndVirtualize_DoesNotDeadlock()
@@ -138,7 +214,8 @@ public sealed class DeadlockTortureTest
         using var req = new ReactiveUI.Primitives.Signals.StateSignal<IVirtualRequest>(new VirtualRequest(0, 50));
         await Assert.That((await RunBidirectionalDeadlockTest(
             s => s.SortAndVirtualize(SortExpressionComparer<Person>.Ascending(p => p.Age), req),
-            subjectPusher: () => { for (var j = 0; j < ItemCount; j++) req.OnNext(new VirtualRequest(j * 5, 25 + (j % 4) * 25)); }))).IsTrue();
+            subjectPusher: () => { for (var j = 0; j < ItemCount; j++) req.OnNext(new VirtualRequest(j * 5, 25 + (j % 4) * 25)); },
+            propagation: Propagation.Window))).IsTrue();
     }
 
     [Test] public async Task QueryWhenChanged_DoesNotDeadlock()
@@ -216,7 +293,8 @@ public sealed class DeadlockTortureTest
                     virtReq.OnNext(new VirtualRequest(j * 5, 50 + (j % 4) * 50));
                 }
             },
-            iterations: Iterations * 2))).IsTrue();
+            iterations: Iterations * 2,
+            propagation: Propagation.Window))).IsTrue();
     }
 
     [Test] public async Task MultiplePairs_Simultaneous_NoDeadlock()
@@ -236,19 +314,19 @@ public sealed class DeadlockTortureTest
             RunBidirectionalDeadlockTest(
                 s => s.Sort(SortExpressionComparer<Person>.Ascending(p => p.Age)).Page(pageReq),
                 subjectPusher: () => { for (var j = 0; j < ItemCount; j++) pageReq.OnNext(new PageRequest(1 + (j % 4), 25 + (j % 4) * 25)); },
-                iterations: 30),
+                iterations: 30, propagation: Propagation.Window),
             RunBidirectionalDeadlockTest(
                 s => s.SortAndPage(SortExpressionComparer<Person>.Ascending(p => p.Age), pageReq2),
                 subjectPusher: () => { for (var j = 0; j < ItemCount; j++) pageReq2.OnNext(new PageRequest(1 + (j % 4), 25 + (j % 4) * 25)); },
-                iterations: 30),
+                iterations: 30, propagation: Propagation.Window),
             RunBidirectionalDeadlockTest(
                 s => s.Sort(SortExpressionComparer<Person>.Ascending(p => p.Age)).Virtualise(virtReq),
                 subjectPusher: () => { for (var j = 0; j < ItemCount; j++) virtReq.OnNext(new VirtualRequest(j * 5, 25 + (j % 4) * 25)); },
-                iterations: 30),
+                iterations: 30, propagation: Propagation.Window),
             RunBidirectionalDeadlockTest(
                 s => s.SortAndVirtualize(SortExpressionComparer<Person>.Ascending(p => p.Age), virtReq2),
                 subjectPusher: () => { for (var j = 0; j < ItemCount; j++) virtReq2.OnNext(new VirtualRequest(j * 5, 25 + (j % 4) * 25)); },
-                iterations: 30),
+                iterations: 30, propagation: Propagation.Window),
             RunBidirectionalDeadlockTest(
                 s => s.BatchIf(pause, false, (TimeSpan?)null),
                 subjectPusher: () => { for (var j = 0; j < ItemCount; j++) pause.OnNext(j % 2 == 0); },

@@ -48,6 +48,10 @@ internal sealed class BufferIf<T>(IObservable<IChangeSet<T>> source, IObservable
     public IObservable<IChangeSet<T>> Run() => Observable.Create<IChangeSet<T>>(observer =>
     {
         var queue = new SharedDeliveryQueue();
+
+        // Deliver through the queue too: a notification raised from inside the observer, through
+        // another input, is then delivered after the observer returns instead of re-entrantly.
+        var output = queue.CreateQueue(observer);
         var subscriptions = new CompositeDisposable();
         var paused = initialPauseState;
         var stopped = false;
@@ -65,7 +69,7 @@ internal sealed class BufferIf<T>(IObservable<IChangeSet<T>> source, IObservable
 
             var changes = buffer;
             buffer = [];
-            observer.OnNext(changes);
+            output.OnNext(changes);
         }
 
         void Fail(Exception error)
@@ -77,7 +81,7 @@ internal sealed class BufferIf<T>(IObservable<IChangeSet<T>> source, IObservable
 
             stopped = true;
             buffer.Clear();
-            observer.OnError(error);
+            output.OnError(error);
         }
 
         var bufferSelector = Observable.Return(initialPauseState)
@@ -119,7 +123,7 @@ internal sealed class BufferIf<T>(IObservable<IChangeSet<T>> source, IObservable
                 }
                 else
                 {
-                    observer.OnNext(updates);
+                    output.OnNext(updates);
                 }
             }, Fail, () =>
             {
@@ -130,7 +134,7 @@ internal sealed class BufferIf<T>(IObservable<IChangeSet<T>> source, IObservable
 
                 stopped = true;
                 Flush();
-                observer.OnCompleted();
+                output.OnCompleted();
             }));
         }
 

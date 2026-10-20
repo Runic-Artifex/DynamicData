@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 namespace DynamicData.Tests.Utilities;
 
 internal static class ObservableExtensions
@@ -455,6 +457,24 @@ internal static class ObservableExtensions
                 }
             }
         });
+
+    /// <summary>
+    /// Records an error from <paramref name="source"/> into <paramref name="errors"/> and completes instead of
+    /// forwarding it, so a subscriber without an error handler cannot swallow or rethrow it.
+    /// </summary>
+    /// <typeparam name="T">Observable type.</typeparam>
+    /// <param name="source">Source Observable.</param>
+    /// <param name="errors">Receives every error the source reports.</param>
+    /// <returns>The source without its error notification.</returns>
+    public static IObservable<T> RecordErrors<T>(this IObservable<T> source, ConcurrentQueue<Exception> errors)
+        => RawAnonymousObservable.Create<T>(observer => source.SubscribeSafe(RawAnonymousObserver.Create<T>(
+            onNext: observer.OnNext,
+            onError: error =>
+            {
+                errors.Enqueue(error);
+                observer.OnCompleted();
+            },
+            onCompleted: observer.OnCompleted)));
 
     // Emits "parallel" number of values that add up to "count"
     private static IEnumerable<int> Distribute(int count, int parallel) =>

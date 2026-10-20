@@ -35,7 +35,7 @@ internal sealed class Page<TObject, TKey>(IObservable<ISortedChangeSet<TObject, 
                 return new CompositeDisposable(Disposable.Create(queue.Terminate), request.UnsynchronizedMerge(dataChange)
                     .Where(updates => updates is not null)
                     .Select(x => x!)
-                    .SubscribeSafe(observer));
+                    .SubscribeSafe(queue.CreateQueue(observer)));
             });
 
 /// <summary>

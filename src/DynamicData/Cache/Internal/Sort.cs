@@ -95,7 +95,7 @@ internal sealed class Sort<TObject, TKey>
 
                 var dataChanged = _source.SynchronizeSafe(queue).Select(sorter.Sort);
 
-                return new CompositeDisposable(Disposable.Create(queue.Terminate), comparerChanged.UnsynchronizedMerge(dataChanged, sortAgain).Where(result => result is not null).Select(x => x!).SubscribeSafe(observer));
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), comparerChanged.UnsynchronizedMerge(dataChanged, sortAgain).Where(result => result is not null).Select(x => x!).SubscribeSafe(queue.CreateQueue(observer)));
             });
 
 /// <summary>

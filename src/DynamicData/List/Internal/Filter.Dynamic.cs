@@ -119,9 +119,11 @@ internal static partial class Filter
                         false)
                         .Select(changes => Process(predicate, all, filtered, changes));
 
+                    // Deliver through the queue too: a notification raised from inside the observer, through
+                    // another input, is then delivered after the observer returns instead of re-entrantly.
                     var publisher = predicateChanged.UnsynchronizedMerge(filteredResult).NotEmpty()
                         .Select(changes => changes.Transform(iwm => iwm.Item)) // use convert, not transform
-                        .SubscribeSafe(observer);
+                        .SubscribeSafe(queue.CreateQueue(observer));
                     return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher);
                 });
 

@@ -52,11 +52,13 @@ internal sealed class Pager<T>(IObservable<IChangeSet<T>> source, IObservable<IP
                     .SynchronizeSafe(queue)
                     .Select(changes => Page(all, paged, parameters, changes));
 
+                // Deliver through the queue too: a notification raised from inside the observer, through
+                // another input, is then delivered after the observer returns instead of re-entrantly.
                 var publisher = requestStream
                     .UnsynchronizedMerge(dataChanged)
                     .Where(changes => changes is not null && changes.Count != 0)
                     .Select(x => x!)
-                    .SubscribeSafe(observer);
+                    .SubscribeSafe(queue.CreateQueue(observer));
                 return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher);
             });
 

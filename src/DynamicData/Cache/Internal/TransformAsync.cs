@@ -66,7 +66,7 @@ internal class TransformAsync<TDestination, TSource, TKey>(
             var forced = forceTransform.SynchronizeSafe(queue)
                 .Select(shouldTransform => DoTransform(cache, shouldTransform, queue)).Concat();
 
-            return new CompositeDisposable(Disposable.Create(queue.Terminate), transformer.UnsynchronizedMerge(forced).SubscribeSafe(observer));
+            return new CompositeDisposable(Disposable.Create(queue.Terminate), transformer.UnsynchronizedMerge(forced).SubscribeSafe(queue.CreateQueue(observer)));
         });
 
     private IObservable<IChangeSet<TDestination, TKey>> DoTransform(ChangeAwareCache<TransformedItemContainer, TKey> cache, Func<TSource, TKey, bool> shouldTransform, SharedDeliveryQueue queue)

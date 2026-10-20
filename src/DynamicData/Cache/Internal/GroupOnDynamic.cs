@@ -33,6 +33,10 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
     {
         var dynamicGrouper = new DynamicGrouper<TObject, TKey, TGroupKey>();
         var queue = new SharedDeliveryQueue();
+
+        // Deliver through the queue too: a notification raised from inside the observer, through
+        // another input, is then delivered after the observer returns instead of re-entrantly.
+        var output = queue.CreateQueue(observer);
         var notGrouped = new Cache<TObject, TKey>();
         var hasSelector = false;
 
@@ -49,15 +53,15 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
             {
                 if (hasSelector)
                 {
-                    dynamicGrouper.SetGroupSelector(groupSelector, observer);
+                    dynamicGrouper.SetGroupSelector(groupSelector, output);
                 }
                 else
                 {
-                    dynamicGrouper.Initialize(notGrouped.KeyValues, groupSelector, observer);
+                    dynamicGrouper.Initialize(notGrouped.KeyValues, groupSelector, output);
                     hasSelector = true;
                 }
             },
-            onError: observer.OnError);
+            onError: output.OnError);
 
         // Ignore values until a selector has been provided
         // Then re-evaluate all the groupings each time it fires
@@ -67,10 +71,10 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
             {
                 if (hasSelector)
                 {
-                    dynamicGrouper.RegroupAll(observer);
+                    dynamicGrouper.RegroupAll(output);
                 }
             },
-            onError: observer.OnError);
+            onError: output.OnError);
 
         var subChanges = OperatorSubscription.SubscribeSafe(
             sharedSource,
@@ -78,14 +82,14 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
             {
                 if (hasSelector)
                 {
-                    dynamicGrouper.ProcessChangeSet(changeSet, observer);
+                    dynamicGrouper.ProcessChangeSet(changeSet, output);
                 }
                 else
                 {
                     notGrouped.Clone(changeSet);
                 }
             },
-            onError: observer.OnError);
+            onError: output.OnError);
 
         // All three inputs are routed through the same SharedDeliveryQueue so their notifications
         // are already serialized; the merge is only here to coalesce their completion into a single
@@ -94,8 +98,8 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
         var subOnComplete = OperatorSubscription.SubscribeSafe(
             sharedSource.ToUnit().UnsynchronizedMerge(sharedGroupSelector.ToUnit(), sharedRegrouper).IgnoreElements(),
             onNext: static _ => { },
-            onError: observer.OnError,
-            onCompleted: observer.OnCompleted);
+            onError: output.OnError,
+            onCompleted: output.OnCompleted);
 
         return new CompositeDisposable(
             Disposable.Create(queue.Terminate),
