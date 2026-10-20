@@ -76,6 +76,7 @@ private abstract class SubscriptionBase
         /// outside the synchronization gate and the source edit, so an observer that writes into another
         /// source cannot deadlock against an expiration of that source writing into this one.
         /// </summary>
+        [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Terminated in Dispose: disposing would wait for an in-flight delivery, which can deadlock.")]
         private readonly DeliveryQueue<IEnumerable<T>> _observer;
 
         /// <summary>
@@ -199,8 +200,11 @@ private abstract class SubscriptionBase
         /// </summary>
         public void Dispose()
         {
-            // Stop delivery first: once this returns, no observer callback is running or will run.
-            _observer.Dispose();
+            // Stop further delivery without waiting for one in progress on another thread, whose observer
+            // may be waiting for a lock the caller holds (for example the source's, while disposing inside an
+            // edit). That delivery finishes and nothing is delivered after it; called from the observer, the
+            // delivery stops when it returns.
+            _observer.Terminate();
 
             lock (SynchronizationGate)
             {

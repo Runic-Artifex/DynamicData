@@ -109,6 +109,7 @@ private abstract class SubscriptionBase
             /// <summary>
             /// Serializes the predicate state and source notifications.
             /// </summary>
+            [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Terminated in Dispose: disposing would wait for an in-flight delivery, which can deadlock.")]
             private readonly SharedDeliveryQueue _queue = new();
 
             /// <summary>
@@ -200,9 +201,14 @@ private abstract class SubscriptionBase
             /// </summary>
             public void Dispose()
             {
+                // Stop further delivery without waiting for one in progress on another thread, whose observer
+                // may be waiting for a lock the caller holds (for example the source's, while disposing inside an
+                // edit). That delivery finishes and nothing is delivered after it; called from the observer, the
+                // delivery stops when it returns.
+                _queue.Terminate();
+
                 _predicateStateSubscription?.Dispose();
                 _sourceSubscription?.Dispose();
-                _queue.Dispose();
             }
 
             /// <summary>

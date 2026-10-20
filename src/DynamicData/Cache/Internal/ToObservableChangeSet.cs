@@ -88,6 +88,7 @@ private sealed class Subscription
         /// <summary>
         /// The _downstreamObserver field.
         /// </summary>
+        [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Terminated in Dispose: disposing would wait for an in-flight delivery, which can deadlock.")]
         private readonly DeliveryQueue<IChangeSet<TObject, TKey>> _downstreamObserver;
 
         /// <summary>
@@ -202,9 +203,14 @@ private sealed class Subscription
         /// </summary>
         public void Dispose()
         {
+            // Stop further delivery without waiting for one in progress on another thread, whose observer
+            // may be waiting for a lock the caller holds (for example the source's, while disposing inside an
+            // edit). That delivery finishes and nothing is delivered after it; called from the observer, the
+            // delivery stops when it returns.
+            _downstreamObserver.Terminate();
+
             _sourceSubscription.Dispose();
             _scheduledExpiration?.Cancellation.Dispose();
-            _downstreamObserver.Dispose();
         }
 
         /// <summary>

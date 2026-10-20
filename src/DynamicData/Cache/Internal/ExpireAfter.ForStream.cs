@@ -75,6 +75,7 @@ private abstract class SubscriptionBase
             /// this subscription's state, and delivered after the gate is released, so an observer
             /// that writes into another pipeline cannot deadlock against a producer of this one.
             /// </summary>
+            [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Terminated in Dispose: disposing would wait for an in-flight delivery, which can deadlock.")]
             private readonly DeliveryQueue<IChangeSet<TObject, TKey>> _observer;
 
             /// <summary>
@@ -153,15 +154,18 @@ private abstract class SubscriptionBase
             /// </summary>
             public void Dispose()
             {
+                // Stop further delivery without waiting for one in progress on another thread, whose observer
+                // may be waiting for a lock the caller holds (for example the source's, while disposing inside an
+                // edit). That delivery finishes and nothing is delivered after it; called from the observer, the
+                // delivery stops when it returns.
+                _observer.Terminate();
+
                 using (_observer.AcquireLock())
                 {
                     _sourceSubscription.Dispose();
 
                     TryCancelNextScheduledManagement();
                 }
-
-                // Wait for any in-flight delivery, and drop anything still queued.
-                _observer.Dispose();
             }
 
             /// <summary>

@@ -68,6 +68,20 @@ internal sealed class SharedDeliveryQueue : IDisposable
     public ReadOnlyScopedAccess AcquireReadLock() => new(this);
 
     /// <summary>
+    /// Terminates the queue, rejecting further enqueues, without waiting for a delivery in
+    /// progress on another thread: it finishes, and nothing is delivered after it. For
+    /// subscription disposal, which may run while the caller holds a lock that the observer
+    /// being delivered to is waiting for.
+    /// </summary>
+    internal void Terminate()
+    {
+        _gate.Enter();
+        _isTerminated = true;
+        _order.Clear();
+        _gate.Exit();
+    }
+
+    /// <summary>
     /// Terminates the queue, rejecting further enqueues, and blocks until any in-flight
     /// delivery has completed. After this returns, no more observer callbacks will fire.
     /// Safe to call from within a delivery callback, which skips the spin-wait.
