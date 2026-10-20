@@ -39,6 +39,7 @@ never committed.
 | #1115, #1025 (list expiration) | DD-032 |
 | #1039, #1044 | DD-033 |
 | #1066 | DD-034 |
+| #1073 (`ExpireAfter`, `ToObservableChangeSet` and list predicate-state `Filter` gates) | DD-043 |
 | #1099 | Existing behavior kept; concurrency tests enabled |
 
 ## Open gaps

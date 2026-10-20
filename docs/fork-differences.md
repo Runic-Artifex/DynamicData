@@ -38,6 +38,7 @@ entry `retired`. Upstream status is as last reviewed; open gaps are tracked as
 | DD-036 | Monthly [upstream review](maintenance.md#monthly-upstream-review) as workflow artifact plus tracking issue. | Fork maintenance. | Fork only. |
 | DD-037 | [Release guard](../eng/release/README.md) for immutable branded GitHub releases. | Fork distribution. | Fork only. |
 | DD-038 | [Packaged acceptance](../eng/acceptance/README.md) of the released package pair, managed and NativeAOT. | Fork distribution. | Fork only. |
+| DD-043 | List and cache `ExpireAfter` and `ToObservableChangeSet`, and list `Filter` with predicate state, deliver through delivery queues without holding their gates; source `ExpireAfter` publishes expired items after the source edit commits, not from inside it. | Cross-instance deadlocks when observers write into each other (fork issue #16, follow-up to DD-016/DD-028). | Fork only. |
 
 DD-008 to DD-015 were upstream fixes (#1185–#1194) that upstream has since
 merged, and DD-035 was a test-only audit; they are no longer fork differences,
