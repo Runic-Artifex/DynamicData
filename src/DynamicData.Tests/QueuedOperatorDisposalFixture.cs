@@ -1,3 +1,11 @@
+#if REACTIVE_TESTS
+using DynamicData.Reactive.Aggregation;
+using DynamicData.Reactive.Binding;
+#else
+using DynamicData.Aggregation;
+using DynamicData.Binding;
+#endif
+
 namespace DynamicData.Tests;
 
 /// <summary>
@@ -14,12 +22,7 @@ public class QueuedOperatorDisposalFixture
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
 
     [Test]
-    [Arguments("list-expire-after")]
-    [Arguments("cache-expire-after-source")]
-    [Arguments("cache-expire-after-stream")]
-    [Arguments("list-to-observable-change-set")]
-    [Arguments("cache-to-observable-change-set")]
-    [Arguments("list-filter-predicate-state")]
+    [MethodDataSource(nameof(Operations))]
     public async Task DisposeInsideDeliveryReturnsAndStopsDelivery(string operation)
     {
         var operatorCase = CreateCase(operation);
@@ -55,12 +58,7 @@ public class QueuedOperatorDisposalFixture
     }
 
     [Test]
-    [Arguments("list-expire-after")]
-    [Arguments("cache-expire-after-source")]
-    [Arguments("cache-expire-after-stream")]
-    [Arguments("list-to-observable-change-set")]
-    [Arguments("cache-to-observable-change-set")]
-    [Arguments("list-filter-predicate-state")]
+    [MethodDataSource(nameof(Operations))]
     public async Task DisposeDuringDeliveryOnAnotherThreadReturnsAndStopsDelivery(string operation)
     {
         var operatorCase = CreateCase(operation);
@@ -111,12 +109,7 @@ public class QueuedOperatorDisposalFixture
     }
 
     [Test]
-    [Arguments("list-expire-after")]
-    [Arguments("cache-expire-after-source")]
-    [Arguments("cache-expire-after-stream")]
-    [Arguments("list-to-observable-change-set")]
-    [Arguments("cache-to-observable-change-set")]
-    [Arguments("list-filter-predicate-state")]
+    [MethodDataSource(nameof(NonWaitingOperations))]
     public async Task DisposeUnderSourceLockWhileObserverWritesToSourceDoesNotDeadlock(string operation)
     {
         var operatorCase = CreateCase(operation);
@@ -176,84 +169,117 @@ public class QueuedOperatorDisposalFixture
     private static Task RunOnDedicatedThread(Action action)
         => StartDedicatedThread(action).WaitAsync(Timeout);
 
+    private static readonly IComparer<int> Ascending = SortExpressionComparer<int>.Ascending(static value => value);
+
+    /// <summary>
+    /// Every operator that delivers through a <c>DeliveryQueue</c> or <c>SharedDeliveryQueue</c>, by name. Each
+    /// publishes at least one notification per <see cref="OperatorCase.Trigger"/> and none on subscription.
+    /// </summary>
+    private static readonly Dictionary<string, Func<TestScheduler, OperatorCase>> Cases = new()
+    {
+        ["list-expire-after"] = static scheduler => ListCase(source => source.ExpireAfter(ExpireBelowNonExpiring, null, scheduler).Select(static items => items.Count()), scheduler),
+        ["cache-expire-after-source"] = static scheduler => CacheCase(source => source.ExpireAfter(ExpireBelowNonExpiring, null, scheduler).Select(static items => items.Count()), scheduler),
+        ["cache-expire-after-stream"] = static scheduler => CacheCase(source => source.Connect().ExpireAfter(ExpireBelowNonExpiring, null, scheduler).Counts(), scheduler),
+        ["list-to-observable-change-set"] = static scheduler => LockedCase(source => source.ToObservableChangeSet().Counts(), scheduler),
+        ["cache-to-observable-change-set"] = static scheduler => LockedCase(source => source.ToObservableChangeSet(static value => value).Counts(), scheduler),
+        ["list-filter-predicate-state"] = static scheduler => ListCase(source => source.Connect().Filter(Observable.Return(true), static (include, _) => include).Counts(), scheduler),
+
+        // Cache operators.
+        ["source-cache-connect"] = static scheduler => CacheCase(source => source.Connect().Counts(), scheduler),
+        ["cache-on-item-removed"] = static scheduler => CacheCase(source => source.Connect().OnItemRemoved(static _ => { }).Counts(), scheduler),
+        ["cache-async-dispose-many"] = static scheduler => CacheCase(source => source.Connect().AsyncDisposeMany(static _ => { }).Counts(), scheduler),
+
+        // List operators.
+        ["source-list-connect"] = static scheduler => ListCase(source => source.Connect().Counts(), scheduler),
+        ["list-group-on"] = static scheduler => ListCase(source => source.Connect().GroupOn(static value => value % 2).Counts(), scheduler),
+        ["list-dispose-many"] = static scheduler => ListCase(source => source.Connect().DisposeMany().Counts(), scheduler),
+
+        // Property observation.
+    };
+
+    /// <summary>
+    /// Operators whose disposal deliberately waits for a delivery in progress on another thread, so that their
+    /// teardown (disposing the items they track) never runs while that delivery still uses them. Disposing one
+    /// while holding a lock its observer needs still deadlocks.
+    /// </summary>
+    private static readonly HashSet<string> WaitingOperations =
+    [
+        "list-dispose-many",
+        "list-group-on", // Disposes its groups through list DisposeMany.
+        "cache-on-item-removed",
+        "cache-async-dispose-many",
+    ];
+
+    public static IEnumerable<string> Operations() => Cases.Keys;
+
+    public static IEnumerable<string> NonWaitingOperations() => Cases.Keys.Where(static operation => !WaitingOperations.Contains(operation));
+
     private static TimeSpan? ExpireBelowNonExpiring(int value) => value < NonExpiring ? Lifetime : null;
 
     private static OperatorCase CreateCase(string operation)
+        => Cases.TryGetValue(operation, out var create) ? create(new TestScheduler()) : throw new ArgumentOutOfRangeException(nameof(operation));
+
+    private static OperatorCase CacheCase(Func<SourceCache<int, int>, IObservable<int>> emissions, TestScheduler scheduler)
     {
-        var scheduler = new TestScheduler();
-        switch (operation)
+        var source = new SourceCache<int, int>(static value => value);
+        return new(emissions(source), source.AddOrUpdate, action => source.Edit(_ => action()), scheduler, source);
+    }
+
+    private static OperatorCase ListCase(Func<SourceList<int>, IObservable<int>> emissions, TestScheduler scheduler, int? initial = null)
+    {
+        var source = new SourceList<int>();
+        if (initial is { } value)
         {
-            case "list-expire-after":
-                {
-                    var source = new SourceList<int>();
-                    return new(
-                        source.ExpireAfter(ExpireBelowNonExpiring, null, scheduler).Select(static items => items.Count()),
-                        source.Add,
-                        action => source.Edit(_ => action()),
-                        scheduler,
-                        source);
-                }
-
-            case "cache-expire-after-source":
-                {
-                    var source = new SourceCache<int, int>(static value => value);
-                    return new(
-                        source.ExpireAfter(ExpireBelowNonExpiring, null, scheduler).Select(static items => items.Count()),
-                        source.AddOrUpdate,
-                        action => source.Edit(_ => action()),
-                        scheduler,
-                        source);
-                }
-
-            case "cache-expire-after-stream":
-                {
-                    var source = new SourceCache<int, int>(static value => value);
-                    return new(
-                        source.Connect().ExpireAfter(ExpireBelowNonExpiring, null, scheduler).Select(static changes => changes.Count),
-                        source.AddOrUpdate,
-                        action => source.Edit(_ => action()),
-                        scheduler,
-                        source);
-                }
-
-            case "list-to-observable-change-set":
-                {
-                    var source = new LockedSource<int>();
-                    return new(
-                        source.ToObservableChangeSet().Select(static changes => changes.Count).Where(static count => count != 0),
-                        source.Write,
-                        source.UnderLock,
-                        scheduler,
-                        Disposable.Empty,
-                        source.Push);
-                }
-
-            case "cache-to-observable-change-set":
-                {
-                    var source = new LockedSource<int>();
-                    return new(
-                        source.ToObservableChangeSet(static value => value).Select(static changes => changes.Count).Where(static count => count != 0),
-                        source.Write,
-                        source.UnderLock,
-                        scheduler,
-                        Disposable.Empty,
-                        source.Push);
-                }
-
-            case "list-filter-predicate-state":
-                {
-                    var source = new SourceList<int>();
-                    return new(
-                        source.Connect().Filter(Observable.Return(true), static (include, _) => include).Select(static changes => changes.Count),
-                        source.Add,
-                        action => source.Edit(_ => action()),
-                        scheduler,
-                        source);
-                }
-
-            default:
-                throw new ArgumentOutOfRangeException(nameof(operation));
+            source.Add(value);
         }
+
+        return new(emissions(source), source.Add, action => source.Edit(_ => action()), scheduler, source);
+    }
+
+    private static OperatorCase LockedCase(Func<LockedSource<int>, IObservable<int>> emissions, TestScheduler scheduler)
+    {
+        var source = new LockedSource<int>();
+        return new(emissions(source), source.Write, source.UnderLock, scheduler, Disposable.Empty, source.Push);
+    }
+
+    private static OperatorCase NotifierCase(Func<Notifier, IObservable<int>> emissions, TestScheduler scheduler)
+    {
+        var root = new Notifier { Child = new Notifier() };
+        void Write(Notifier target, int value)
+        {
+            target.Value = value;
+            root.Child!.Value = value;
+        }
+
+        return new(
+            emissions(root),
+            value =>
+            {
+                lock (root)
+                {
+                    Write(root, value);
+                }
+            },
+            action =>
+            {
+                lock (root)
+                {
+                    action();
+                }
+            },
+            scheduler,
+            Disposable.Empty,
+            value => Write(root, value));
+    }
+
+    private static IObservable<IChangeSet<int, int>> SingleChange(int value)
+        => Observable.Return<IChangeSet<int, int>>(new ChangeSet<int, int> { new Change<int, int>(ChangeReason.Add, value, value) });
+
+    private static IObservableList<IObservable<T>> DynamicSources<T>(IObservable<T> source)
+    {
+        var sources = new SourceList<IObservable<T>>();
+        sources.Add(source);
+        return sources;
     }
 
     /// <param name="Emissions">The operator's notifications, as a count of items.</param>
@@ -307,4 +333,41 @@ public class QueuedOperatorDisposalFixture
             }
         }
     }
+
+    /// <summary>An object with a notifying property and a child, for property observation.</summary>
+    private sealed class Notifier : INotifyPropertyChanged
+    {
+        private Notifier? _child;
+        private int _value;
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        public Notifier? Child
+        {
+            get => _child;
+            set
+            {
+                _child = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Child)));
+            }
+        }
+
+        public int Value
+        {
+            get => _value;
+            set
+            {
+                _value = value;
+                PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(Value)));
+            }
+        }
+    }
+}
+
+internal static class QueuedOperatorDisposalExtensions
+{
+    /// <summary>The size of each non-empty changeset.</summary>
+    public static IObservable<int> Counts<TChangeSet>(this IObservable<TChangeSet> source)
+        where TChangeSet : IChangeSet
+        => source.Select(static changes => changes.Count).Where(static count => count != 0);
 }
