@@ -107,6 +107,11 @@ private abstract class SubscriptionBase
             private readonly bool _suppressEmptyChangeSets;
 
             /// <summary>
+            /// Serializes the predicate state and source notifications.
+            /// </summary>
+            private readonly SharedDeliveryQueue _queue = new();
+
+            /// <summary>
             /// The _hasPredicateStateCompleted field.
             /// </summary>
             private bool _hasPredicateStateCompleted;
@@ -175,13 +180,16 @@ private abstract class SubscriptionBase
                 _predicateStateSubscription = predicateStateSubscription;
                 _sourceSubscription = sourceSubscription;
 
-                predicateStateSubscription.Disposable = predicateState.SubscribeSafe(Observer.Create<TState>(
+                // Both inputs are serialized by one delivery queue, so the item states are only touched
+                // on the queue and no lock is held while the downstream observer runs. A producer that
+                // arrives during delivery enqueues and returns instead of waiting for the observer.
+                predicateStateSubscription.Disposable = predicateState.SynchronizeSafe(_queue).SubscribeSafe(Observer.Create<TState>(
                     onNext: OnPredicateStateNext,
                     onError: onError,
                     onCompleted: OnPredicateStateCompleted));
 
                 sourceSubscription.Disposable = PrimitivesLinqExtensions.SubscribeSafe(
-                    source,
+                    source.SynchronizeSafe(_queue),
                     onNext: OnSourceNext,
                     onError: onError,
                     onCompleted: OnSourceCompleted);
@@ -194,6 +202,7 @@ private abstract class SubscriptionBase
             {
                 _predicateStateSubscription?.Dispose();
                 _sourceSubscription?.Dispose();
+                _queue.Dispose();
             }
 
             /// <summary>
@@ -291,18 +300,6 @@ private abstract class SubscriptionBase
             protected abstract void PerformReplace(ItemChange<T> change);
 
             /// <summary>
-            /// Gets the DownstreamSynchronizationGate value.
-            /// </summary>
-            private object DownstreamSynchronizationGate
-                => _downstreamChangesBuffer;
-
-            /// <summary>
-            /// Gets the UpstreamSynchronizationGate value.
-            /// </summary>
-            private object UpstreamSynchronizationGate
-                => _itemStates;
-
-            /// <summary>
             /// Executes the AssembleDownstreamChanges operation.
             /// </summary>
             /// <returns>The result of the operation.</returns>
@@ -323,33 +320,10 @@ private abstract class SubscriptionBase
             /// <param name="error">The error value.</param>
             private void OnError(Exception error)
             {
-                var hasUpstreamLock = false;
-                var hasDownstreamLock = false;
-                try
-                {
-                    Monitor.Enter(UpstreamSynchronizationGate, ref hasUpstreamLock);
+                _predicateStateSubscription?.Dispose();
+                _sourceSubscription?.Dispose();
 
-                    _predicateStateSubscription?.Dispose();
-                    _sourceSubscription?.Dispose();
-
-                    Monitor.Enter(DownstreamSynchronizationGate, ref hasDownstreamLock);
-
-                    if (hasUpstreamLock)
-                    {
-                        Monitor.Exit(UpstreamSynchronizationGate);
-                        hasUpstreamLock = false;
-                    }
-
-                    _downstreamObserver.OnError(error);
-                }
-                finally
-                {
-                    if (hasUpstreamLock)
-                        Monitor.Exit(UpstreamSynchronizationGate);
-
-                    if (hasDownstreamLock)
-                        Monitor.Exit(DownstreamSynchronizationGate);
-                }
+                _downstreamObserver.OnError(error);
             }
 
             /// <summary>
@@ -357,39 +331,16 @@ private abstract class SubscriptionBase
             /// </summary>
             private void OnPredicateStateCompleted()
             {
-                var hasUpstreamLock = false;
-                var hasDownstreamLock = false;
-                try
+                _hasPredicateStateCompleted = true;
+
+                // If we didn't get at least one predicateState value, we can't ever emit any (non-empty) downstream changesets,
+                // no matter how many items come through from source, so just go ahead and complete now.
+                if (_hasSourceCompleted || (!_isLatestPredicateStateValid && _suppressEmptyChangeSets))
                 {
-                    Monitor.Enter(UpstreamSynchronizationGate, ref hasUpstreamLock);
+                    _predicateStateSubscription?.Dispose();
+                    _sourceSubscription?.Dispose();
 
-                    _hasPredicateStateCompleted = true;
-
-                    // If we didn't get at least one predicateState value, we can't ever emit any (non-empty) downstream changesets,
-                    // no matter how many items come through from source, so just go ahead and complete now.
-                    if (_hasSourceCompleted || (!_isLatestPredicateStateValid && _suppressEmptyChangeSets))
-                    {
-                        _predicateStateSubscription?.Dispose();
-                        _sourceSubscription?.Dispose();
-
-                        Monitor.Enter(DownstreamSynchronizationGate, ref hasDownstreamLock);
-
-                        if (hasUpstreamLock)
-                        {
-                            Monitor.Exit(UpstreamSynchronizationGate);
-                            hasUpstreamLock = false;
-                        }
-
-                        _downstreamObserver.OnCompleted();
-                    }
-                }
-                finally
-                {
-                    if (hasUpstreamLock)
-                        Monitor.Exit(UpstreamSynchronizationGate);
-
-                    if (hasDownstreamLock)
-                        Monitor.Exit(DownstreamSynchronizationGate);
+                    _downstreamObserver.OnCompleted();
                 }
             }
 
@@ -399,40 +350,15 @@ private abstract class SubscriptionBase
             /// <param name="predicateState">The predicateState value.</param>
             private void OnPredicateStateNext(TState predicateState)
             {
-                var hasUpstreamLock = false;
-                var hasDownstreamLock = false;
-                try
-                {
-                    Monitor.Enter(UpstreamSynchronizationGate, ref hasUpstreamLock);
+                _latestPredicateState = predicateState;
+                _isLatestPredicateStateValid = true;
 
-                    _latestPredicateState = predicateState;
-                    _isLatestPredicateStateValid = true;
+                PerformReFilter();
 
-                    PerformReFilter();
+                var downstreamChanges = AssembleDownstreamChanges();
 
-                    var downstreamChanges = AssembleDownstreamChanges();
-
-                    if ((downstreamChanges.Count is not 0) || !_suppressEmptyChangeSets)
-                    {
-                        Monitor.Enter(DownstreamSynchronizationGate, ref hasDownstreamLock);
-
-                        if (hasUpstreamLock)
-                        {
-                            Monitor.Exit(UpstreamSynchronizationGate);
-                            hasUpstreamLock = false;
-                        }
-
-                        _downstreamObserver.OnNext(downstreamChanges);
-                    }
-                }
-                finally
-                {
-                    if (hasUpstreamLock)
-                        Monitor.Exit(UpstreamSynchronizationGate);
-
-                    if (hasDownstreamLock)
-                        Monitor.Exit(DownstreamSynchronizationGate);
-                }
+                if ((downstreamChanges.Count is not 0) || !_suppressEmptyChangeSets)
+                    _downstreamObserver.OnNext(downstreamChanges);
             }
 
             /// <summary>
@@ -440,39 +366,16 @@ private abstract class SubscriptionBase
             /// </summary>
             private void OnSourceCompleted()
             {
-                var hasUpstreamLock = false;
-                var hasDownstreamLock = false;
-                try
+                _hasSourceCompleted = true;
+
+                // We can never emit any (non-empty) downstream changes in the future, if the collection is empty
+                // and the source has reported that it'll never change, so go ahead and complete now.
+                if (_hasPredicateStateCompleted || ((_itemStates.Count is 0) && _suppressEmptyChangeSets))
                 {
-                    Monitor.Enter(UpstreamSynchronizationGate, ref hasUpstreamLock);
+                    _predicateStateSubscription?.Dispose();
+                    _sourceSubscription?.Dispose();
 
-                    _hasSourceCompleted = true;
-
-                    // We can never emit any (non-empty) downstream changes in the future, if the collection is empty
-                    // and the source has reported that it'll never change, so go ahead and complete now.
-                    if (_hasPredicateStateCompleted || ((_itemStates.Count is 0) && _suppressEmptyChangeSets))
-                    {
-                        _predicateStateSubscription?.Dispose();
-                        _sourceSubscription?.Dispose();
-
-                        Monitor.Enter(DownstreamSynchronizationGate, ref hasDownstreamLock);
-
-                        if (hasUpstreamLock)
-                        {
-                            Monitor.Exit(UpstreamSynchronizationGate);
-                            hasUpstreamLock = false;
-                        }
-
-                        _downstreamObserver.OnCompleted();
-                    }
-                }
-                finally
-                {
-                    if (hasUpstreamLock)
-                        Monitor.Exit(UpstreamSynchronizationGate);
-
-                    if (hasDownstreamLock)
-                        Monitor.Exit(DownstreamSynchronizationGate);
+                    _downstreamObserver.OnCompleted();
                 }
             }
 
@@ -482,75 +385,50 @@ private abstract class SubscriptionBase
             /// <param name="upstreamChanges">The upstreamChanges value.</param>
             private void OnSourceNext(IChangeSet<T> upstreamChanges)
             {
-                var hasUpstreamLock = false;
-                var hasDownstreamLock = false;
-                try
+                foreach (var change in upstreamChanges)
                 {
-                    Monitor.Enter(UpstreamSynchronizationGate, ref hasUpstreamLock);
-
-                    foreach (var change in upstreamChanges)
+                    switch (change.Reason)
                     {
-                        switch (change.Reason)
-                        {
-                            case ListChangeReason.Add:
-                                PerformAdd(change.Item);
-                                break;
+                        case ListChangeReason.Add:
+                            PerformAdd(change.Item);
+                            break;
 
-                            case ListChangeReason.AddRange:
-                                PerformAddRange(change.Range);
-                                break;
+                        case ListChangeReason.AddRange:
+                            PerformAddRange(change.Range);
+                            break;
 
-                            case ListChangeReason.Clear:
-                                if (_itemStates.Count is not 0)
-                                    PerformClear();
-                                break;
+                        case ListChangeReason.Clear:
+                            if (_itemStates.Count is not 0)
+                                PerformClear();
+                            break;
 
-                            case ListChangeReason.Moved:
-                                if (change.Item.CurrentIndex != change.Item.PreviousIndex)
-                                    PerformMove(change.Item);
-                                break;
+                        case ListChangeReason.Moved:
+                            if (change.Item.CurrentIndex != change.Item.PreviousIndex)
+                                PerformMove(change.Item);
+                            break;
 
-                            case ListChangeReason.Refresh:
-                                PerformRefresh(change.Item);
-                                break;
+                        case ListChangeReason.Refresh:
+                            PerformRefresh(change.Item);
+                            break;
 
-                            case ListChangeReason.Remove:
-                                PerformRemove(change.Item);
-                                break;
+                        case ListChangeReason.Remove:
+                            PerformRemove(change.Item);
+                            break;
 
-                            case ListChangeReason.RemoveRange:
-                                PerformRemoveRange(change.Range);
-                                break;
+                        case ListChangeReason.RemoveRange:
+                            PerformRemoveRange(change.Range);
+                            break;
 
-                            case ListChangeReason.Replace:
-                                PerformReplace(change.Item);
-                                break;
-                        }
-                    }
-
-                    var downstreamChanges = AssembleDownstreamChanges();
-
-                    if ((downstreamChanges.Count is not 0) || !_suppressEmptyChangeSets)
-                    {
-                        Monitor.Enter(DownstreamSynchronizationGate, ref hasDownstreamLock);
-
-                        if (hasUpstreamLock)
-                        {
-                            Monitor.Exit(UpstreamSynchronizationGate);
-                            hasUpstreamLock = false;
-                        }
-
-                        _downstreamObserver.OnNext(downstreamChanges);
+                        case ListChangeReason.Replace:
+                            PerformReplace(change.Item);
+                            break;
                     }
                 }
-                finally
-                {
-                    if (hasUpstreamLock)
-                        Monitor.Exit(UpstreamSynchronizationGate);
 
-                    if (hasDownstreamLock)
-                        Monitor.Exit(DownstreamSynchronizationGate);
-                }
+                var downstreamChanges = AssembleDownstreamChanges();
+
+                if ((downstreamChanges.Count is not 0) || !_suppressEmptyChangeSets)
+                    _downstreamObserver.OnNext(downstreamChanges);
             }
 
 /// <summary>

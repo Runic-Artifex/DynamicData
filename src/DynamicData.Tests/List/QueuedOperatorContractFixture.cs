@@ -20,6 +20,7 @@ public class QueuedOperatorContractFixture
     [Arguments("adapt")]
     [Arguments("dispose")]
     [Arguments("page")]
+    [Arguments("filter-predicate-state")]
     public async Task ConcurrentCrossWritesReleaseOperatorGates(string operation)
     {
         var first = new DirectSource<IChangeSet<int>>();
@@ -31,7 +32,7 @@ public class QueuedOperatorContractFixture
         var secondUpdates = 0;
         Exception? firstError = null;
         Exception? secondError = null;
-        using var firstSubscription = Pipeline(first, operation).Subscribe(_ =>
+        var firstSubscription = Pipeline(first, operation).Subscribe(_ =>
         {
             Interlocked.Increment(ref firstUpdates);
             if (Interlocked.Exchange(ref firstEntered, 1) == 0)
@@ -44,7 +45,7 @@ public class QueuedOperatorContractFixture
                 second.Push(Add(3));
             }
         }, error => firstError = error);
-        using var secondSubscription = Pipeline(second, operation).Subscribe(_ =>
+        var secondSubscription = Pipeline(second, operation).Subscribe(_ =>
         {
             Interlocked.Increment(ref secondUpdates);
             if (Interlocked.Exchange(ref secondEntered, 1) == 0)
@@ -62,7 +63,11 @@ public class QueuedOperatorContractFixture
         // then write to the opposing input, reproducing the ABBA window of monitor gates.
         var firstWriter = Task.Factory.StartNew(() => first.Push(Add(1)), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         var secondWriter = Task.Factory.StartNew(() => second.Push(Add(2)), CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+        // A deadlocked delivery is left undisposed: disposal can wait for it and hang the run.
         await Task.WhenAll(firstWriter, secondWriter).WaitAsync(TimeSpan.FromSeconds(15));
+        firstSubscription.Dispose();
+        secondSubscription.Dispose();
         await Assert.That(firstError).IsNull();
         await Assert.That(secondError).IsNull();
         await Assert.That(firstUpdates).IsEqualTo(2);
@@ -82,6 +87,7 @@ public class QueuedOperatorContractFixture
         "adapt" => input.Adapt(new NoopAdaptor()).Select(changes => changes.Count),
         "dispose" => input.DisposeMany().Select(changes => changes.Count),
         "page" => input.Page(Observable.Return<IPageRequest>(new PageRequest(1, 25))).Select(changes => changes.Count),
+        "filter-predicate-state" => input.Filter(Observable.Return(true), static (include, _) => include).Select(changes => changes.Count),
         _ => throw new ArgumentOutOfRangeException(nameof(operation)),
     };
 
