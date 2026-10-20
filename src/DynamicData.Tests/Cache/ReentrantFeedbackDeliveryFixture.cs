@@ -108,6 +108,20 @@ public sealed class ReentrantFeedbackDeliveryFixture
             });
     }
 
+    [Test]
+    public async Task GroupWithImmutableStateWithRegrouper()
+    {
+        using var regrouper = new ReactiveUI.Primitives.Signals.Signal<Unit>();
+        Person? first = null;
+        await AssertFeedbackIsNotReentrant(
+            s => s.Do(changes => first ??= changes.First().Current).GroupWithImmutableState(p => p.Age, regrouper),
+            () =>
+            {
+                first!.Age = 100;
+                regrouper.OnNext(Unit.Default);
+            });
+    }
+
     private static async Task AssertFeedbackIsNotReentrant<T>(
         Func<IObservable<IChangeSet<Person, string>>, IObservable<T>> pipeline,
         Action triggerFromOtherInput)

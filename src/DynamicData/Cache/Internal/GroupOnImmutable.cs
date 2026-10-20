@@ -54,7 +54,9 @@ internal sealed class GroupOnImmutable<TObject, TKey, TGroupKey>(IObservable<ICh
 
                 var regroup = _regrouper.SynchronizeSafe(queue).Select(_ => grouper.Regroup());
 
-                return new CompositeDisposable(groups.UnsynchronizedMerge(regroup).Where(changes => changes.Count != 0).SubscribeSafe(observer), queue);
+                // Deliver through the queue too: a notification raised from inside the observer, through
+                // another input, is then delivered after the observer returns instead of re-entrantly.
+                return new CompositeDisposable(groups.UnsynchronizedMerge(regroup).Where(changes => changes.Count != 0).SubscribeSafe(queue.CreateQueue(observer)), queue);
             });
 
 /// <summary>
