@@ -20,6 +20,8 @@ mono_crash.*
 [Dd]ebug/
 [Dd]ebugPublic/
 [Rr]elease/
+# The release tooling lives in eng/release; only build outputs named Release are ignored.
+!/eng/release/
 [Rr]eleases/
 x64/
 x86/

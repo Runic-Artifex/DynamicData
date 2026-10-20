@@ -16,7 +16,7 @@ dotnet src/DynamicData.Reactive.Tests/bin/Release/net10.0/DynamicData.Reactive.T
 dotnet pack src/DynamicData.sln -c Release --no-build -o artifacts/packages
 ```
 
-`Runic.DynamicData` uses ReactiveUI.Primitives directly; `Runic.DynamicData.Reactive`
+`RunicArtifex.DynamicData` uses ReactiveUI.Primitives directly; `RunicArtifex.DynamicData.Reactive`
 compiles the shared implementation with System.Reactive conventions. Preserve both
 flavors when changing shared operators. The default dependency is Primitives 9.0.0;
 `-p:ReactiveUIPrimitivesVersion=8.4.0` builds against ReactiveUI 25's generation.
@@ -27,6 +27,11 @@ regressions for values, completion, errors and subscription disposal when changi
 an operator. Performance work should include a relevant benchmark.
 
 CI builds and tests both flavors and dependency generations on Linux and Windows.
-The manual release workflow attaches the branded packages to a GitHub release; it
-does not publish under upstream package names. Download the assets into a local
-NuGet feed to consume the fork. This fork will not be proposed upstream.
+The manual release workflow publishes the branded packages to nuget.org, as
+[RunicArtifex.DynamicData](https://www.nuget.org/packages/RunicArtifex.DynamicData)
+and [RunicArtifex.DynamicData.Reactive](https://www.nuget.org/packages/RunicArtifex.DynamicData.Reactive),
+and records release notes in a [GitHub release](https://github.com/Runic-Artifex/DynamicData/releases);
+it does not publish under upstream package names. Consume the fork from nuget.org,
+for example `dotnet add package RunicArtifex.DynamicData --prerelease`. Earlier
+previews were only GitHub release assets, under the IDs `Runic.DynamicData` and
+`Runic.DynamicData.Reactive`. This fork will not be proposed upstream.

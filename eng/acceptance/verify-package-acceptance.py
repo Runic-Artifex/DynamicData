@@ -18,8 +18,8 @@ ACCEPTANCE = ROOT / "eng" / "acceptance"
 OUTPUT = ROOT / "artifacts" / "acceptance"
 NUGET_NAMESPACE = {"n": "http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd"}
 FLAVORS = (
-    ("Primitives", "Runic.DynamicData", "ReactiveUI.Primitives"),
-    ("Reactive", "Runic.DynamicData.Reactive", "ReactiveUI.Primitives.Reactive"),
+    ("Primitives", "RunicArtifex.DynamicData", "ReactiveUI.Primitives"),
+    ("Reactive", "RunicArtifex.DynamicData.Reactive", "ReactiveUI.Primitives.Reactive"),
 )
 NUGET_ORG = "https://api.nuget.org/v3/index.json"
 
@@ -60,7 +60,7 @@ def write_nuget_config(feed: Path) -> Path:
     ET.SubElement(sources, "add", key="nuget.org", value=NUGET_ORG)
     mappings = ET.SubElement(configuration, "packageSourceMapping")
     local_mapping = ET.SubElement(mappings, "packageSource", key="acceptance-assets")
-    ET.SubElement(local_mapping, "package", pattern="Runic.DynamicData*")
+    ET.SubElement(local_mapping, "package", pattern="RunicArtifex.DynamicData*")
     public_mapping = ET.SubElement(mappings, "packageSource", key="nuget.org")
     ET.SubElement(public_mapping, "package", pattern="*")
     ET.indent(configuration, space="  ")
@@ -73,7 +73,7 @@ def write_nuget_config(feed: Path) -> Path:
         for node in restored.findall("./packageSourceMapping/packageSource")
     }
     if restored_sources != [("acceptance-assets", local_source), ("nuget.org", NUGET_ORG)] or restored_mappings != {
-        "acceptance-assets": ["Runic.DynamicData*"],
+        "acceptance-assets": ["RunicArtifex.DynamicData*"],
         "nuget.org": ["*"],
     }:
         raise ValueError(f"NuGet configuration serialization changed its isolated sources or mappings: {path}")
@@ -102,7 +102,7 @@ def verify_graph(project: Path, package: str, version: str, primitives: str, rea
     forbidden = {
         "dynamicdata",
         "dynamicdata.reactive",
-        "runic.dynamicdata.reactive" if not reactive else "runic.dynamicdata",
+        "runicartifex.dynamicdata.reactive" if not reactive else "runicartifex.dynamicdata",
         "reactiveui.primitives.reactive" if not reactive else "reactiveui.primitives",
     }
     if not reactive:

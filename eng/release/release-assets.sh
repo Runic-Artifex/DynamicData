@@ -1,13 +1,19 @@
 #!/usr/bin/env bash
 # Validates the two branded packages and, only when requested by the manual
-# GitHub workflow, creates an immutable prerelease from those exact bytes.
+# GitHub workflow, creates an immutable prerelease from those exact bytes and
+# pushes them to nuget.org (eng/release/README.md).
 set -euo pipefail
 
-readonly PACKAGE_ID='Runic.DynamicData'
-readonly REACTIVE_PACKAGE_ID='Runic.DynamicData.Reactive'
+readonly PACKAGE_ID='RunicArtifex.DynamicData'
+readonly REACTIVE_PACKAGE_ID='RunicArtifex.DynamicData.Reactive'
 readonly DEFAULT_PRIMITIVES_VERSION='9.0.0'
 readonly BUILD_WORKFLOW_PATH='.github/workflows/ci-build.yml'
 readonly GH_BIN="${GH_BIN:-gh}"
+readonly DOTNET_BIN="${DOTNET_BIN:-dotnet}"
+readonly NUGET_PUSH_SOURCE='https://api.nuget.org/v3/index.json'
+NUGET_HELPER="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/nuget.py"
+readonly NUGET_HELPER
+readonly VERSION_PATTERN='^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'
 TEMP_FILES=()
 
 cleanup() {
@@ -25,11 +31,19 @@ die() {
 
 usage() {
   cat >&2 <<'EOF'
-Usage: eng/release/release-assets.sh <validate|publish> <package-directory>
+Usage: eng/release/release-assets.sh <command> <package-directory>
+       eng/release/release-assets.sh wait-indexed <version>
 
-validate verifies the exact branded pair and its package metadata.
-publish additionally creates a draft GitHub prerelease, uploads and downloads
-the assets byte-for-byte, then publishes that draft.
+validate      verifies the exact branded pair and its package metadata.
+check         also runs the read-only GitHub checks of publish (source, Build
+              run, absent tag and release) without creating anything.
+publish       additionally creates a draft GitHub prerelease, uploads and
+              downloads the assets byte-for-byte, then publishes that draft.
+nuget-check   validates, then checks nuget.org with keyless lookups: package
+              globs, ID ownership and already published versions. Pushes nothing.
+nuget-push    repeats nuget-check, then pushes each missing package with
+              NUGET_API_KEY. Identical published versions are skipped.
+wait-indexed  waits until the nuget.org flat container lists both packages.
 EOF
   exit 2
 }
@@ -122,8 +136,16 @@ if text('id') != package_id:
     raise SystemExit(f"package id is not {package_id}")
 if text('version') != version:
     raise SystemExit(f"package version is not {version}")
-if text('authors') != 'Roland Pheasant':
-    raise SystemExit('package authorship must retain Roland Pheasant')
+if text('authors') != 'Roland Pheasant, Runic Artifex':
+    raise SystemExit('package authors must be "Roland Pheasant, Runic Artifex"')
+if any(local_name(child) == 'owners' for child in metadata):
+    raise SystemExit('package must not declare <owners>; nuget.org owners come from the account')
+if not text('copyright').startswith('Copyright (c) Roland Pheasant 2011-'):
+    raise SystemExit('package copyright must retain Roland Pheasant')
+for name in ('title', 'description'):
+    if not text(name).lower().startswith(('runic artifex fork of dynamicdata for .net 10',
+                                          'the runic artifex fork of dynamicdata for .net 10')):
+        raise SystemExit(f'package <{name}> must start by naming the Runic Artifex fork of DynamicData for .NET 10')
 
 license_element = one(metadata, 'license')
 if license_element.get('type') != 'expression' or (license_element.text or '').strip() != 'MIT':
@@ -175,15 +197,15 @@ validate_packages() {
   local base_package=''
   for file in "${names[@]}"; do
     if [[ "$file" == "$PACKAGE_ID".*.nupkg ]] && [[ "$file" != "$REACTIVE_PACKAGE_ID".*.nupkg ]]; then
-      [[ -z "$base_package" ]] || die 'found more than one Runic.DynamicData package.'
+      [[ -z "$base_package" ]] || die 'found more than one RunicArtifex.DynamicData package.'
       base_package="$file"
     fi
   done
-  [[ -n "$base_package" ]] || die 'missing the Runic.DynamicData package.'
+  [[ -n "$base_package" ]] || die 'missing the RunicArtifex.DynamicData package.'
 
   PACKAGE_VERSION="${base_package#"$PACKAGE_ID".}"
   PACKAGE_VERSION="${PACKAGE_VERSION%.nupkg}"
-  [[ "$PACKAGE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$ ]] ||
+  [[ "$PACKAGE_VERSION" =~ $VERSION_PATTERN ]] ||
     die "invalid package version in $base_package."
 
   local expected_base="$PACKAGE_ID.$PACKAGE_VERSION.nupkg"
@@ -481,21 +503,37 @@ publish_draft() {
     -F draft=false >/dev/null
 }
 
-publish_packages() {
-  local package_directory="$1"
-  validate_packages "$package_directory"
-
+require_actions() {
   [[ "${GITHUB_ACTIONS:-}" == 'true' || "${RELEASE_ALLOW_LOCAL_PUBLISH:-}" == '1' ]] ||
-    die 'publish may run only in GitHub Actions.'
+    die "$1 may run only in GitHub Actions."
+}
+
+# Read-only: everything publish requires before it creates the draft.
+github_preflight() {
   command -v "$GH_BIN" >/dev/null || die "GitHub CLI not found: $GH_BIN"
-  [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]] || die 'GitHub token is required to publish a release.'
+  [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]] || die 'GitHub token is required to check or publish a release.'
   assert_trusted_workflow_source
   assert_hosted_build
 
   local tag="v$PACKAGE_VERSION"
   assert_remote_absent "tag $tag" "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag"
   assert_release_absent "$tag"
+}
 
+check_release() {
+  validate_packages "$1"
+  require_actions check
+  github_preflight
+  printf 'release-assets: GitHub prerelease v%s can be created.\n' "$PACKAGE_VERSION"
+}
+
+publish_packages() {
+  local package_directory="$1"
+  validate_packages "$package_directory"
+  require_actions publish
+  github_preflight
+
+  local tag="v$PACKAGE_VERSION"
   local release_id
   release_id="$(create_draft "$tag")"
   "$GH_BIN" release upload "$tag" \
@@ -525,13 +563,66 @@ publish_packages() {
   publish_draft "$release_id"
 }
 
+NUGET_PENDING=()
+
+# Keyless lookups only; fills NUGET_PENDING with the packages nuget.org lacks.
+nuget_plan() {
+  local plan
+  plan="$(mktemp)"
+  TEMP_FILES+=("$plan")
+  python3 "$NUGET_HELPER" plan --plan-file "$plan" "${PACKAGE_FILES[@]}" ||
+    die 'nuget.org check failed; nothing was pushed.'
+  mapfile -t NUGET_PENDING <"$plan"
+}
+
+nuget_check() {
+  validate_packages "$1"
+  nuget_plan
+}
+
+nuget_push() {
+  validate_packages "$1"
+  require_actions nuget-push
+  [[ -n "${NUGET_API_KEY:-}" ]] || die 'NUGET_API_KEY from NuGet/login is required to push.'
+  command -v "$DOTNET_BIN" >/dev/null || die "dotnet not found: $DOTNET_BIN"
+  nuget_plan
+
+  local package
+  for package in "${NUGET_PENDING[@]}"; do
+    "$DOTNET_BIN" nuget push "$package" --source "$NUGET_PUSH_SOURCE" --api-key "$NUGET_API_KEY" ||
+      die "dotnet nuget push failed for $(basename "$package"); see eng/release/README.md before rerunning."
+  done
+}
+
+wait_indexed() {
+  local version="$1"
+  [[ "$version" =~ $VERSION_PATTERN ]] || die "invalid package version: $version"
+  python3 "$NUGET_HELPER" wait-indexed \
+    --timeout-seconds "${NUGET_WAIT_TIMEOUT_SECONDS:-3600}" \
+    --interval-seconds "${NUGET_WAIT_INTERVAL_SECONDS:-30}" \
+    "$PACKAGE_ID" "$version" "$REACTIVE_PACKAGE_ID" "$version" ||
+    die 'nuget.org does not list both packages yet.'
+}
+
 [[ $# -eq 2 ]] || usage
 case "$1" in
   validate)
     validate_packages "$2"
     ;;
+  check)
+    check_release "$2"
+    ;;
   publish)
     publish_packages "$2"
+    ;;
+  nuget-check)
+    nuget_check "$2"
+    ;;
+  nuget-push)
+    nuget_push "$2"
+    ;;
+  wait-indexed)
+    wait_indexed "$2"
     ;;
   *)
     usage

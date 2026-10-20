@@ -104,9 +104,9 @@ jobs:
             }
           }
           if ($env:PRIMITIVES_VERSION -eq '9.0.0') {
-            foreach ($id in @('Runic.DynamicData', 'Runic.DynamicData.Reactive')) {
+            foreach ($id in @('RunicArtifex.DynamicData', 'RunicArtifex.DynamicData.Reactive')) {
               $packages = @(Get-ChildItem (Join-Path $download packages) -Filter "$id.*.nupkg" |
-                Where-Object { $id -ne 'Runic.DynamicData' -or $_.Name -notlike 'Runic.DynamicData.Reactive.*' })
+                Where-Object { $id -ne 'RunicArtifex.DynamicData' -or $_.Name -notlike 'RunicArtifex.DynamicData.Reactive.*' })
               if ($packages.Count -ne 1) {
                 throw "Expected one $id package, downloaded $($packages.Count)."
               }
@@ -140,14 +140,14 @@ jobs:
           EXPECTED_SOURCE_COMMIT: ${{ github.sha }}
         run: |
           $packages = (Resolve-Path artifacts/input/packages).Path
-          $primary = @(Get-ChildItem $packages -Filter 'Runic.DynamicData.*.nupkg' |
-            Where-Object { $_.Name -notlike 'Runic.DynamicData.Reactive.*' })
-          $reactive = @(Get-ChildItem $packages -Filter 'Runic.DynamicData.Reactive.*.nupkg')
+          $primary = @(Get-ChildItem $packages -Filter 'RunicArtifex.DynamicData.*.nupkg' |
+            Where-Object { $_.Name -notlike 'RunicArtifex.DynamicData.Reactive.*' })
+          $reactive = @(Get-ChildItem $packages -Filter 'RunicArtifex.DynamicData.Reactive.*.nupkg')
           if ($primary.Count -ne 1 -or $reactive.Count -ne 1) {
             throw "Expected one package of each flavor, got $($primary.Count) Primitives and $($reactive.Count) Reactive."
           }
-          $version = $primary[0].Name -replace '^Runic\.DynamicData\.(.*)\.nupkg$', '$1'
-          if ($reactive[0].Name -ne "Runic.DynamicData.Reactive.$version.nupkg") {
+          $version = $primary[0].Name -replace '^RunicArtifex\.DynamicData\.(.*)\.nupkg$', '$1'
+          if ($reactive[0].Name -ne "RunicArtifex.DynamicData.Reactive.$version.nupkg") {
             throw 'Package flavors have different versions.'
           }
           python eng/acceptance/verify-package-acceptance.py managed `
@@ -196,14 +196,14 @@ jobs:
           EXPECTED_SOURCE_COMMIT: ${{ github.sha }}
         run: |
           $packages = (Resolve-Path artifacts/input/packages).Path
-          $primary = @(Get-ChildItem $packages -Filter 'Runic.DynamicData.*.nupkg' |
-            Where-Object { $_.Name -notlike 'Runic.DynamicData.Reactive.*' })
-          $reactive = @(Get-ChildItem $packages -Filter 'Runic.DynamicData.Reactive.*.nupkg')
+          $primary = @(Get-ChildItem $packages -Filter 'RunicArtifex.DynamicData.*.nupkg' |
+            Where-Object { $_.Name -notlike 'RunicArtifex.DynamicData.Reactive.*' })
+          $reactive = @(Get-ChildItem $packages -Filter 'RunicArtifex.DynamicData.Reactive.*.nupkg')
           if ($primary.Count -ne 1 -or $reactive.Count -ne 1) {
             throw "Expected one package of each flavor, got $($primary.Count) Primitives and $($reactive.Count) Reactive."
           }
-          $version = $primary[0].Name -replace '^Runic\.DynamicData\.(.*)\.nupkg$', '$1'
-          if ($reactive[0].Name -ne "Runic.DynamicData.Reactive.$version.nupkg") {
+          $version = $primary[0].Name -replace '^RunicArtifex\.DynamicData\.(.*)\.nupkg$', '$1'
+          if ($reactive[0].Name -ne "RunicArtifex.DynamicData.Reactive.$version.nupkg") {
             throw 'Package flavors have different versions.'
           }
           python eng/acceptance/verify-package-acceptance.py native --rid linux-x64 `

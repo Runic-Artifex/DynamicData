@@ -11,8 +11,7 @@
     <IsTestProject>$(MSBuildProjectName.Contains('Tests'))</IsTestProject>
     <IsBenchmarkProject>$(MSBuildProjectName.Contains('Benchmarks'))</IsBenchmarkProject>
     <DebugType>embedded</DebugType>
-    <Authors>Roland Pheasant</Authors>
-    <Owners>Roland Pheasant</Owners>
+    <Authors>Roland Pheasant, Runic Artifex</Authors>
     <Copyright>Copyright (c) Roland Pheasant 2011-$([System.DateTime]::Now.ToString(yyyy))</Copyright>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/Runic-Artifex/DynamicData</PackageProjectUrl>

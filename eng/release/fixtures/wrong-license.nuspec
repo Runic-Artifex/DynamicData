@@ -1,9 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <package>
   <metadata>
-    <id>Runic.DynamicData</id>
+    <id>RunicArtifex.DynamicData</id>
     <version>@VERSION@</version>
-    <authors>Roland Pheasant</authors>
+    <title>Runic Artifex fork of DynamicData for .NET 10 and ReactiveUI.Primitives</title>
+    <authors>Roland Pheasant, Runic Artifex</authors>
+    <description>The Runic Artifex fork of DynamicData for .NET 10 and ReactiveUI.Primitives. Fixture.</description>
+    <copyright>Copyright (c) Roland Pheasant 2011-2026</copyright>
     <license type="expression">Apache-2.0</license>
     <repository type="git" url="https://github.com/@REPOSITORY@" commit="@SHA@" />
     <dependencies><group targetFramework="net10.0"><dependency id="ReactiveUI.Primitives" version="9.0.0" /></group></dependencies>

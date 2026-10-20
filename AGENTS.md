@@ -12,7 +12,7 @@ issue against the current code before acting on it.
   of a pinned upstream commit (see the maintenance guide).
 - Keep .NET 10-only targets, the SDK pin in `global.json`, default Primitives
   9.0.0 with 8.4.0 compatibility, both shared-source flavors (`REACTIVE_SHIM`),
-  TUnit and the branded `Runic.*` package IDs. Do not inherit enclosing
+  TUnit and the branded `RunicArtifex.*` package IDs. Do not inherit enclosing
   workspace central package versions.
 - Keep the original MIT license and authorship.
 - Use small logical commits with meaningful regression tests in both flavors.
