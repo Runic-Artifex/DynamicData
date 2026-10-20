@@ -30,8 +30,8 @@ internal sealed class Combiner<T>(ICollection<IObservable<IChangeSet<T>>> source
     public IObservable<IChangeSet<T>> Run() => Observable.Create<IChangeSet<T>>(observer =>
     {
         var sources = _source.ToArray();
-        var subscriptions = new CompositeDisposable();
         var queue = new SharedDeliveryQueue();
+        var subscriptions = new CompositeDisposable(Disposable.Create(queue.Terminate));
         var resultList = new ChangeAwareListWithRefCounts<T>();
         var sourceLists = sources.Select(static _ => new ReferenceCountTracker<T>()).ToList();
         var pending = sources.Length;
@@ -75,7 +75,6 @@ internal sealed class Combiner<T>(ICollection<IObservable<IChangeSet<T>>> source
             }));
         }
 
-        subscriptions.Add(queue);
         return subscriptions;
     });
 

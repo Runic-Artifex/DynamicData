@@ -133,6 +133,6 @@ internal sealed class BatchIf<TObject, TKey>(IObservable<IChangeSet<TObject, TKe
                         observer.OnCompleted();
                     });
 
-                return new CompositeDisposable(publisher, pausedHandler, timeoutDisposer, intervalTimerDisposer, queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher, pausedHandler, timeoutDisposer, intervalTimerDisposer);
             });
 }

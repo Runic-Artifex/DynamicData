@@ -46,7 +46,7 @@ internal sealed class TransformWithForcedTransform<TDestination, TSource, TKey>(
                 // do raw transform
                 var transform = new Transform<TDestination, TSource, TKey>(sourceAndRefreshes, transformFactory, exceptionCallback, true).Run();
 
-                return new CompositeDisposable(cacheLoader, transform.SubscribeSafe(observer), shared.Connect(), queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), cacheLoader, transform.SubscribeSafe(observer), shared.Connect());
             });
 
     /// <summary>

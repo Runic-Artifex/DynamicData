@@ -50,7 +50,7 @@ internal sealed class MergeChangeSets<TObject>(IObservable<IObservable<IChangeSe
                     changes => changeTracker.ProcessChangeSet(changes, observer),
                     observer.OnError,
                     observer.OnCompleted);
-            return new CompositeDisposable(publisher, queue);
+            return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher);
         });
 
     /// <summary>
