@@ -41,6 +41,7 @@ public static partial class ObservableListEx
     /// <item><term>Property changes</term><description>A <b>Refresh</b> change is emitted for the item whose property changed.</description></item>
     /// </list>
     /// <para><b>Worth noting:</b> Each item generates a subscription. For large lists with frequent property changes, use <paramref name="changeSetBuffer"/> and <paramref name="propertyChangeThrottle"/> to reduce churn.</para>
+    /// <para>Completion and per-item error handling follow <c>AutoRefreshOnObservable&lt;TObject, TAny&gt;</c>: an error from one item's property observable ends only that item's refresh subscription, and only source errors propagate.</para>
     /// </remarks>
     /// <seealso><c>AutoRefresh&lt;TObject, TProperty&gt;(IObservable&lt;IChangeSet&lt;TObject&gt;&gt;, Expression&lt;Func&lt;TObject, TProperty&gt;&gt;, TimeSpan?, TimeSpan?, IScheduler?)</c></seealso>
     /// <seealso><c>AutoRefreshOnObservable&lt;TObject, TAny&gt;(IObservable&lt;IChangeSet&lt;TObject&gt;&gt;, Func&lt;TObject, IObservable&lt;TAny&gt;&gt;, TimeSpan?, IScheduler?)</c></seealso>

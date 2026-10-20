@@ -521,6 +521,36 @@ public static partial class AutoRefreshOnObservableFixture
         }
 
         [Test]
+        public async Task ReevaluatorFails_OtherItemsStillRefresh()
+        {
+            // Setup
+            using var source = new TestSourceCache<Item, int>(Item.SelectId);
+
+            using var item1 = new Item() { Id = 1 };
+            using var item2 = new Item() { Id = 2 };
+
+            source.AddOrUpdate(new[] { item1, item2 });
+
+            using var subscription = BuildUut(
+                    source: source.Connect(),
+                    reevaluator: Item.ObserveValueChanged)
+                .ValidateSynchronization()
+                .ValidateChangeSets(Item.SelectId)
+                .RecordCacheItems(out var results);
+
+            // UUT Action (fail one item's reevaluator, then change another item)
+            item2.SetError(new Exception("Test"));
+            ++item1.Value;
+
+            await Assert.That(results.Error).IsNull().Because("a reevaluator error ends only that item's refresh subscription");
+            await Assert.That(item2.HasObservers).IsFalse().Because("the failed reevaluator subscription has ended");
+            await Assert.That(results.RecordedChangeSets.Count).IsEqualTo(2).Because("other items should still refresh");
+            await Assert.That(results.RecordedChangeSets[1].Refreshes).IsEqualTo(1);
+            await Assert.That(results.RecordedChangeSets[1].Single().Current).IsEqualTo(item1);
+            await Assert.That(results.HasCompleted).IsFalse().Because("the source has not completed");
+        }
+
+        [Test]
         public async Task ReevaluatorThrows_ExceptionPropagates()
         {
             // Setup
