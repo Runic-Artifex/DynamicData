@@ -51,6 +51,12 @@ public static partial class ObservableListEx
     /// is subscribed (delayed or empty) gets the clear on its own and its changesets when they arrive.
     /// A pending clear is also published on its own before an error or completion that ends the handoff.
     /// </para>
+    /// <para>
+    /// At most one inner source is subscribed at a time: the previous subscription is disposed before the replacement
+    /// is subscribed, so an inner source that acquires a resource exclusively is never held concurrently across a switch.
+    /// A source selected while the previous one is being subscribed or torn down starts once that has finished; only the
+    /// latest selection is subscribed, and superseded sources contribute nothing.
+    /// </para>
     /// <para><b>Worth noting:</b> Each switch clears the entire downstream list before populating from the new source. Subscribers see a full reset on every switch, and with a delayed new source they see the empty list until it delivers.</para>
     /// <para><b>Also worth noting:</b>This operator intentionally shadows the native <see cref="Observable.Switch{TSource}(IObservable{IObservable{TSource}})"/> operator, as downstream listeners will generally become corrupt when the native operator is used. This is due to its lack of the automatic-clearing behavior mentioned above.</para>
     /// </remarks>

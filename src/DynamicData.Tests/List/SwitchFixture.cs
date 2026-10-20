@@ -1,6 +1,6 @@
 namespace DynamicData.Tests.List;
 
-public class SwitchFixture : IDisposable
+public partial class SwitchFixture : IDisposable
 {
     private readonly ChangeSetAggregator<int> _results;
 
