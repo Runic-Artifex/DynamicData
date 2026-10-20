@@ -56,11 +56,12 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
         {
             try
             {
+                // The error terminates the queue once delivered. It is not cleared or waited for: a delivery in
+                // progress on another thread delivers it next, and its observer may need a lock the caller holds.
                 Fail(error, null);
             }
             finally
             {
-                queue.Dispose();
                 currentSubscription.Dispose();
             }
 
@@ -68,7 +69,8 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
         }
         catch
         {
-            queue.Dispose();
+            // Stop delivery without waiting for one in progress on another thread.
+            queue.Terminate();
             currentSubscription.Dispose();
 
             throw;

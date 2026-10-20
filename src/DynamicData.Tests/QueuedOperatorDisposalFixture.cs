@@ -163,6 +163,79 @@ public class QueuedOperatorDisposalFixture
         await Assert.That(lateUpdates).IsEqualTo(0);
     }
 
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task SwitchSubscribeFailureDuringDeliveryOnAnotherThreadDoesNotDeadlock(bool list)
+    {
+        // The sources observable selects a source, which starts delivering on another thread, then fails while the
+        // subscriber holds a lock that observer needs. Switch's cleanup must not wait for that delivery.
+        var cache = new SourceCache<int, int>(static value => value);
+        var sourceList = new SourceList<int>();
+        var gate = new object();
+        var entered = new ManualResetEventSlim();
+        var updates = 0;
+        Exception? error = null;
+        Task producer = Task.CompletedTask;
+
+        void StartDelivery()
+        {
+            producer = StartDedicatedThread(() =>
+            {
+                if (list)
+                {
+                    sourceList.Add(1);
+                }
+                else
+                {
+                    cache.AddOrUpdate(1);
+                }
+            });
+
+            if (!entered.Wait(Timeout))
+            {
+                throw new TimeoutException("The delivery did not start.");
+            }
+        }
+
+        var emissions = list
+            ? new FailingSources<IChangeSet<int>>(sourceList.Connect(), StartDelivery).Switch().Counts()
+            : new FailingSources<IChangeSet<int, int>>(cache.Connect(), StartDelivery).Switch().Counts();
+
+        var subscriber = StartDedicatedThread(() =>
+        {
+            lock (gate)
+            {
+                try
+                {
+                    emissions.Subscribe(
+                        _ =>
+                        {
+                            Interlocked.Increment(ref updates);
+                            entered.Set();
+                            lock (gate)
+                            {
+                            }
+                        },
+                        failure => Volatile.Write(ref error, failure));
+                }
+                catch (Exception failure)
+                {
+                    Volatile.Write(ref error, failure);
+                }
+            }
+        });
+
+        // A deadlocked subscription is left as is: waiting for it would hang the run.
+        await subscriber.WaitAsync(Timeout);
+        await producer.WaitAsync(Timeout);
+        cache.Dispose();
+        sourceList.Dispose();
+
+        await Assert.That(updates).IsEqualTo(1);
+        await Assert.That(error).IsTypeOf<InvalidOperationException>();
+    }
+
     private static Task StartDedicatedThread(Action action)
         => Task.Factory.StartNew(action, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
@@ -372,6 +445,17 @@ public class QueuedOperatorDisposalFixture
             {
                 action();
             }
+        }
+    }
+
+    /// <summary>Selects one source, runs an action, then fails, as a sources observable whose subscription throws.</summary>
+    private sealed class FailingSources<T>(IObservable<T> source, Action afterSelect) : IObservable<IObservable<T>>
+    {
+        public IDisposable Subscribe(IObserver<IObservable<T>> observer)
+        {
+            observer.OnNext(source);
+            afterSelect();
+            throw new InvalidOperationException("The sources failed.");
         }
     }
 
