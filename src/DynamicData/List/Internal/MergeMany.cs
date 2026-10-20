@@ -38,9 +38,13 @@ internal sealed class MergeMany<T, TDestination>(IObservable<IChangeSet<T>> sour
             {
                 var counter = new SubscriptionCounter();
                 var queue = new SharedDeliveryQueue();
+
+                // Runic (DD-045): deliver through the queue too, so a value an observer causes through another
+                // child or the source while it is being delivered to arrives after it returns, not re-entrantly.
+                var output = queue.CreateQueue(observer);
                 var disposable = _source.SynchronizeSafe(queue).Concat(counter.DeferCleanup)
-                                                .SubscribeMany(t => SubscribeChild(t, queue, counter, observer))
-                                                .Subscribe(_ => { }, observer.OnError, observer.OnCompleted);
+                                                .SubscribeMany(t => SubscribeChild(t, queue, counter, output))
+                                                .Subscribe(_ => { }, output.OnError, output.OnCompleted);
 
                 return new CompositeDisposable(Disposable.Create(queue.Terminate), disposable, counter);
             });

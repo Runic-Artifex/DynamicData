@@ -229,7 +229,9 @@ internal sealed class TreeBuilder<TObject, TKey>(IObservable<IChangeSet<TObject,
                 // serialized; UnsynchronizedCombineLatest avoids the ABBA-prone gate that
                 // Observable.CombineLatest would hold across downstream delivery.
                 var filter = _predicateChanged.SynchronizeSafe(queue).UnsynchronizedCombineLatest(reFilterObservable.SynchronizeSafe(queue), (predicate, _) => predicate);
-                var result = allNodes.Connect().Filter(filter).SubscribeSafe(observer);
+                // Runic (DD-045): deliver through the queue too, so a notification an observer causes through another
+                // input while it is being delivered to arrives after it returns, not re-entrantly.
+                var result = allNodes.Connect().Filter(filter).SubscribeSafe(queue.CreateQueue(observer));
 
                 return new CompositeDisposable(Disposable.Create(queue.Terminate), sharedSource.Connect(), result, parentSetter, allData, allNodes, groupedByPivot, Disposable.Create(() => reFilterObservable.OnCompleted()));
             });

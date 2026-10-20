@@ -31,6 +31,10 @@ internal sealed class Combiner<T>(ICollection<IObservable<IChangeSet<T>>> source
     {
         var sources = _source.ToArray();
         var queue = new SharedDeliveryQueue();
+
+        // Runic (DD-045): deliver through the queue too, so a change an observer causes through another
+        // source while it is being delivered to arrives after it returns, not re-entrantly.
+        var output = queue.CreateQueue(observer);
         var subscriptions = new CompositeDisposable(Disposable.Create(queue.Terminate));
         var resultList = new ChangeAwareListWithRefCounts<T>();
         var sourceLists = sources.Select(static _ => new ReferenceCountTracker<T>()).ToList();
@@ -39,7 +43,7 @@ internal sealed class Combiner<T>(ICollection<IObservable<IChangeSet<T>>> source
 
         if (pending == 0)
         {
-            observer.OnCompleted();
+            output.OnCompleted();
         }
 
         for (var index = 0; index < sources.Length && !stopped; index++)
@@ -56,21 +60,21 @@ internal sealed class Combiner<T>(ICollection<IObservable<IChangeSet<T>>> source
                 var notifications = UpdateResultList(changes, sourceLists, resultList);
                 if (notifications.Count != 0)
                 {
-                    observer.OnNext(notifications);
+                    output.OnNext(notifications);
                 }
             }, error =>
             {
                 if (!stopped)
                 {
                     stopped = true;
-                    observer.OnError(error);
+                    output.OnError(error);
                 }
             }, () =>
             {
                 if (!stopped && --pending == 0)
                 {
                     stopped = true;
-                    observer.OnCompleted();
+                    output.OnCompleted();
                 }
             }));
         }

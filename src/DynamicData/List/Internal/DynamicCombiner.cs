@@ -32,6 +32,10 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
             {
                 var queue = new SharedDeliveryQueue();
 
+                // Runic (DD-045): deliver through the queue too, so a notification an observer causes through another
+                // input while it is being delivered to arrives after it returns, not re-entrantly.
+                var output = queue.CreateQueue(observer);
+
                 // this is the resulting list which produces all notifications
                 var resultList = new ChangeAwareListWithRefCounts<T>();
 
@@ -47,9 +51,9 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
                         var notifications = UpdateResultList(sourceLists.Items.AsArray(), resultList, changes);
                         if (notifications.Count != 0)
                         {
-                            observer.OnNext(notifications);
+                            output.OnNext(notifications);
                         }
-                    }, observer.OnError, observer.OnCompleted);
+                    }, output.OnError, output.OnCompleted);
 
                 // When a list is removed, update all items that were in that list
                 var removedItem = sourceLists.Connect().OnItemRemoved(
@@ -59,7 +63,7 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
                         var notifications = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, mc.Tracker.Items);
                         if (notifications.Count != 0)
                         {
-                            observer.OnNext(notifications);
+                            output.OnNext(notifications);
                         }
 
                         // On some operators, items not in the removed list can also be affected.
@@ -69,7 +73,7 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
                             var notification2 = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, itemsToCheck);
                             if (notification2.Count != 0)
                             {
-                                observer.OnNext(notification2);
+                                output.OnNext(notification2);
                             }
                         }
                     }).Subscribe(static _ => { }, static _ => { });
@@ -81,7 +85,7 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
                         var notifications = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, mc.Current.Tracker.Items);
                         if (notifications.Count != 0)
                         {
-                            observer.OnNext(notifications);
+                            output.OnNext(notifications);
                         }
 
                         // On some operators, items not in the new list can also be affected.
@@ -90,7 +94,7 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
                             var notification2 = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, resultList.ToArray());
                             if (notification2.Count != 0)
                             {
-                                observer.OnNext(notification2);
+                                output.OnNext(notification2);
                             }
                         }
                     }).Subscribe(static _ => { }, static _ => { });

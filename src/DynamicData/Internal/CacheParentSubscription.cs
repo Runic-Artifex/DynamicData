@@ -49,8 +49,11 @@ internal abstract class CacheParentSubscription<TParent, TKey, TChild, TObserver
         // subscription; a failure in ParentOnNext, ChildOnNext or EmitChanges is delivered as OnError.
         var guard = SubscriberFault.Guard(observer);
         guard.DetachOnFault(this);
-        _observer = guard;
         _queue = new SharedDeliveryQueue();
+
+        // Runic (DD-045): deliver through the queue too, so a notification an observer causes through a
+        // child or the parent while it is being delivered to arrives after it returns, not re-entrantly.
+        _observer = _queue.CreateQueue<TObserver>(guard);
     }
 
     /// <inheritdoc/>

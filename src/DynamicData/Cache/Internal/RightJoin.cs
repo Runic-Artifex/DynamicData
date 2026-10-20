@@ -59,7 +59,10 @@ internal sealed class RightJoin<TLeft, TLeftKey, TRight, TRightKey, TDestination
                 var queue = new SharedDeliveryQueue(locker);
 
                 // create local backing stores
-                var leftCache = _left.SynchronizeSafe(queue).AsObservableCache();
+                // Runic (DD-045): connected once the output is subscribed, so a terminal the left side raises on
+                // connection reaches the output before it terminates the shared queue.
+                var leftShare = _left.SynchronizeSafe(queue).Publish();
+                var leftCache = leftShare.AsObservableCache();
 
                 var rightShare = _right.SynchronizeSafe(queue).Publish();
 
@@ -164,13 +167,17 @@ internal sealed class RightJoin<TLeft, TLeftKey, TRight, TRightKey, TDestination
                     // Don't forward initial changesets from the left side, only the right
                     .Where(_ => hasInitialized);
 
+                // Runic (DD-045): deliver through the queue too, so a change an observer causes through the other
+                // side while it is being delivered to arrives after it returns, not re-entrantly.
                 lock (locker)
                 {
-                    var observerSubscription = leftLoader.Merge(rightLoader).SubscribeSafe(observer);
+                    var observerSubscription = leftLoader.Merge(rightLoader).SubscribeSafe(queue.CreateQueue(observer));
+
+                    var leftShareConnection = leftShare.Connect();
 
                     hasInitialized = true;
 
-                    return new CompositeDisposable(Disposable.Create(queue.Terminate), observerSubscription, leftCache, rightCache, rightShare.Connect());
+                    return new CompositeDisposable(Disposable.Create(queue.Terminate), observerSubscription, leftCache, rightCache, leftShareConnection, rightShare.Connect());
                 }
             });
 }

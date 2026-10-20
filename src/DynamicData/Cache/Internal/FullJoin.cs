@@ -59,8 +59,12 @@ internal sealed class FullJoin<TLeft, TLeftKey, TRight, TRightKey, TDestination>
                 var queue = new SharedDeliveryQueue(locker);
 
                 // create local backing stores
-                var leftCache = _left.SynchronizeSafe(queue).AsObservableCache();
-                var rightCache = _right.SynchronizeSafe(queue).ChangeKey(_rightKeySelector).AsObservableCache();
+                // Runic (DD-045): connected once the output is subscribed, so a terminal either side raises on
+                // connection reaches the output before it terminates the shared queue.
+                var leftShare = _left.SynchronizeSafe(queue).Publish();
+                var rightShare = _right.SynchronizeSafe(queue).Publish();
+                var leftCache = leftShare.AsObservableCache();
+                var rightCache = rightShare.ChangeKey(_rightKeySelector).AsObservableCache();
 
                 // joined is the final cache
                 var joinedCache = new ChangeAwareCache<TDestination, TLeftKey>();
@@ -147,9 +151,12 @@ internal sealed class FullJoin<TLeft, TLeftKey, TRight, TRightKey, TDestination>
                     return joinedCache.CaptureChanges();
                 });
 
+                // Runic (DD-045): deliver through the queue too, so a change an observer causes through the other
+                // side while it is being delivered to arrives after it returns, not re-entrantly.
                 lock (locker)
                 {
-                    return new CompositeDisposable(Disposable.Create(queue.Terminate), leftLoader.Merge(rightLoader).SubscribeSafe(observer), leftCache, rightCache);
+                    var observerSubscription = leftLoader.Merge(rightLoader).SubscribeSafe(queue.CreateQueue(observer));
+                    return new CompositeDisposable(Disposable.Create(queue.Terminate), observerSubscription, leftCache, rightCache, leftShare.Connect(), rightShare.Connect());
                 }
             });
 }

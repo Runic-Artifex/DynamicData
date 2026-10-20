@@ -168,7 +168,9 @@ internal sealed class TransformMany<TDestination, TDestinationKey, TSource, TSou
                         return result.CaptureChanges();
                     });
 
-                return new CompositeDisposable(Disposable.Create(queue.Terminate), allChanges.SubscribeSafe(observer), transformed.Connect());
+                // Runic (DD-045): deliver through the queue too, so a notification an observer causes through another
+                // input while it is being delivered to arrives after it returns, not re-entrantly.
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), allChanges.SubscribeSafe(queue.CreateQueue(observer)), transformed.Connect());
             });
     }
 

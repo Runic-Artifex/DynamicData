@@ -153,7 +153,9 @@ private abstract class SubscriptionBase
                 Func<TState, T, bool> predicate,
                 bool suppressEmptyChangeSets)
             {
-                _downstreamObserver = downstreamObserver;
+                // Runic (DD-045): deliver through the queue too, so a notification an observer causes through another
+                // input while it is being delivered to arrives after it returns, not re-entrantly.
+                _downstreamObserver = _queue.CreateQueue(downstreamObserver);
                 _predicate = predicate;
                 _suppressEmptyChangeSets = suppressEmptyChangeSets;
 

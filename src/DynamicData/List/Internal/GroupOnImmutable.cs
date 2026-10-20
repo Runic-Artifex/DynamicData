@@ -61,7 +61,9 @@ internal sealed class GroupOnImmutable<TObject, TGroupKey>(IObservable<IChangeSe
                     Observable.Empty<IChangeSet<IGrouping<TObject, TGroupKey>>>() :
                     _reGrouper.SynchronizeSafe(queue).UnsynchronizedCombineLatest(shared.ToCollection(), (_, collection) => Regroup(groupings, groupCache, collection));
 
-                var publisher = grouper.UnsynchronizedMerge(reGroupFunc).NotEmpty().SubscribeSafe(observer);
+                // Runic (DD-045): deliver through the queue too, so a notification an observer causes through another
+                // input while it is being delivered to arrives after it returns, not re-entrantly.
+                var publisher = grouper.UnsynchronizedMerge(reGroupFunc).NotEmpty().SubscribeSafe(queue.CreateQueue(observer));
 
                 return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher, shared.Connect());
             });
