@@ -122,8 +122,16 @@ if text('id') != package_id:
     raise SystemExit(f"package id is not {package_id}")
 if text('version') != version:
     raise SystemExit(f"package version is not {version}")
-if text('authors') != 'Roland Pheasant':
-    raise SystemExit('package authorship must retain Roland Pheasant')
+if text('authors') != 'Roland Pheasant, Runic Artifex':
+    raise SystemExit('package authors must be "Roland Pheasant, Runic Artifex"')
+if any(local_name(child) == 'owners' for child in metadata):
+    raise SystemExit('package must not declare <owners>; nuget.org owners come from the account')
+if not text('copyright').startswith('Copyright (c) Roland Pheasant 2011-'):
+    raise SystemExit('package copyright must retain Roland Pheasant')
+for name in ('title', 'description'):
+    if not text(name).lower().startswith(('runic artifex fork of dynamicdata for .net 10',
+                                          'the runic artifex fork of dynamicdata for .net 10')):
+        raise SystemExit(f'package <{name}> must start by naming the Runic Artifex fork of DynamicData for .NET 10')
 
 license_element = one(metadata, 'license')
 if license_element.get('type') != 'expression' or (license_element.text or '').strip() != 'MIT':

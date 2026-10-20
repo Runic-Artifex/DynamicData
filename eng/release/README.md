@@ -11,7 +11,11 @@ workflow. It accepts only the two default `9.0.0` branded packages:
 
 The pair must have the same version, a `net10.0` dependency group, MIT license,
 and repository URL and commit matching the current workflow repository and
-`GITHUB_SHA`. The publish command refuses every existing tag or release,
+`GITHUB_SHA`. The fork attribution is checked too: authors exactly
+`Roland Pheasant, Runic Artifex`, no `<owners>` element (nuget.org takes owners
+from the account), the original `Copyright (c) Roland Pheasant 2011-` notice, and
+a title and description that start by naming the Runic Artifex fork of
+DynamicData for .NET 10. The publish command refuses every existing tag or release,
 creates a draft targeted at that SHA, uploads the exact two assets, downloads
 them for byte comparison, creates and resolves a new non-force tag at that SHA,
 and only then publishes the draft. It uses the

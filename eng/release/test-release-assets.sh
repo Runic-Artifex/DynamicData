@@ -107,6 +107,18 @@ expect_failure() {
   fi
 }
 
+# Like expect_failure, and the output must contain the expected reason.
+expect_failure_with() {
+  local description="$1"
+  local reason="$2"
+  shift 2
+  expect_failure "$description" "$@"
+  grep -qF -- "$reason" "$scratch/output" || {
+    cat "$scratch/output" >&2
+    fail "$description failed without the expected reason: $reason"
+  }
+}
+
 valid="$scratch/valid"
 make_pair "$valid"
 validate "$valid"
@@ -126,6 +138,18 @@ expect_failure 'repository SHA mismatch' validate "$wrong_source"
 wrong_license="$scratch/wrong-license"
 make_pair "$wrong_license" "$fixtures/wrong-license.nuspec"
 expect_failure 'license mismatch' validate "$wrong_license"
+
+upstream_metadata="$scratch/upstream-metadata"
+make_pair "$upstream_metadata" "$fixtures/upstream-metadata.nuspec"
+expect_failure_with 'upstream authors' 'package authors must be' validate "$upstream_metadata"
+
+upstream_title="$scratch/upstream-title"
+make_pair "$upstream_title" "$fixtures/upstream-title.nuspec"
+expect_failure_with 'upstream title' 'must start by naming the Runic Artifex fork' validate "$upstream_title"
+
+declared_owners="$scratch/declared-owners"
+make_pair "$declared_owners" "$fixtures/owners.nuspec"
+expect_failure_with 'declared owners' 'must not declare <owners>' validate "$declared_owners"
 
 invalid_version="$scratch/invalid-version"
 mkdir -p "$invalid_version"

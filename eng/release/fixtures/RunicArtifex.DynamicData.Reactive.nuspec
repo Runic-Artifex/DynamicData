@@ -3,7 +3,10 @@
   <metadata>
     <id>RunicArtifex.DynamicData.Reactive</id>
     <version>@VERSION@</version>
-    <authors>Roland Pheasant</authors>
+    <title>Runic Artifex fork of DynamicData for .NET 10 and System.Reactive</title>
+    <authors>Roland Pheasant, Runic Artifex</authors>
+    <description>The Runic Artifex fork of DynamicData for .NET 10 and System.Reactive, via ReactiveUI.Primitives.Reactive. Fixture.</description>
+    <copyright>Copyright (c) Roland Pheasant 2011-2026</copyright>
     <license type="expression">MIT</license>
     <repository type="git" url="https://github.com/@REPOSITORY@" commit="@SHA@" />
     <dependencies>

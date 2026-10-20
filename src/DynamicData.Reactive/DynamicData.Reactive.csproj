@@ -1,12 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Title>Dynamic Data</Title>
-    <Description>
-      Bring the power of Rx to collections using Dynamic Data.
-      Dynamic Data is a comprehensive caching and data manipulation solution which introduces domain centric observable collections.
-      Linq extensions enable dynamic filtering, sorting, grouping, transforms, binding, pagination, data virtualisation, expiration, disposal management plus more.
-    </Description>
+    <Title>Runic Artifex fork of DynamicData for .NET 10 and System.Reactive</Title>
+    <Description>The Runic Artifex fork of DynamicData for .NET 10 and System.Reactive, via ReactiveUI.Primitives.Reactive. Dynamic Data brings the power of Rx to collections: domain-centric observable caches and lists whose LINQ operators enable dynamic filtering, sorting, grouping, transforms, binding, pagination, data virtualisation, expiration and disposal management.</Description>
     <TargetFramework>net10.0</TargetFramework>
     <IsPackable>true</IsPackable>
     <PackageId>RunicArtifex.DynamicData.Reactive</PackageId>
