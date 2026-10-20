@@ -16,7 +16,7 @@ dotnet src/DynamicData.Reactive.Tests/bin/Release/net10.0/DynamicData.Reactive.T
 dotnet pack src/DynamicData.sln -c Release --no-build -o artifacts/packages
 ```
 
-`Runic.DynamicData` uses ReactiveUI.Primitives directly; `Runic.DynamicData.Reactive`
+`RunicArtifex.DynamicData` uses ReactiveUI.Primitives directly; `RunicArtifex.DynamicData.Reactive`
 compiles the shared implementation with System.Reactive conventions. Preserve both
 flavors when changing shared operators. The default dependency is Primitives 9.0.0;
 `-p:ReactiveUIPrimitivesVersion=8.4.0` builds against ReactiveUI 25's generation.

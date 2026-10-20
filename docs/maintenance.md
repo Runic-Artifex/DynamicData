@@ -95,8 +95,8 @@ free disk space before large local matrices.
 
 The manual [release workflow](../.github/workflows/release.yml) builds, tests and
 packs `main`, then the [release guard](../eng/release/README.md) requires a green
-Build run at the same SHA, validates the `Runic.DynamicData` and
-`Runic.DynamicData.Reactive` pair and publishes them as prerelease GitHub release
+Build run at the same SHA, validates the `RunicArtifex.DynamicData` and
+`RunicArtifex.DynamicData.Reactive` pair and publishes them as prerelease GitHub release
 assets. Published versions, tags and assets are immutable: never retag or
 replace them; a correction gets a new version. Upstream's `RELEASING.md` does not
 apply to this fork.

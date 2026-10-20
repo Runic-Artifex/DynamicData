@@ -1,13 +1,13 @@
 # Runic package acceptance
 
 This gate is a small external application, built only against the two immutable
-`Runic.DynamicData` GitHub-release assets. It is deliberately separate from
+`RunicArtifex.DynamicData` GitHub-release assets. It is deliberately separate from
 [`eng/verification`](../verification/README.md): that suite uses project
 references to prove the library tree, whereas this one proves that a released
 package restores and runs in a consumer graph.
 
 The shared application code is outside the library namespaces and is compiled
-twice: once with `Runic.DynamicData`, once with `Runic.DynamicData.Reactive`.
+twice: once with `RunicArtifex.DynamicData`, once with `RunicArtifex.DynamicData.Reactive`.
 It does not contain a `ProjectReference` or substitute sibling source for a
 package asset.
 
@@ -54,7 +54,7 @@ opposite-flavor DynamicData packages in the resolved graph.
 
 For every run, the verifier serializes a task-owned `NuGet.Config` with cleared
 sources, a portable file URI for the exact local package directory, and the
-NuGet.org HTTPS endpoint. Source mapping confines `Runic.DynamicData*` to the
+NuGet.org HTTPS endpoint. Source mapping confines `RunicArtifex.DynamicData*` to the
 local feed. The verifier parses the generated XML back and checks those sources
 and mappings before restore; it does not pass repeated `--source` arguments.
 

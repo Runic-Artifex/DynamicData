@@ -3,8 +3,8 @@
 # GitHub workflow, creates an immutable prerelease from those exact bytes.
 set -euo pipefail
 
-readonly PACKAGE_ID='Runic.DynamicData'
-readonly REACTIVE_PACKAGE_ID='Runic.DynamicData.Reactive'
+readonly PACKAGE_ID='RunicArtifex.DynamicData'
+readonly REACTIVE_PACKAGE_ID='RunicArtifex.DynamicData.Reactive'
 readonly DEFAULT_PRIMITIVES_VERSION='9.0.0'
 readonly BUILD_WORKFLOW_PATH='.github/workflows/ci-build.yml'
 readonly GH_BIN="${GH_BIN:-gh}"
@@ -175,11 +175,11 @@ validate_packages() {
   local base_package=''
   for file in "${names[@]}"; do
     if [[ "$file" == "$PACKAGE_ID".*.nupkg ]] && [[ "$file" != "$REACTIVE_PACKAGE_ID".*.nupkg ]]; then
-      [[ -z "$base_package" ]] || die 'found more than one Runic.DynamicData package.'
+      [[ -z "$base_package" ]] || die 'found more than one RunicArtifex.DynamicData package.'
       base_package="$file"
     fi
   done
-  [[ -n "$base_package" ]] || die 'missing the Runic.DynamicData package.'
+  [[ -n "$base_package" ]] || die 'missing the RunicArtifex.DynamicData package.'
 
   PACKAGE_VERSION="${base_package#"$PACKAGE_ID".}"
   PACKAGE_VERSION="${PACKAGE_VERSION%.nupkg}"

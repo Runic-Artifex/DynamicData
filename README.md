@@ -3,7 +3,9 @@
 This Runic-Artifex fork starts from [PR #1116](https://github.com/reactivemarbles/DynamicData/pull/1116)
 and includes the newer upstream operator fixes. It targets .NET 10 and current
 ReactiveUI Primitives, with compatibility checks for ReactiveUI 25's Primitives 8.4.
-The namespaces remain `DynamicData` and `DynamicData.Reactive`; the NuGet IDs are
+The namespaces and assembly names remain `DynamicData` and `DynamicData.Reactive`;
+the NuGet IDs are `RunicArtifex.DynamicData` and `RunicArtifex.DynamicData.Reactive`.
+Earlier previews, published only as GitHub release assets, used the IDs
 `Runic.DynamicData` and `Runic.DynamicData.Reactive`. Keep only one implementation
 of each flavor in an application. The original MIT license and authorship remain.
 

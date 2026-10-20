@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <package>
   <metadata>
-    <id>Runic.DynamicData</id>
+    <id>RunicArtifex.DynamicData</id>
     <version>@VERSION@</version>
     <authors>Roland Pheasant</authors>
     <license type="expression">Apache-2.0</license>

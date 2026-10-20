@@ -66,12 +66,12 @@ PY
 
 make_pair() {
   local destination="$1"
-  local base_fixture="${2:-$fixtures/Runic.DynamicData.nuspec}"
-  local reactive_fixture="${3:-$fixtures/Runic.DynamicData.Reactive.nuspec}"
+  local base_fixture="${2:-$fixtures/RunicArtifex.DynamicData.nuspec}"
+  local reactive_fixture="${3:-$fixtures/RunicArtifex.DynamicData.Reactive.nuspec}"
   local reactive_version="${4:-$version}"
   mkdir -p "$destination"
-  make_package "$destination" 'Runic.DynamicData' "$version" "$base_fixture"
-  make_package "$destination" 'Runic.DynamicData.Reactive' "$reactive_version" "$reactive_fixture"
+  make_package "$destination" 'RunicArtifex.DynamicData' "$version" "$base_fixture"
+  make_package "$destination" 'RunicArtifex.DynamicData.Reactive' "$reactive_version" "$reactive_fixture"
 }
 
 validate() {
@@ -129,18 +129,18 @@ expect_failure 'license mismatch' validate "$wrong_license"
 
 invalid_version="$scratch/invalid-version"
 mkdir -p "$invalid_version"
-make_package "$invalid_version" 'Runic.DynamicData' 'not-a-version' "$fixtures/Runic.DynamicData.nuspec"
-make_package "$invalid_version" 'Runic.DynamicData.Reactive' 'not-a-version' "$fixtures/Runic.DynamicData.Reactive.nuspec"
+make_package "$invalid_version" 'RunicArtifex.DynamicData' 'not-a-version' "$fixtures/RunicArtifex.DynamicData.nuspec"
+make_package "$invalid_version" 'RunicArtifex.DynamicData.Reactive' 'not-a-version' "$fixtures/RunicArtifex.DynamicData.Reactive.nuspec"
 expect_failure 'malformed package version' validate "$invalid_version"
 
 wrong_target="$scratch/wrong-target"
 make_pair "$wrong_target"
-append_package_entry "$wrong_target/Runic.DynamicData.$version.nupkg" 'lib/net9.0/DynamicData.dll'
+append_package_entry "$wrong_target/RunicArtifex.DynamicData.$version.nupkg" 'lib/net9.0/DynamicData.dll'
 expect_failure 'additional library target' validate "$wrong_target"
 
 wrong_license_payload="$scratch/wrong-license-payload"
 make_pair "$wrong_license_payload"
-append_package_entry "$wrong_license_payload/Runic.DynamicData.$version.nupkg" 'LICENSE/LICENSE'
+append_package_entry "$wrong_license_payload/RunicArtifex.DynamicData.$version.nupkg" 'LICENSE/LICENSE'
 expect_failure 'license payload mismatch' validate "$wrong_license_payload"
 
 run_publish() {

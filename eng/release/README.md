@@ -3,9 +3,9 @@
 `release-assets.sh` is the narrow gate used by the manual package-release
 workflow. It accepts only the two default `9.0.0` branded packages:
 
-- `Runic.DynamicData.<version>.nupkg`, with one `ReactiveUI.Primitives`
+- `RunicArtifex.DynamicData.<version>.nupkg`, with one `ReactiveUI.Primitives`
   dependency declared at `9.0.0` (NuGet's minimum `9.0.0`).
-- `Runic.DynamicData.Reactive.<version>.nupkg`, with one
+- `RunicArtifex.DynamicData.Reactive.<version>.nupkg`, with one
   `ReactiveUI.Primitives.Reactive` dependency declared at `9.0.0` (NuGet's
   minimum `9.0.0`).
 
