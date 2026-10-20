@@ -62,7 +62,9 @@ internal sealed class AutoRefresh<TObject, TAny>(IObservable<IChangeSet<TObject>
                         allItems.IndexOfMany(items, (t, idx) => new Change<TObject>(ListChangeReason.Refresh, t, idx))).Select(changes => new ChangeSet<TObject>(changes));
 
                 // publish refreshes and underlying changes; both inputs are serialized by the same queue
-                var publisher = shared.UnsynchronizedMerge(requiresRefresh).SubscribeSafe(observer);
+                // Deliver through the queue too: a notification raised from inside the observer, through
+                // another input, is then delivered after the observer returns instead of re-entrantly.
+                var publisher = shared.UnsynchronizedMerge(requiresRefresh).SubscribeSafe(queue.CreateQueue(observer));
 
                 return new CompositeDisposable(publisher, shared.Connect(), queue);
             });

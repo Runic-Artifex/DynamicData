@@ -66,7 +66,9 @@ internal sealed class Sort<T>(IObservable<IChangeSet<T>> source, IComparer<T>? c
                 var resortSync = _resort.SynchronizeSafe(queue).Select(_ => Reorder(target));
                 var changeComparer = _comparerObservable.SynchronizeSafe(queue).Select(comparer => ChangeComparer(target, comparer));
 
-                var publisher = changeComparer.UnsynchronizedMerge(resortSync, dataChanged).Where(changes => changes.Count != 0).SubscribeSafe(observer);
+                // Deliver through the queue too: a notification raised from inside the observer, through
+                // another input, is then delivered after the observer returns instead of re-entrantly.
+                var publisher = changeComparer.UnsynchronizedMerge(resortSync, dataChanged).Where(changes => changes.Count != 0).SubscribeSafe(queue.CreateQueue(observer));
                 return new CompositeDisposable(publisher, queue);
             });
 

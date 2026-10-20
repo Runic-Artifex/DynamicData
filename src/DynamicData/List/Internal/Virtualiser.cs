@@ -65,11 +65,13 @@ internal sealed class Virtualiser<T>(IObservable<IChangeSet<T>> source, IObserva
                         ? new VirtualChangeSet<T>(changes.Transform(occurrence => occurrence.Item), response)
                         : null;
                     previousResponse = response;
+                    // Deliver through the queue too: a notification raised from inside the observer, through
+                    // another input, is then delivered after the observer returns instead of re-entrantly.
                     return result;
                 })
                 .Where(changes => changes is not null)
                 .Select(changes => changes!)
-                .SubscribeSafe(observer);
+                .SubscribeSafe(queue.CreateQueue(observer));
 
             return new CompositeDisposable(publisher, queue);
         });
