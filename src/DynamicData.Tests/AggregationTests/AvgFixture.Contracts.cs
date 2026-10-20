@@ -392,6 +392,29 @@ public partial class AvgFixture
             await Assert.That(floatResults.RecordedValues).IsEquivalentTo(new[] { -1F, float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity, -1F, 5F }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
         }
 
+        [Test]
+        [Arguments(false)]
+        [Arguments(true)]
+        public async Task DirectDecimalAccumulatorOverflowIsDeliveredAsError(bool keyed)
+        {
+            using var list = new TestSourceList<decimal>();
+            using var cache = new TestSourceCache<decimal, decimal>(static value => value);
+            var average = keyed ? cache.Connect().Avg(static value => value, -1M) : list.Connect().Avg(static value => value, -1M);
+            using var subscription = average.RecordValues(out var results);
+            var values = new[] { decimal.MaxValue, decimal.MaxValue - 1 };
+            if (keyed)
+            {
+                cache.AddOrUpdate(values);
+            }
+            else
+            {
+                list.AddRange(values);
+            }
+
+            await Assert.That(results.Error).IsTypeOf<OverflowException>();
+            await Assert.That(results.RecordedValues).IsEquivalentTo(new[] { -1M }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
+        }
+
         private static IObservable<double> CacheAverage(IObservable<IChangeSet<FloatingMeasurement, int>> source, bool aggregate) =>
             aggregate ? source.ForAggregation().Avg(item => item.Value, -1D) : source.Avg(item => item.Value, -1D);
 

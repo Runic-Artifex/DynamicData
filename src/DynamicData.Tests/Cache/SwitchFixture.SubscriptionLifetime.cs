@@ -214,19 +214,27 @@ public partial class SwitchFixture
     }
 
     [Test]
-    public async Task ReentrantSelectionDuringResetDoesNotSubscribeSupersededReplacement()
+    public async Task ReentrantSelectionDuringResetReleasesSupersededReplacementBeforeSubscribingLatest()
     {
+        // The reset now waits for the replacement's snapshot, so the replacement is subscribed before it is
+        // published. A selection made while subscribers handle the reset must still release it before the
+        // latest source is subscribed, and it must contribute nothing.
         var people = CreateSubscriptionPeople(3);
-        var supersededSubscriptions = 0;
+        var events = new List<string>();
         using var first = new SourceCache<Person, string>(person => person.Name);
         using var latest = new TestSourceCache<Person, string>(person => person.Name);
         using var switchable = new ReactiveUI.Primitives.Signals.Signal<IObservable<IChangeSet<Person, string>>>();
         first.AddOrUpdate(people[0]);
         latest.AddOrUpdate(people[1]);
-        var superseded = Observable.Defer(() =>
+        var superseded = Observable.Create<IChangeSet<Person, string>>(_ =>
         {
-            supersededSubscriptions++;
-            return Observable.Never<IChangeSet<Person, string>>();
+            events.Add("superseded subscribed");
+            return Disposable.Create(() => events.Add("superseded released"));
+        });
+        var latestConnection = Observable.Defer(() =>
+        {
+            events.Add("latest subscribed");
+            return latest.Connect();
         });
         using var subscription = switchable.Switch()
             .ValidateSynchronization()
@@ -234,7 +242,7 @@ public partial class SwitchFixture
             .Do(changes =>
             {
                 if (changes.Any(change => change.Reason is ChangeReason.Remove && change.Key == people[0].Name))
-                    switchable.OnNext(latest.Connect());
+                    switchable.OnNext(latestConnection);
             })
             .RecordCacheItems(out var results);
 
@@ -244,7 +252,7 @@ public partial class SwitchFixture
         switchable.OnCompleted();
         latest.Complete();
 
-        await Assert.That(supersededSubscriptions).IsEqualTo(0);
+        await Assert.That(events).IsEquivalentTo(new[] { "superseded subscribed", "superseded released", "latest subscribed" }, TUnit.Assertions.Enums.CollectionOrdering.Matching);
         await Assert.That(results.Error).IsNull();
         await Assert.That(results.HasCompleted).IsTrue();
         await Assert.That(results.RecordedItemsByKey).IsEquivalentTo(people.Skip(1).ToDictionary(person => person.Name));
@@ -295,8 +303,10 @@ public partial class SwitchFixture
     }
 
     [Test]
-    public async Task DisposalDuringResetDoesNotSubscribeReplacement()
+    public async Task DisposalDuringResetReleasesReplacement()
     {
+        // The reset waits for the replacement's snapshot, so the replacement is already subscribed when
+        // subscribers see it; disposing then must release it and stop everything it would deliver.
         var people = CreateSubscriptionPeople(2);
         var replacementSubscriptions = 0;
         using var first = new ReactiveUI.Primitives.Signals.StateSignal<IChangeSet<Person, string>>(AddSubscriptionPerson(people[0]));
@@ -330,7 +340,7 @@ public partial class SwitchFixture
         replacementChanges.OnNext(AddSubscriptionPerson(people[1]));
         replacementChanges.OnCompleted();
 
-        await Assert.That(replacementSubscriptions).IsEqualTo(0);
+        await Assert.That(replacementSubscriptions).IsEqualTo(1);
         await Assert.That(first.HasObservers).IsFalse();
         await Assert.That(replacementChanges.HasObservers).IsFalse();
         await Assert.That(switchable.HasObservers).IsFalse();
@@ -341,17 +351,20 @@ public partial class SwitchFixture
     }
 
     [Test]
-    public async Task OuterErrorDuringResetDoesNotSubscribeReplacement()
+    public async Task OuterErrorDuringResetReleasesReplacement()
     {
+        // The reset waits for the replacement's snapshot, so the replacement is already subscribed when
+        // the outer error arrives during the reset; the error must release it.
         var person = CreateSubscriptionPeople(1)[0];
         var error = new InvalidOperationException("The outer source failed during reset.");
         var replacementSubscriptions = 0;
+        var replacementReleases = 0;
         using var first = new ReactiveUI.Primitives.Signals.StateSignal<IChangeSet<Person, string>>(AddSubscriptionPerson(person));
         using var switchable = new ReactiveUI.Primitives.Signals.Signal<IObservable<IChangeSet<Person, string>>>();
-        var replacement = Observable.Defer(() =>
+        var replacement = Observable.Create<IChangeSet<Person, string>>(_ =>
         {
             replacementSubscriptions++;
-            return Observable.Never<IChangeSet<Person, string>>();
+            return Disposable.Create(() => replacementReleases++);
         });
         using var subscription = switchable.Switch()
             .ValidateSynchronization()
@@ -366,7 +379,8 @@ public partial class SwitchFixture
         switchable.OnNext(first);
         switchable.OnNext(replacement);
 
-        await Assert.That(replacementSubscriptions).IsEqualTo(0);
+        await Assert.That(replacementSubscriptions).IsEqualTo(1);
+        await Assert.That(replacementReleases).IsEqualTo(1);
         await Assert.That(results.Error).IsSameReferenceAs(error);
         await Assert.That(results.HasCompleted).IsFalse();
         await Assert.That(results.RecordedItemsByKey).IsEmpty();

@@ -39,7 +39,11 @@ public static partial class ObservableListEx
     /// <item><term>Remove/RemoveRange/Clear</term><description>Unsubscribes from removed items. The original change is forwarded.</description></item>
     /// <item><term>Moved/Refresh</term><description>Forwarded unchanged.</description></item>
     /// <item><term>Re-evaluator fires</term><description>The item's current index is looked up and a <b>Refresh</b> change is emitted.</description></item>
+    /// <item><term>Re-evaluator completes or fails</term><description>That item's refresh subscription ends; the error is not forwarded, and other items keep refreshing.</description></item>
+    /// <item><term>Source completes</term><description>The stream completes once every re-evaluator subscription has also ended (completed, failed, or removed with its item).</description></item>
+    /// <item><term>Source fails</term><description>The error is forwarded.</description></item>
     /// </list>
+    /// <para><b>Worth noting:</b> Per-item observable errors are silently ignored (not forwarded to the downstream observer), as in the cache operator. Only source stream errors propagate.</para>
     /// </remarks>
     /// <seealso><c>AutoRefresh&lt;TObject&gt;(IObservable&lt;IChangeSet&lt;TObject&gt;&gt;, TimeSpan?, TimeSpan?, IScheduler?)</c></seealso>
     /// <seealso><c>SuppressRefresh&lt;T&gt;(IObservable&lt;IChangeSet&lt;T&gt;&gt;)</c></seealso>

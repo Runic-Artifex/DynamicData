@@ -23,8 +23,13 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
         // re-checks that its generation is still current.
         var queue = new DeliveryQueue<IChangeSet<TObject, TKey>>(observer);
 
-        // What the current source has contributed, so that switching away can take it back out.
+        // What has been published downstream, so that switching away can take it back out.
         var current = new Cache<TObject, TKey>();
+
+        // The activation whose removal of the previous source's items is still unpublished. The removals
+        // wait for the new source's first non-empty changeset so both reach subscribers as one batch; they
+        // are published alone if Subscribe returns without one or the source terminates first.
+        SingleAssignmentDisposable? handoffGeneration = null;
         var currentSubscription = new SerialDisposable();
 
         // Doubles as the generation token, published before any user code runs so that a reentrant
@@ -152,30 +157,17 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
 
         void Activate(IObservable<IChangeSet<TObject, TKey>> source, SingleAssignmentDisposable generation)
         {
-            using (var scope = queue.AcquireLock())
-            {
-                if (!IsCurrent(generation))
-                {
-                    return;
-                }
-
-                if (current.Count != 0)
-                {
-                    scope.EnqueueNext(new ChangeSet<TObject, TKey>(
-                        current.KeyValues.Select(static pair => new Change<TObject, TKey>(ChangeReason.Remove, pair.Key, pair.Value))));
-
-                    current.Clear();
-                }
-            }
-
-            // That scope delivered the clearing changeset, so a newer source may have been selected.
-            // Skipping the subscribe is only an optimization; the handlers re-check anyway.
+            // Nothing is published yet: the previous source's removals wait for the new source's snapshot.
+            // A handoff left unpublished by a superseded activation is taken over, because current still
+            // holds what subscribers last saw.
             using (queue.AcquireReadLock())
             {
                 if (!IsCurrent(generation))
                 {
                     return;
                 }
+
+                handoffGeneration = generation;
             }
 
             // Subscribe outside the gate and assign only to this generation's holder: if a newer source was
@@ -189,6 +181,22 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
                     if (!IsCurrent(generation))
                     {
                         return;
+                    }
+
+                    // An empty changeset carries no state, so the handoff waits for one that does.
+                    if (changes.Count != 0 && ReferenceEquals(handoffGeneration, generation))
+                    {
+                        handoffGeneration = null;
+
+                        if (current.Count != 0)
+                        {
+                            // The first non-empty changeset is the new source's snapshot: fold the removals into it.
+                            var handoff = CreateHandoff(current, changes);
+                            current.Clear();
+                            current.Clone(changes);
+                            scope.EnqueueNext(handoff);
+                            return;
+                        }
                     }
 
                     current.Clone(changes);
@@ -208,6 +216,7 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
                         return;
                     }
 
+                    PublishPendingRemovals(scope);
                     hasOutstandingSource = false;
 
                     if (areSourcesComplete)
@@ -216,6 +225,35 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
                         scope.EnqueueCompleted();
                     }
                 }));
+
+            // A source that has not delivered by the time Subscribe returns is delayed (or empty): its
+            // changes follow the removals as separate batches when they arrive.
+            using (var scope = queue.AcquireLock())
+            {
+                if (IsCurrent(generation))
+                {
+                    PublishPendingRemovals(scope);
+                }
+            }
+        }
+
+        // Publishes the current activation's unpublished removals on their own. Callers hold the gate.
+        void PublishPendingRemovals(DeliveryQueue<IChangeSet<TObject, TKey>>.ScopedAccess scope)
+        {
+            if (handoffGeneration is null || !ReferenceEquals(handoffGeneration, currentGeneration))
+            {
+                return;
+            }
+
+            handoffGeneration = null;
+
+            if (current.Count != 0)
+            {
+                scope.EnqueueNext(new ChangeSet<TObject, TKey>(
+                    current.KeyValues.Select(static pair => new Change<TObject, TKey>(ChangeReason.Remove, pair.Key, pair.Value))));
+
+                current.Clear();
+            }
         }
 
         void SourcesCompleted()
@@ -232,6 +270,7 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
             // No source outstanding also covers the case where none was ever selected.
             if (!hasOutstandingSource)
             {
+                PublishPendingRemovals(scope);
                 isStopped = true;
                 scope.EnqueueCompleted();
             }
@@ -246,6 +285,9 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
                 return;
             }
 
+            // Removals already owed to subscribers precede the error, as they would have without folding.
+            PublishPendingRemovals(scope);
+
             // Stop as soon as the terminal notification is queued, not only when it is delivered.
             isStopped = true;
             scope.EnqueueError(error);
@@ -255,4 +297,48 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
         bool IsCurrent(SingleAssignmentDisposable generation) =>
             !isStopped && ReferenceEquals(generation, currentGeneration);
     });
+
+    // One changeset taking subscribers from the previous source's items to the new source's snapshot.
+    // Keys present in both become updates, so a bound row is replaced in place rather than removed and
+    // re-added. The batch spans two sources' orderings, so it carries no indexes and drops moves.
+    private static ChangeSet<TObject, TKey> CreateHandoff(Cache<TObject, TKey> previous, IChangeSet<TObject, TKey> snapshot)
+    {
+        HashSet<TKey>? replaced = null;
+        foreach (var change in snapshot)
+        {
+            if (change.Reason == ChangeReason.Add && previous.Lookup(change.Key).HasValue)
+            {
+                (replaced ??= []).Add(change.Key);
+            }
+        }
+
+        var result = new ChangeSet<TObject, TKey>(previous.Count + snapshot.Count);
+        foreach (var pair in previous.KeyValues)
+        {
+            if (replaced?.Contains(pair.Key) != true)
+            {
+                result.Add(new Change<TObject, TKey>(ChangeReason.Remove, pair.Key, pair.Value));
+            }
+        }
+
+        foreach (var change in snapshot)
+        {
+            switch (change.Reason)
+            {
+                case ChangeReason.Moved:
+                    break;
+
+                // Only the key's first addition replaces the previous value; a later one follows a removal.
+                case ChangeReason.Add when replaced?.Remove(change.Key) == true:
+                    result.Add(new Change<TObject, TKey>(ChangeReason.Update, change.Key, change.Current, previous.Lookup(change.Key)));
+                    break;
+
+                default:
+                    result.Add(new Change<TObject, TKey>(change.Reason, change.Key, change.Current, change.Previous));
+                    break;
+            }
+        }
+
+        return result;
+    }
 }
