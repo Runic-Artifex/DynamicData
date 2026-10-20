@@ -324,6 +324,60 @@ public sealed class ReentrantFeedbackDeliveryFixture
     }
 
     [Test]
+    public async Task TransformMany()
+    {
+        using var owners = new Owners();
+        await AssertCacheFeedback(() => owners.Source.Connect().TransformMany(static o => o.Collection, static p => p.Name), owners.AddFirstChild, owners.AddThirdOwner, "C1");
+    }
+
+    [Test]
+    public async Task FilterOnObservable()
+    {
+        using var source = new SourceCache<Person, string>(static p => p.Name);
+        var first = new Person("First", 1);
+        source.AddOrUpdate([first, new Person("Second", 2)]);
+        await AssertCacheFeedback(
+            () => source.Connect().FilterOnObservable(static p => p.WhenValueChanged(static x => x.Age).Select(static age => age < 50)),
+            () => first.Age = 100,
+            () => source.AddOrUpdate(new Person("Feedback", 0)),
+            "Feedback");
+    }
+
+    [Test]
+    public async Task QueryWhenChangedWithItemTrigger()
+    {
+        using var source = new SourceCache<Person, string>(static p => p.Name);
+        var first = new Person("First", 1);
+        source.AddOrUpdate([first, new Person("Second", 2)]);
+        var received = await DeliverWithFeedback(
+            source.Connect().QueryWhenChanged(static p => p.WhenValueChanged(static x => x.Age, notifyOnInitialValue: false)).Select(static query => query.Keys.ToArray()),
+            () => first.Age = 100,
+            () => source.AddOrUpdate(new Person("Feedback", 0)));
+
+        await Assert.That(received[^1]).Contains("Feedback");
+    }
+
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task TransformToTree(bool triggerOnPredicate)
+    {
+        using var source = new SourceCache<Person, string>(static p => p.Name);
+        source.AddOrUpdate(Enumerable.Range(1, 10).Select(static i => new Person("Seed" + i, i)));
+        using var predicates = new ReactiveUI.Primitives.Signals.StateSignal<Func<Node<Person, string>, bool>>(static n => n.Item.Age < 5);
+        void ChangePredicate() => predicates.OnNext(static n => n.Item.Age < 8);
+        void AddFeedback() => source.AddOrUpdate(new Person("Feedback", 0));
+        void AddTrigger() => source.AddOrUpdate(new Person("Trigger", 0));
+
+        await AssertCacheFeedback(
+            () => source.Connect().TransformToTree(static _ => "none", predicates),
+            triggerOnPredicate ? ChangePredicate : AddTrigger,
+            triggerOnPredicate ? AddFeedback : ChangePredicate,
+            triggerOnPredicate ? "Feedback" : "Seed7",
+            compareValues: false);
+    }
+
+    [Test]
     public async Task FeedbackPendingWhenDisposedIsNotDelivered()
     {
         using var requests = new ReactiveUI.Primitives.Signals.StateSignal<IVirtualRequest>(new VirtualRequest(0, 3));

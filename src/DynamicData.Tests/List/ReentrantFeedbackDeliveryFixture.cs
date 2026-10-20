@@ -75,6 +75,61 @@ public sealed class ReentrantFeedbackDeliveryFixture
     }
 
     [Test]
+    public async Task FilterWithPredicateState()
+    {
+        using var state = new ReactiveUI.Primitives.Signals.StateSignal<int>(5);
+        await AssertFeedbackIsDeliveredAfterwards(s => s.Filter(state, static (limit, p) => p.Age < limit), () => state.OnNext(8));
+    }
+
+    [Test]
+    public async Task FilterOnObservable()
+    {
+        Person? first = null;
+        await AssertFeedbackIsDeliveredAfterwards(
+            s => s.Do(changes => first ??= changes.First().Item.Current ?? changes.First().Range.First())
+                .FilterOnObservable(static p => p.WhenValueChanged(static x => x.Age).Select(static age => age < 50)),
+            () => first!.Age = 100);
+    }
+
+    [Test]
+    public async Task GroupOnWithRegrouper()
+    {
+        using var regrouper = new ReactiveUI.Primitives.Signals.Signal<Unit>();
+        using var source = new SourceList<Person>();
+        var first = new Person("First", 1);
+        source.AddRange([first, new Person("Second", 2)]);
+        await AssertListFeedback(
+            () => source.Connect().GroupOn(static p => p.Age, regrouper),
+            () =>
+            {
+                first.Age = 100;
+                regrouper.OnNext(Unit.Default);
+            },
+            () => source.Add(new Person("Feedback", -1)),
+            static g => g.GroupKey,
+            -1);
+    }
+
+    [Test]
+    public async Task GroupWithImmutableStateWithRegrouper()
+    {
+        using var regrouper = new ReactiveUI.Primitives.Signals.Signal<Unit>();
+        using var source = new SourceList<Person>();
+        var first = new Person("First", 1);
+        source.AddRange([first, new Person("Second", 2)]);
+        await AssertListFeedback(
+            () => source.Connect().GroupWithImmutableState(static p => p.Age, regrouper),
+            () =>
+            {
+                first.Age = 100;
+                regrouper.OnNext(Unit.Default);
+            },
+            () => source.Add(new Person("Feedback", -1)),
+            static g => g.Key,
+            -1);
+    }
+
+    [Test]
     [Arguments("And")]
     [Arguments("Or")]
     [Arguments("Xor")]
@@ -197,6 +252,13 @@ public sealed class ReentrantFeedbackDeliveryFixture
         using var fresh = owners.Source.Connect().MergeManyChangeSets(static o => o.Children.Connect()).AsObservableCache();
         await Assert.That(fresh.Keys).Contains("B1");
         await Assert.That(mirror.Keys).IsEquivalentTo(fresh.Keys);
+    }
+
+    [Test]
+    public async Task TransformMany()
+    {
+        using var owners = new Owners();
+        await AssertListFeedback(() => owners.Source.Connect().TransformMany(static o => o.Collection), owners.AddFirstChild, owners.AddThirdOwner, static p => p.Name, "C1");
     }
 
     [Test]

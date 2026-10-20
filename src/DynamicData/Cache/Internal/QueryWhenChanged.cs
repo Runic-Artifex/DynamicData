@@ -66,7 +66,9 @@ internal sealed class QueryWhenChanged<TObject, TKey, TValue>(IObservable<IChang
                     return cache;
                 }).Select(list => new AnonymousQuery<TObject, TKey>(list));
 
-            return new CompositeDisposable(Disposable.Create(queue.Terminate), sourceChanged.UnsynchronizedMerge(inlineChange).SubscribeSafe(observer), shared.Connect());
+            // Runic (DD-045): deliver through the queue too, so a notification an observer causes through another
+            // input while it is being delivered to arrives after it returns, not re-entrantly.
+            return new CompositeDisposable(Disposable.Create(queue.Terminate), sourceChanged.UnsynchronizedMerge(inlineChange).SubscribeSafe(queue.CreateQueue(observer)), shared.Connect());
         });
     }
 }
