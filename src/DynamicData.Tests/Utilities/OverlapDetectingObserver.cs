@@ -11,6 +11,7 @@ public sealed class OverlapDetectingObserver<T>(Action<T>? onNext = null) : IObs
     private int _maxActive;
     private int _afterTerminal;
     private int _terminalCount;
+    private int _values;
 
     public int MaxConcurrentCalls => Volatile.Read(ref _maxActive);
 
@@ -18,7 +19,7 @@ public sealed class OverlapDetectingObserver<T>(Action<T>? onNext = null) : IObs
 
     public int TerminalCount => Volatile.Read(ref _terminalCount);
 
-    public int Values { get; private set; }
+    public int Values => Volatile.Read(ref _values);
 
     public Exception? Error { get; private set; }
 
@@ -28,7 +29,7 @@ public sealed class OverlapDetectingObserver<T>(Action<T>? onNext = null) : IObs
 
     public void OnNext(T value) => Run(() =>
     {
-        Values++;
+        Interlocked.Increment(ref _values);
         onNext?.Invoke(value);
     }, terminal: false);
 

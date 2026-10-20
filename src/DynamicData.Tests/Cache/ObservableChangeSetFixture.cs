@@ -286,19 +286,23 @@ checkContentAction: async result => { await Assert.That(result.Count).IsEqualTo(
             var observer = new OverlapDetectingObserver<IChangeSet<Person, string>>(_ => Thread.SpinWait(200));
             using var subscription = ObservableChangeSet.Create<Person, string>((cache, _) => { captured = cache; return task.Task; }, p => p.Name).Subscribe(observer);
 
+            // The editor runs until the terminal arrives, with a cap so that it cannot load the machine indefinitely
+            // if the terminal never comes.
+            const int MaxEdits = 200_000;
             var stop = 0;
+            var valuesWhenTaskEnded = int.MaxValue;
             var editor = new Thread(() =>
             {
                 try
                 {
-                    for (var i = 0; Volatile.Read(ref stop) == 0; i++)
+                    for (var i = 0; i < MaxEdits && Volatile.Read(ref stop) == 0 && observer.TerminalCount == 0; i++)
                     {
                         captured!.AddOrUpdate(new Person($"Name{i}", i));
                     }
                 }
                 catch (ObjectDisposedException)
                 {
-                    // The collection is disposed once the task has ended the stream.
+                    // The stream may dispose the collection once the task has ended it.
                 }
             });
             var completer = new Thread(() =>
@@ -312,6 +316,8 @@ checkContentAction: async result => { await Assert.That(result.Count).IsEqualTo(
                 {
                     task.SetResult();
                 }
+
+                Volatile.Write(ref valuesWhenTaskEnded, observer.Values);
             });
 
             editor.Start();
@@ -329,6 +335,7 @@ checkContentAction: async result => { await Assert.That(result.Count).IsEqualTo(
 
             await Assert.That(observer.MaxConcurrentCalls).IsEqualTo(1).Because("notifications must never overlap");
             await Assert.That(observer.CallsAfterTerminal).IsEqualTo(0).Because("the terminal notification is the last one");
+            await Assert.That(observer.Values - Volatile.Read(ref valuesWhenTaskEnded)).IsLessThanOrEqualTo(1).Because("once the task has ended, at most the change already being delivered precedes the outcome, however fast the editor keeps writing");
             await Assert.That(observer.TerminalCount).IsEqualTo(1);
             if (fail)
             {
