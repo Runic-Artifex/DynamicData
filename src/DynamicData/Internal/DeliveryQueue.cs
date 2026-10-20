@@ -53,6 +53,16 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
     private volatile bool _isTerminated;
 
     /// <summary>
+    /// Whether <see cref="RunWhenNotDelivering"/> has been called. Guarded by the queue lock.
+    /// </summary>
+    private bool _isTeardownRequested;
+
+    /// <summary>
+    /// A teardown deferred to the thread that is delivering. Guarded by the queue lock.
+    /// </summary>
+    private Action? _pendingTeardown;
+
+    /// <summary>
     /// Initializes a new instance of the <see cref="DeliveryQueue{T}"/> class with its own internal lock.
     /// </summary>
     /// <param name="observer">The observer that receives delivered items.</param>
@@ -142,6 +152,54 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
         {
             ExitQueueLock();
         }
+    }
+
+    /// <summary>
+    /// Runs <paramref name="teardown"/> once no delivery is in progress on another thread: now, if nothing is
+    /// being delivered or the caller is the delivering thread; otherwise on the delivering thread, as soon as its
+    /// delivery returns. Only the first call has an effect, so the teardown runs exactly once. Call after
+    /// <see cref="Terminate"/>, so that no further delivery can start and the deferred teardown is never
+    /// followed by one. For subscription disposal whose teardown must not run while a delivery may still use
+    /// what it tears down, without waiting for that delivery: its observer may need a lock the caller holds.
+    /// </summary>
+    /// <param name="teardown">The teardown to run.</param>
+    internal void RunWhenNotDelivering(Action teardown)
+    {
+        EnterQueueLock();
+        try
+        {
+            if (_isTeardownRequested)
+            {
+                return;
+            }
+
+            _isTeardownRequested = true;
+            var drainThreadId = _drainThreadId;
+            if (drainThreadId != -1 && drainThreadId != Environment.CurrentManagedThreadId)
+            {
+                _pendingTeardown = teardown;
+                return;
+            }
+        }
+        finally
+        {
+            ExitQueueLock();
+        }
+
+        teardown();
+    }
+
+    /// <summary>
+    /// Releases delivery ownership and takes the teardown deferred to this thread, if any. Must be called under
+    /// the queue lock.
+    /// </summary>
+    /// <returns>The teardown the releasing thread has to run, or <see langword="null"/>.</returns>
+    private Action? ReleaseDeliveryOwnership()
+    {
+        Volatile.Write(ref _drainThreadId, -1);
+        var teardown = _pendingTeardown;
+        _pendingTeardown = null;
+        return teardown;
     }
 
     /// <summary>
@@ -312,11 +370,13 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
 
         void DeliverAll()
         {
+            // A teardown deferred to this thread while it was delivering runs once it has released delivery.
+            Action? teardown = null;
             try
             {
                 while (true)
                 {
-                    if (!TryTakeNotification(out var notification))
+                    if (!TryTakeNotification(out var notification, out teardown))
                     {
                         return;
                     }
@@ -326,7 +386,7 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
 
                     if (notification.IsTerminal)
                     {
-                        StopDelivery();
+                        teardown = StopDelivery();
                         return;
                     }
                 }
@@ -334,22 +394,28 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
             catch
             {
                 HasDeliveryFailure = true;
-                StopDelivery();
+                teardown = StopDelivery();
                 throw;
+            }
+            finally
+            {
+                teardown?.Invoke();
             }
         }
 
-        bool TryTakeNotification(out Notification<T> notification)
+        bool TryTakeNotification(out Notification<T> notification, out Action? teardown)
         {
             EnterQueueLock();
             try
             {
                 if (_queue.Count == 0 || _isTerminated || Volatile.Read(ref _activeAccessCount) != 0)
                 {
-                    Volatile.Write(ref _drainThreadId, -1);
+                    teardown = ReleaseDeliveryOwnership();
                     notification = default;
                     return false;
                 }
+
+                teardown = null;
 
                 notification = _queue.Dequeue();
 
@@ -369,12 +435,12 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
             }
         }
 
-        void StopDelivery()
+        Action? StopDelivery()
         {
             EnterQueueLock();
             try
             {
-                Volatile.Write(ref _drainThreadId, -1);
+                return ReleaseDeliveryOwnership();
             }
             finally
             {

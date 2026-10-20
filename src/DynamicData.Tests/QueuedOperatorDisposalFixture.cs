@@ -109,7 +109,7 @@ public class QueuedOperatorDisposalFixture
     }
 
     [Test]
-    [MethodDataSource(nameof(NonWaitingOperations))]
+    [MethodDataSource(nameof(Operations))]
     public async Task DisposeUnderSourceLockWhileObserverWritesToSourceDoesNotDeadlock(string operation)
     {
         var operatorCase = CreateCase(operation);
@@ -253,22 +253,7 @@ public class QueuedOperatorDisposalFixture
         ["when-value-changed-chain"] = static scheduler => NotifierCase(static root => root.WhenValueChanged(static value => value.Child!.Value, notifyOnInitialValue: false), scheduler),
     };
 
-    /// <summary>
-    /// Operators whose disposal deliberately waits for a delivery in progress on another thread, so that their
-    /// teardown (disposing the items they track) never runs while that delivery still uses them. Disposing one
-    /// while holding a lock its observer needs still deadlocks.
-    /// </summary>
-    private static readonly HashSet<string> WaitingOperations =
-    [
-        "list-dispose-many",
-        "list-group-on", // Disposes its groups through list DisposeMany.
-        "cache-on-item-removed",
-        "cache-async-dispose-many",
-    ];
-
     public static IEnumerable<string> Operations() => Cases.Keys;
-
-    public static IEnumerable<string> NonWaitingOperations() => Cases.Keys.Where(static operation => !WaitingOperations.Contains(operation));
 
     private static TimeSpan? ExpireBelowNonExpiring(int value) => value < NonExpiring ? Lifetime : null;
 
