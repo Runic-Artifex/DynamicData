@@ -119,24 +119,38 @@ internal sealed class BatchIf<TObject, TKey>(IObservable<IChangeSet<TObject, TKe
                     },
                     output.OnError);
 
-                var publisher = _source.SynchronizeSafe(queue).Subscribe(
-                    changes =>
-                    {
-                        batchedChanges.Add(changes);
-
-                        // publish if not paused
-                        if (!paused)
+                IDisposable publisher;
+                try
+                {
+                    publisher = _source.SynchronizeSafe(queue).Subscribe(
+                        changes =>
                         {
+                            batchedChanges.Add(changes);
+
+                            // publish if not paused
+                            if (!paused)
+                            {
+                                ResumeAction();
+                            }
+                        },
+                        output.OnError,
+                        () =>
+                        {
+                            // Anything still held back would otherwise be lost, so flush before finishing.
                             ResumeAction();
-                        }
-                    },
-                    output.OnError,
-                    () =>
-                    {
-                        // Anything still held back would otherwise be lost, so flush before finishing.
-                        ResumeAction();
-                        output.OnCompleted();
-                    });
+                            output.OnCompleted();
+                        });
+                }
+                catch
+                {
+                    // Runic (DD-044, fork issue #36): a subscriber exception thrown at the initial changes must not
+                    // leave the pause selector and timers subscribed.
+                    queue.Terminate();
+                    pausedHandler.Dispose();
+                    timeoutDisposer.Dispose();
+                    intervalTimerDisposer.Dispose();
+                    throw;
+                }
 
                 return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher, pausedHandler, timeoutDisposer, intervalTimerDisposer);
             });

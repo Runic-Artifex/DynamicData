@@ -44,6 +44,19 @@ internal sealed class SubscribeMany<T>(IObservable<IChangeSet<T>> source, Func<T
                         onError: observer.OnError,
                         onCompleted: static () => { }));
 
-                return new CompositeDisposable(subscriptions, shared.SubscribeSafe(observer), shared.Connect());
+                var disposables = new CompositeDisposable(subscriptions, shared.SubscribeSafe(observer));
+                try
+                {
+                    disposables.Add(shared.Connect());
+                }
+                catch
+                {
+                    // Runic (DD-044, fork issue #36): a subscriber exception thrown at an initial value must not leave
+                    // the subscriptions made for the earlier items attached to their sources.
+                    disposables.Dispose();
+                    throw;
+                }
+
+                return disposables;
             });
 }

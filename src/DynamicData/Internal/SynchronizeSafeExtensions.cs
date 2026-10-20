@@ -129,10 +129,20 @@ internal static class SynchronizeSafeExtensions
             // dropped when a System.Reactive subscribe safeguard delivers it back as OnError.
             DeliveryFault? fault = null;
 
-            subscriptions.Add(first.SubscribeSafe(CreateInner()));
-            foreach (var source in others)
+            try
             {
-                subscriptions.Add(source.SubscribeSafe(CreateInner()));
+                subscriptions.Add(first.SubscribeSafe(CreateInner()));
+                foreach (var source in others)
+                {
+                    subscriptions.Add(source.SubscribeSafe(CreateInner()));
+                }
+            }
+            catch
+            {
+                // Runic (DD-044, fork issue #36): an exception thrown while an input is subscribed, such as a
+                // subscriber's own exception at a value it delivers, must not leave the earlier inputs subscribed.
+                subscriptions.Dispose();
+                throw;
             }
 
             return subscriptions;
@@ -221,8 +231,17 @@ internal static class SynchronizeSafeExtensions
             DeliveryFault? fault = null;
 
             var subscriptions = new CompositeDisposable();
-            subscriptions.Add(first.SubscribeSafe(Observer.Create<TFirst>(OnFirstNext, OnErrorSafe, OnFirstCompleted)));
-            subscriptions.Add(second.SubscribeSafe(Observer.Create<TSecond>(OnSecondNext, OnErrorSafe, OnSecondCompleted)));
+            try
+            {
+                subscriptions.Add(first.SubscribeSafe(Observer.Create<TFirst>(OnFirstNext, OnErrorSafe, OnFirstCompleted)));
+                subscriptions.Add(second.SubscribeSafe(Observer.Create<TSecond>(OnSecondNext, OnErrorSafe, OnSecondCompleted)));
+            }
+            catch
+            {
+                // Runic (DD-044, fork issue #36): see UnsynchronizedMerge.
+                subscriptions.Dispose();
+                throw;
+            }
 
             return subscriptions;
 

@@ -64,100 +64,116 @@ internal sealed class AutoRefresh<TObject, TKey, TAny>(IObservable<IChangeSet<TO
 
                 var refreshSubscription = refreshChanges.SubscribeSafe(queue);
 
-                var sourceSubscription = _source.Subscribe(
-                    changes =>
+                var childSubscriptions = Disposable.Create(
+                    () =>
                     {
-                        try
+                        lock (locker)
                         {
-                            lock (locker)
+                            foreach (var subscription in subscriptions.Values)
                             {
-                                isProcessingSourceChange = true;
+                                subscription.Dispose();
+                            }
 
-                                foreach (var change in changes)
+                            subscriptions.Clear();
+                        }
+                    });
+
+                IDisposable sourceSubscription;
+                try
+                {
+                    sourceSubscription = _source.Subscribe(
+                        changes =>
+                        {
+                            try
+                            {
+                                lock (locker)
                                 {
-                                    switch (change.Reason)
-                                    {
-                                        case ChangeReason.Add:
-                                        case ChangeReason.Update:
-                                            AddSubscription(change.Current, change.Key);
-                                            break;
+                                    isProcessingSourceChange = true;
 
-                                        case ChangeReason.Remove:
-                                            RemoveSubscription(change.Key);
-                                            break;
+                                    foreach (var change in changes)
+                                    {
+                                        switch (change.Reason)
+                                        {
+                                            case ChangeReason.Add:
+                                            case ChangeReason.Update:
+                                                AddSubscription(change.Current, change.Key);
+                                                break;
+
+                                            case ChangeReason.Remove:
+                                                RemoveSubscription(change.Key);
+                                                break;
+                                        }
+                                    }
+                                }
+
+                                queue.OnNext(changes);
+
+                                List<Change<TObject, TKey>>? refreshesToEmit;
+                                lock (locker)
+                                {
+                                    isProcessingSourceChange = false;
+                                    refreshesToEmit = pendingRefreshes;
+                                    pendingRefreshes = null;
+                                }
+
+                                if (refreshesToEmit is not null)
+                                {
+                                    foreach (var refresh in refreshesToEmit)
+                                    {
+                                        refreshes.OnNext(refresh);
                                     }
                                 }
                             }
-
-                            queue.OnNext(changes);
-
-                            List<Change<TObject, TKey>>? refreshesToEmit;
-                            lock (locker)
+                            catch (Exception error)
                             {
-                                isProcessingSourceChange = false;
-                                refreshesToEmit = pendingRefreshes;
-                                pendingRefreshes = null;
-                            }
-
-                            if (refreshesToEmit is not null)
-                            {
-                                foreach (var refresh in refreshesToEmit)
+                                lock (locker)
                                 {
-                                    refreshes.OnNext(refresh);
+                                    isProcessingSourceChange = false;
+                                    pendingRefreshes = null;
                                 }
+
+                                // Only a failure of the re-evaluator is delivered as OnError; the subscriber's own exception
+                                // from the delivery of the changes or a refresh is thrown to the producer.
+                                if (SubscriberFault.IsSubscriberFault(error))
+                                {
+                                    throw;
+                                }
+
+                                queue.OnError(error);
                             }
-                        }
-                        catch (Exception error)
+                        },
+                        queue.OnError,
+                        () =>
                         {
+                            var shouldComplete = false;
                             lock (locker)
                             {
-                                isProcessingSourceChange = false;
-                                pendingRefreshes = null;
+                                sourceCompleted = true;
+                                shouldComplete = activeSubscriptions == 0;
                             }
 
-                            // Only a failure of the re-evaluator is delivered as OnError; the subscriber's own exception
-                            // from the delivery of the changes or a refresh is thrown to the producer.
-                            if (SubscriberFault.IsSubscriberFault(error))
+                            if (shouldComplete)
                             {
-                                throw;
+                                refreshes.OnCompleted();
                             }
-
-                            queue.OnError(error);
-                        }
-                    },
-                    queue.OnError,
-                    () =>
-                    {
-                        var shouldComplete = false;
-                        lock (locker)
-                        {
-                            sourceCompleted = true;
-                            shouldComplete = activeSubscriptions == 0;
-                        }
-
-                        if (shouldComplete)
-                        {
-                            refreshes.OnCompleted();
-                        }
-                    });
+                        });
+                }
+                catch
+                {
+                    // Runic (DD-044, fork issue #36): a subscriber exception thrown at the initial changes must not
+                    // leave the re-evaluators subscribed for the items processed so far.
+                    queue.Terminate();
+                    refreshSubscription.Dispose();
+                    childSubscriptions.Dispose();
+                    refreshes.Dispose();
+                    throw;
+                }
 
                 return new CompositeDisposable(
                     Disposable.Create(queue.Terminate),
                     sourceSubscription,
                     refreshSubscription,
-                    Disposable.Create(
-                        () =>
-                        {
-                            lock (locker)
-                            {
-                                foreach (var subscription in subscriptions.Values)
-                                {
-                                    subscription.Dispose();
-                                }
-
-                                subscriptions.Clear();
-                            }
-                        }),
+                    childSubscriptions,
                     refreshes);
 
                 void AddSubscription(TObject item, TKey key)

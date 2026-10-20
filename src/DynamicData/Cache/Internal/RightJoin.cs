@@ -173,11 +173,24 @@ internal sealed class RightJoin<TLeft, TLeftKey, TRight, TRightKey, TDestination
                 {
                     var observerSubscription = leftLoader.Merge(rightLoader).SubscribeSafe(queue.CreateQueue(observer));
 
-                    var leftShareConnection = leftShare.Connect();
+                    var subscriptions = new CompositeDisposable(Disposable.Create(queue.Terminate), observerSubscription, leftCache, rightCache);
+                    try
+                    {
+                        subscriptions.Add(leftShare.Connect());
 
-                    hasInitialized = true;
+                        hasInitialized = true;
 
-                    return new CompositeDisposable(Disposable.Create(queue.Terminate), observerSubscription, leftCache, rightCache, leftShareConnection, rightShare.Connect());
+                        subscriptions.Add(rightShare.Connect());
+                    }
+                    catch
+                    {
+                        // Runic (DD-044, fork issue #36): a side connected before a subscriber exception thrown at the other
+                        // side's initial changes keeps the observer subscribed to its source unless it is disposed here.
+                        subscriptions.Dispose();
+                        throw;
+                    }
+
+                    return subscriptions;
                 }
             });
 }

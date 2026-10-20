@@ -192,11 +192,21 @@ private abstract class SubscriptionBase
                     onError: onError,
                     onCompleted: OnPredicateStateCompleted);
 
-                sourceSubscription.Disposable = OperatorSubscription.SubscribeSafe(
-                    source.SynchronizeSafe(_queue),
-                    onNext: OnSourceNext,
-                    onError: onError,
-                    onCompleted: OnSourceCompleted);
+                try
+                {
+                    sourceSubscription.Disposable = OperatorSubscription.SubscribeSafe(
+                        source.SynchronizeSafe(_queue),
+                        onNext: OnSourceNext,
+                        onError: onError,
+                        onCompleted: OnSourceCompleted);
+                }
+                catch
+                {
+                    // Runic (DD-044, fork issue #36): a subscriber exception thrown at the initial changes must not
+                    // leave the predicate state subscribed.
+                    Dispose();
+                    throw;
+                }
             }
 
             /// <summary>
