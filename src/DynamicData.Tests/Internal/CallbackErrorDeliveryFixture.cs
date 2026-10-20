@@ -25,11 +25,11 @@ namespace DynamicData.Tests.Internal;
 public partial class CallbackErrorDeliveryFixture
 {
     public static IEnumerable<Func<string>> ListPipelines() =>
-        new[] { "Connect", "ConnectWithPredicate", "Transform", "Filter", "Sort", "DeferUntilLoaded", "SkipInitial", "QueryWhenChanged", "Sum", "IsEmpty", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "FilterPredicateChanges", "BufferIf", "AutoRefreshOnObservable" }
+        new[] { "Connect", "ConnectWithPredicate", "Transform", "Filter", "Sort", "DeferUntilLoaded", "SkipInitial", "QueryWhenChanged", "Sum", "IsEmpty", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "FilterPredicateChanges", "BufferIf", "AutoRefreshOnObservable", "Or", "DynamicOr", "MergeChangeSets", "MergeManyChangeSets", "TransformMany", "GroupWithImmutableStateWithRegrouper", "FilterPredicateState" }
             .Select(name => (Func<string>)(() => name));
 
     public static IEnumerable<Func<string>> CachePipelines() =>
-        new[] { "Connect", "Transform", "Filter", "Sort", "ToCollection", "Group", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "SortAndPage", "SortAndVirtualize", "TransformForced", "TransformAsyncForced", "BatchIf", "GroupWithRegrouper", "GroupWithImmutableStateWithRegrouper" }
+        new[] { "Connect", "Transform", "Filter", "Sort", "ToCollection", "Group", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "SortAndPage", "SortAndVirtualize", "TransformForced", "TransformAsyncForced", "BatchIf", "GroupWithRegrouper", "GroupWithImmutableStateWithRegrouper", "InnerJoin", "LeftJoin", "RightJoin", "FullJoin", "DynamicOr", "MergeManyChangeSets", "MergeManyChangeSetsWithSourceComparer", "MergeManyListChangeSets", "TransformOnObservable", "GroupOnObservable", "TransformManyAsync", "TransformMany", "QueryWhenChangedWithItemTrigger", "TransformToTree" }
             .Select(name => (Func<string>)(() => name));
 
     [Test]
@@ -249,6 +249,13 @@ public partial class CallbackErrorDeliveryFixture
         "FilterPredicateChanges" => list.Connect().Filter(Observable.Return<Func<int, bool>>(static _ => true)),
         "BufferIf" => list.Connect().BufferIf(Observable.Return(false), new TestScheduler()),
         "AutoRefreshOnObservable" => list.Connect().AutoRefreshOnObservable(static _ => Observable.Never<Unit>()),
+        "Or" => list.Connect().Or(Observable.Never<IChangeSet<int>>()),
+        "DynamicOr" => Sources(list.Connect()).Or(),
+        "MergeChangeSets" => new[] { list.Connect(), Observable.Never<IChangeSet<int>>() }.MergeChangeSets(),
+        "MergeManyChangeSets" => list.Connect().MergeManyChangeSets(static value => Observable.Return<IChangeSet<int>>(new ChangeSet<int>([new Change<int>(ListChangeReason.Add, value)]))),
+        "TransformMany" => list.Connect().TransformMany(static value => new ObservableCollection<int> { value }),
+        "GroupWithImmutableStateWithRegrouper" => list.Connect().GroupWithImmutableState(static value => value, Observable.Never<Unit>()),
+        "FilterPredicateState" => list.Connect().Filter(Observable.Return(true), static (include, _) => include),
         _ => throw new ArgumentOutOfRangeException(nameof(pipeline), pipeline, null),
     };
 
@@ -271,8 +278,32 @@ public partial class CallbackErrorDeliveryFixture
         "BatchIf" => cache.Connect().BatchIf(Observable.Return(false), false, (TimeSpan?)null),
         "GroupWithRegrouper" => cache.Connect().Group(static value => value % 2, Observable.Never<Unit>()),
         "GroupWithImmutableStateWithRegrouper" => cache.Connect().GroupWithImmutableState(static value => value % 2, Observable.Never<Unit>()),
+        "InnerJoin" => cache.Connect().InnerJoin(cache.Connect(), static right => right, static (left, _) => left),
+        "LeftJoin" => cache.Connect().LeftJoin(Observable.Never<IChangeSet<int, int>>(), static right => right, static (left, _) => left),
+        "RightJoin" => Observable.Never<IChangeSet<int, int>>().RightJoin(cache.Connect(), static right => right, static (_, right) => right),
+        "FullJoin" => cache.Connect().FullJoin(Observable.Never<IChangeSet<int, int>>(), static right => right, static (key, _, _) => key),
+        "DynamicOr" => Sources(cache.Connect()).Or(),
+        "MergeManyChangeSets" => cache.Connect().MergeManyChangeSets(static value => SingleChange(value)),
+        "MergeManyChangeSetsWithSourceComparer" => cache.Connect().MergeManyChangeSets(static value => SingleChange(value), sourceComparer: Comparer<int>.Default),
+        "MergeManyListChangeSets" => cache.Connect().MergeManyChangeSets(static value => Observable.Return<IChangeSet<int>>(new ChangeSet<int>([new Change<int>(ListChangeReason.Add, value)]))),
+        "TransformOnObservable" => cache.Connect().TransformOnObservable(static value => Observable.Return(value)),
+        "GroupOnObservable" => cache.Connect().GroupOnObservable(static value => Observable.Return(value)),
+        "TransformManyAsync" => cache.Connect().TransformManyAsync(static value => Task.FromResult<IEnumerable<int>>([value]), static value => value),
+        "TransformMany" => cache.Connect().TransformMany(static value => new ObservableCollection<int> { value }, static value => value),
+        "QueryWhenChangedWithItemTrigger" => cache.Connect().QueryWhenChanged(static (int _) => Observable.Never<Unit>()),
+        "TransformToTree" => cache.Connect().Transform(static value => value.ToString()).TransformToTree(static _ => -1),
         _ => throw new ArgumentOutOfRangeException(nameof(pipeline), pipeline, null),
     };
+
+    private static IObservable<IChangeSet<int, int>> SingleChange(int value)
+        => Observable.Return<IChangeSet<int, int>>(new ChangeSet<int, int> { new Change<int, int>(ChangeReason.Add, value, value) });
+
+    private static IObservableList<IObservable<T>> Sources<T>(IObservable<T> source)
+    {
+        var sources = new SourceList<IObservable<T>>();
+        sources.Add(source);
+        return sources;
+    }
 
     private static Exception? CaptureThrown(Action action)
     {
