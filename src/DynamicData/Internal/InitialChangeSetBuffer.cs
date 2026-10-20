@@ -43,7 +43,7 @@ internal static class InitialChangeSetBuffer<TChangeSet>
 
             void Dispose()
             {
-                queue.Dispose();
+                queue.Terminate();
                 using (queue.AcquireLock())
                 {
                     stopped = true;

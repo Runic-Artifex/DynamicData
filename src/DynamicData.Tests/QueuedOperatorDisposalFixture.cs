@@ -188,17 +188,27 @@ public class QueuedOperatorDisposalFixture
         ["source-cache-connect"] = static scheduler => CacheCase(source => source.Connect().Counts(), scheduler),
         ["cache-auto-refresh"] = static scheduler => CacheCase(source => source.Connect().AutoRefreshOnObservable(static _ => Observable.Never<Unit>()).Counts(), scheduler),
         ["cache-filter-on-observable"] = static scheduler => CacheCase(source => source.Connect().FilterOnObservable(static _ => Observable.Return(true)).Counts(), scheduler),
+        ["cache-buffer-initial"] = static scheduler => CacheCase(source => source.Connect().BufferInitial(Lifetime / 2, scheduler).Counts(), scheduler),
+        ["cache-or"] = static scheduler => CacheCase(source => source.Connect().Or(Observable.Never<IChangeSet<int, int>>()).Counts(), scheduler),
+        ["cache-merge-many"] = static scheduler => CacheCase(source => source.Connect().MergeMany(static value => Observable.Return(value)), scheduler),
+        ["cache-bind"] = static scheduler => CacheCase(source => source.Connect().Bind(new ObservableCollectionExtended<int>(), new ObservableCollectionAdaptor<int, int>()).Counts(), scheduler),
+        ["cache-to-observable-optional"] = static scheduler => CacheCase(source => source.Connect().ToObservableOptional(1, initialOptionalWhenMissing: true).Where(static value => value.HasValue).Select(static _ => 1), scheduler),
+        ["cache-avg"] = static scheduler => CacheCase(source => source.Connect().Avg(static value => value).Where(static average => average != 0).Select(static _ => 1), scheduler),
         ["cache-on-item-removed"] = static scheduler => CacheCase(source => source.Connect().OnItemRemoved(static _ => { }).Counts(), scheduler),
         ["cache-async-dispose-many"] = static scheduler => CacheCase(source => source.Connect().AsyncDisposeMany(static _ => { }).Counts(), scheduler),
         ["cache-switch"] = static scheduler => CacheCase(source => Observable.Return(source.Connect()).Switch().Counts(), scheduler),
 
         // List operators.
         ["source-list-connect"] = static scheduler => ListCase(source => source.Connect().Counts(), scheduler),
+        ["list-buffer-initial"] = static scheduler => ListCase(source => source.Connect().BufferInitial(Lifetime / 2, scheduler).Counts(), scheduler),
         ["list-group-on"] = static scheduler => ListCase(source => source.Connect().GroupOn(static value => value % 2).Counts(), scheduler),
+        ["list-bind"] = static scheduler => ListCase(source => source.Connect().Bind(new ObservableCollectionExtended<int>()).Counts(), scheduler),
         ["list-dispose-many"] = static scheduler => ListCase(source => source.Connect().DisposeMany().Counts(), scheduler),
         ["list-switch"] = static scheduler => ListCase(source => Observable.Return(source.Connect()).Switch().Counts(), scheduler),
 
         // Property observation.
+        ["when-value-changed"] = static scheduler => NotifierCase(static root => root.WhenValueChanged(static value => value.Value, notifyOnInitialValue: false), scheduler),
+        ["when-value-changed-chain"] = static scheduler => NotifierCase(static root => root.WhenValueChanged(static value => value.Child!.Value, notifyOnInitialValue: false), scheduler),
     };
 
     /// <summary>

@@ -18,11 +18,18 @@ namespace DynamicData.Internal;
 /// declaration order. The queue and the source subscription have different roles:</para>
 /// <list type="bullet">
 ///   <item>
-///     <term>Subscription-first (gate and SDQ overloads)</term>
-///     <description>The queue is the <c>IObserver</c> that the source sends notifications to.
+///     <term>Subscription-first (SDQ overload)</term>
+///     <description>The sub-queue is the <c>IObserver</c> that the source sends notifications to.
 ///     Disposing the subscription first allows any final terminal notification (OnCompleted/OnError
 ///     triggered by Rx's disposal cascade or a <c>Finally</c> operator) to flow through the
-///     still-active queue. The queue is disposed last as cleanup.</description>
+///     still-active sub-queue. The sub-queue is removed last as cleanup. Operators terminate the
+///     shared queue itself first when they are disposed.</description>
+///   </item>
+///   <item>
+///     <term>Terminate-first (gate overload)</term>
+///     <description>The queue is terminated before the subscription is disposed, without waiting
+///     for a delivery in progress on another thread, whose observer may need a lock the disposing
+///     caller holds. That delivery finishes and nothing is delivered after it.</description>
 ///   </item>
 ///   <item>
 ///     <term>Queue-first (parameterless overload)</term>
@@ -68,8 +75,8 @@ internal static class SynchronizeSafeExtensions
         {
             var queue = new DeliveryQueue<T>(gate, observer);
 
-            // Subscription first: terminal notifications flow through the still-active queue
-            return new CompositeDisposable(source.SubscribeSafe(queue), queue);
+            // Terminate first, without waiting for a delivery in progress on another thread.
+            return new CompositeDisposable(Disposable.Create(queue.Terminate), source.SubscribeSafe(queue));
         });
 
     /// <summary>
