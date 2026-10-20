@@ -156,7 +156,21 @@ internal sealed class FullJoin<TLeft, TLeftKey, TRight, TRightKey, TDestination>
                 lock (locker)
                 {
                     var observerSubscription = leftLoader.Merge(rightLoader).SubscribeSafe(queue.CreateQueue(observer));
-                    return new CompositeDisposable(Disposable.Create(queue.Terminate), observerSubscription, leftCache, rightCache, leftShare.Connect(), rightShare.Connect());
+                    var subscriptions = new CompositeDisposable(Disposable.Create(queue.Terminate), observerSubscription, leftCache, rightCache);
+                    try
+                    {
+                        subscriptions.Add(leftShare.Connect());
+                        subscriptions.Add(rightShare.Connect());
+                    }
+                    catch
+                    {
+                        // Runic (DD-044, fork issue #36): a side connected before a subscriber exception thrown at the other
+                        // side's initial changes keeps the observer subscribed to its source unless it is disposed here.
+                        subscriptions.Dispose();
+                        throw;
+                    }
+
+                    return subscriptions;
                 }
             });
 }

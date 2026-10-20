@@ -93,20 +93,12 @@ public static partial class ObservableCacheEx
     {
         ArgumentNullException.ThrowIfNull(sources);
 
-        return Observable.Create<IChangeSet<TObject, TKey>>(
+        // Runic (DD-044): the observer is guarded, and an exception it throws is not caught here, so it is thrown to
+        // the producer (for the initial changes, the caller of Subscribe) instead of being delivered as OnError.
+        return OperatorSubscription.Create<IChangeSet<TObject, TKey>>(
             observer =>
             {
-                void UpdateAction(IChangeSet<TObject, TKey> updates)
-                {
-                    try
-                    {
-                        observer.OnNext(updates);
-                    }
-                    catch (Exception ex)
-                    {
-                        observer.OnError(ex);
-                    }
-                }
+                void UpdateAction(IChangeSet<TObject, TKey> updates) => observer.OnNext(updates);
 
                 var subscriber = Disposable.Empty;
                 try
@@ -114,7 +106,7 @@ public static partial class ObservableCacheEx
                     var combiner = new Combiner<TObject, TKey>(type, UpdateAction);
                     subscriber = combiner.Subscribe([.. sources], observer.OnError, observer.OnCompleted);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!SubscriberFault.IsSubscriberFault(ex))
                 {
                     observer.OnError(ex);
                 }
@@ -138,20 +130,12 @@ public static partial class ObservableCacheEx
     {
         ArgumentNullException.ThrowIfNull(combineTarget);
 
-        return Observable.Create<IChangeSet<TObject, TKey>>(
+        // Runic (DD-044): the observer is guarded, and an exception it throws is not caught here, so it is thrown to
+        // the producer (for the initial changes, the caller of Subscribe) instead of being delivered as OnError.
+        return OperatorSubscription.Create<IChangeSet<TObject, TKey>>(
             observer =>
             {
-                void UpdateAction(IChangeSet<TObject, TKey> updates)
-                {
-                    try
-                    {
-                        observer.OnNext(updates);
-                    }
-                    catch (Exception ex)
-                    {
-                        observer.OnError(ex);
-                    }
-                }
+                void UpdateAction(IChangeSet<TObject, TKey> updates) => observer.OnNext(updates);
 
                 var subscriber = Disposable.Empty;
                 try
@@ -162,7 +146,7 @@ public static partial class ObservableCacheEx
                     var combiner = new Combiner<TObject, TKey>(type, UpdateAction);
                     subscriber = combiner.Subscribe([.. list], observer.OnError, observer.OnCompleted);
                 }
-                catch (Exception ex)
+                catch (Exception ex) when (!SubscriberFault.IsSubscriberFault(ex))
                 {
                     observer.OnError(ex);
                 }

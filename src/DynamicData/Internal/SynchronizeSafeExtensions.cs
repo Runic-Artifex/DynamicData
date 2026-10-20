@@ -125,10 +125,24 @@ internal static class SynchronizeSafeExtensions
             var subscriptions = new CompositeDisposable();
             var terminated = 0;
 
-            subscriptions.Add(first.SubscribeSafe(CreateInner()));
-            foreach (var source in others)
+            // Runic (DD-044, fork issue #37): what the observer threw, so that it is thrown again rather than
+            // dropped when a System.Reactive subscribe safeguard delivers it back as OnError.
+            DeliveryFault? fault = null;
+
+            try
             {
-                subscriptions.Add(source.SubscribeSafe(CreateInner()));
+                subscriptions.Add(first.SubscribeSafe(CreateInner()));
+                foreach (var source in others)
+                {
+                    subscriptions.Add(source.SubscribeSafe(CreateInner()));
+                }
+            }
+            catch
+            {
+                // Runic (DD-044, fork issue #36): an exception thrown while an input is subscribed, such as a
+                // subscriber's own exception at a value it delivers, must not leave the earlier inputs subscribed.
+                subscriptions.Dispose();
+                throw;
             }
 
             return subscriptions;
@@ -142,14 +156,25 @@ internal static class SynchronizeSafeExtensions
 
             void OnNextSafe(T value)
             {
-                if (Volatile.Read(ref terminated) == 0)
+                if (Volatile.Read(ref terminated) != 0)
+                {
+                    return;
+                }
+
+                try
                 {
                     observer.OnNext(value);
+                }
+                catch (Exception error)
+                {
+                    DeliveryFault.Record(ref fault, error);
+                    throw;
                 }
             }
 
             void OnErrorSafe(Exception error)
             {
+                DeliveryFault.ThrowIfReturned(Volatile.Read(ref fault), error);
                 if (Interlocked.Exchange(ref terminated, 1) == 0)
                 {
                     observer.OnError(error);
@@ -202,9 +227,22 @@ internal static class SynchronizeSafeExtensions
             var secondCompleted = false;
             var terminated = 0;
 
+            // Runic (DD-044, fork issue #37): see UnsynchronizedMerge.
+            DeliveryFault? fault = null;
+
             var subscriptions = new CompositeDisposable();
-            subscriptions.Add(first.SubscribeSafe(Observer.Create<TFirst>(OnFirstNext, OnErrorSafe, OnFirstCompleted)));
-            subscriptions.Add(second.SubscribeSafe(Observer.Create<TSecond>(OnSecondNext, OnErrorSafe, OnSecondCompleted)));
+            try
+            {
+                subscriptions.Add(first.SubscribeSafe(Observer.Create<TFirst>(OnFirstNext, OnErrorSafe, OnFirstCompleted)));
+                subscriptions.Add(second.SubscribeSafe(Observer.Create<TSecond>(OnSecondNext, OnErrorSafe, OnSecondCompleted)));
+            }
+            catch
+            {
+                // Runic (DD-044, fork issue #36): see UnsynchronizedMerge.
+                subscriptions.Dispose();
+                throw;
+            }
+
             return subscriptions;
 
             void OnFirstNext(TFirst value)
@@ -246,7 +284,15 @@ internal static class SynchronizeSafeExtensions
                         return;
                     }
 
-                    observer.OnNext(result);
+                    try
+                    {
+                        observer.OnNext(result);
+                    }
+                    catch (Exception error)
+                    {
+                        DeliveryFault.Record(ref fault, error);
+                        throw;
+                    }
                 }
                 else if (otherCompleted)
                 {
@@ -256,6 +302,7 @@ internal static class SynchronizeSafeExtensions
 
             void OnErrorSafe(Exception error)
             {
+                DeliveryFault.ThrowIfReturned(Volatile.Read(ref fault), error);
                 if (Interlocked.Exchange(ref terminated, 1) == 0)
                 {
                     observer.OnError(error);

@@ -27,10 +27,21 @@ internal static class DeliveryQueueMergeExtensions
             var remainingSources = others.Length + 1;
             var subscriptions = new CompositeDisposable();
 
-            subscriptions.Add(first.SubscribeSafe(CreateInner()));
-            foreach (var source in others)
+            try
             {
-                subscriptions.Add(source.SubscribeSafe(CreateInner()));
+                subscriptions.Add(first.SubscribeSafe(CreateInner()));
+                foreach (var source in others)
+                {
+                    subscriptions.Add(source.SubscribeSafe(CreateInner()));
+                }
+            }
+            catch
+            {
+                // Runic (DD-044, fork issue #36): an exception thrown while an input is subscribed, such as a
+                // subscriber's own exception at a value it delivers, must not leave the earlier inputs subscribed.
+                subscriptions.Dispose();
+                queue.Terminate();
+                throw;
             }
 
             // Subscription first so any terminal notification produced during Rx's disposal

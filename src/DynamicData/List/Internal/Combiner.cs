@@ -46,37 +46,47 @@ internal sealed class Combiner<T>(ICollection<IObservable<IChangeSet<T>>> source
             output.OnCompleted();
         }
 
-        for (var index = 0; index < sources.Length && !stopped; index++)
+        try
         {
-            var tracker = sourceLists[index];
-            subscriptions.Add(sources[index].SynchronizeSafe(queue).Subscribe(changes =>
+            for (var index = 0; index < sources.Length && !stopped; index++)
             {
-                if (stopped)
+                var tracker = sourceLists[index];
+                subscriptions.Add(sources[index].SynchronizeSafe(queue).Subscribe(changes =>
                 {
-                    return;
-                }
+                    if (stopped)
+                    {
+                        return;
+                    }
 
-                CloneSourceList(tracker, changes);
-                var notifications = UpdateResultList(changes, sourceLists, resultList);
-                if (notifications.Count != 0)
+                    CloneSourceList(tracker, changes);
+                    var notifications = UpdateResultList(changes, sourceLists, resultList);
+                    if (notifications.Count != 0)
+                    {
+                        output.OnNext(notifications);
+                    }
+                }, error =>
                 {
-                    output.OnNext(notifications);
-                }
-            }, error =>
-            {
-                if (!stopped)
+                    if (!stopped)
+                    {
+                        stopped = true;
+                        output.OnError(error);
+                    }
+                }, () =>
                 {
-                    stopped = true;
-                    output.OnError(error);
-                }
-            }, () =>
-            {
-                if (!stopped && --pending == 0)
-                {
-                    stopped = true;
-                    output.OnCompleted();
-                }
-            }));
+                    if (!stopped && --pending == 0)
+                    {
+                        stopped = true;
+                        output.OnCompleted();
+                    }
+                }));
+            }
+        }
+        catch
+        {
+            // Runic (DD-044, fork issue #36): a subscriber exception thrown at an initial value must not leave
+            // the sources subscribed so far attached.
+            subscriptions.Dispose();
+            throw;
         }
 
         return subscriptions;

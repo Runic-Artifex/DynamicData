@@ -43,63 +43,77 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
                 // This populates a RefTracker when the original source is subscribed to
                 var sourceLists = _source.Connect().SynchronizeSafe(queue).Transform(changeSet => new MergeContainer(changeSet.SynchronizeSafe(queue))).AsObservableList();
 
-                // merge the items back together
-                var allChanges = sourceLists.Connect().MergeMany(mc => mc.Source).SynchronizeSafe(queue).Subscribe(
-                    changes =>
-                    {
-                        // Populate result list and check for changes
-                        var notifications = UpdateResultList(sourceLists.Items.AsArray(), resultList, changes);
-                        if (notifications.Count != 0)
+                var subscriptions = new CompositeDisposable(Disposable.Create(queue.Terminate), sourceLists);
+                try
+                {
+                    // merge the items back together
+                    var allChanges = sourceLists.Connect().MergeMany(mc => mc.Source).SynchronizeSafe(queue).Subscribe(
+                        changes =>
                         {
-                            output.OnNext(notifications);
-                        }
-                    }, output.OnError, output.OnCompleted);
-
-                // When a list is removed, update all items that were in that list
-                var removedItem = sourceLists.Connect().OnItemRemoved(
-                    mc =>
-                    {
-                        // Remove items if required
-                        var notifications = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, mc.Tracker.Items);
-                        if (notifications.Count != 0)
-                        {
-                            output.OnNext(notifications);
-                        }
-
-                        // On some operators, items not in the removed list can also be affected.
-                        if (type == CombineOperator.And || type == CombineOperator.Except)
-                        {
-                            var itemsToCheck = sourceLists.Items.SelectMany(mc2 => mc2.Tracker.Items).ToArray();
-                            var notification2 = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, itemsToCheck);
-                            if (notification2.Count != 0)
+                            // Populate result list and check for changes
+                            var notifications = UpdateResultList(sourceLists.Items.AsArray(), resultList, changes);
+                            if (notifications.Count != 0)
                             {
-                                output.OnNext(notification2);
+                                output.OnNext(notifications);
                             }
-                        }
-                    }).Subscribe(static _ => { }, static _ => { });
+                        }, output.OnError, output.OnCompleted);
+                    subscriptions.Add(allChanges);
 
-                // When a list is added, update all items that are in that list
-                var sourceChanged = sourceLists.Connect().WhereReasonsAre(ListChangeReason.Add, ListChangeReason.AddRange).ForEachItemChange(
-                    mc =>
-                    {
-                        var notifications = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, mc.Current.Tracker.Items);
-                        if (notifications.Count != 0)
+                    // When a list is removed, update all items that were in that list
+                    var removedItem = sourceLists.Connect().OnItemRemoved(
+                        mc =>
                         {
-                            output.OnNext(notifications);
-                        }
-
-                        // On some operators, items not in the new list can also be affected.
-                        if (type == CombineOperator.And || type == CombineOperator.Except)
-                        {
-                            var notification2 = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, resultList.ToArray());
-                            if (notification2.Count != 0)
+                            // Remove items if required
+                            var notifications = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, mc.Tracker.Items);
+                            if (notifications.Count != 0)
                             {
-                                output.OnNext(notification2);
+                                output.OnNext(notifications);
                             }
-                        }
-                    }).Subscribe(static _ => { }, static _ => { });
 
-                return new CompositeDisposable(Disposable.Create(queue.Terminate), sourceLists, allChanges, removedItem, sourceChanged);
+                            // On some operators, items not in the removed list can also be affected.
+                            if (type == CombineOperator.And || type == CombineOperator.Except)
+                            {
+                                var itemsToCheck = sourceLists.Items.SelectMany(mc2 => mc2.Tracker.Items).ToArray();
+                                var notification2 = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, itemsToCheck);
+                                if (notification2.Count != 0)
+                                {
+                                    output.OnNext(notification2);
+                                }
+                            }
+                        }).Subscribe(static _ => { }, static _ => { });
+                    subscriptions.Add(removedItem);
+
+                    // When a list is added, update all items that are in that list
+                    var sourceChanged = sourceLists.Connect().WhereReasonsAre(ListChangeReason.Add, ListChangeReason.AddRange).ForEachItemChange(
+                        mc =>
+                        {
+                            var notifications = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, mc.Current.Tracker.Items);
+                            if (notifications.Count != 0)
+                            {
+                                output.OnNext(notifications);
+                            }
+
+                            // On some operators, items not in the new list can also be affected.
+                            if (type == CombineOperator.And || type == CombineOperator.Except)
+                            {
+                                var notification2 = UpdateItemSetMemberships(sourceLists.Items.AsArray(), resultList, resultList.ToArray());
+                                if (notification2.Count != 0)
+                                {
+                                    output.OnNext(notification2);
+                                }
+                            }
+                        }).Subscribe(static _ => { }, static _ => { });
+                    subscriptions.Add(sourceChanged);
+                }
+                catch
+                {
+                    // Runic (DD-044, fork issue #36): a subscriber exception thrown at an initial value must not leave
+                    // the inputs subscribed so far attached to their sources.
+                    subscriptions.Dispose();
+                    throw;
+                }
+
+                return subscriptions;
             });
 
     /// <summary>

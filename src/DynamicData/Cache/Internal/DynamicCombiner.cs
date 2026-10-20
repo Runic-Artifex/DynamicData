@@ -105,7 +105,20 @@ internal sealed class DynamicCombiner<TObject, TKey>(IObservableList<IObservable
                     })
                     .Subscribe(static _ => { }, static _ => { });
 
-                return new CompositeDisposable(Disposable.Create(queue.Terminate), sourceLists, allChanges, removedItem, sourceChanged, sharedLists.Connect());
+                var subscriptions = new CompositeDisposable(Disposable.Create(queue.Terminate), sourceLists, allChanges, removedItem, sourceChanged);
+                try
+                {
+                    subscriptions.Add(sharedLists.Connect());
+                }
+                catch
+                {
+                    // Runic (DD-044, fork issue #36): a subscriber exception thrown at an initial value must not leave
+                    // the source list subscribed.
+                    subscriptions.Dispose();
+                    throw;
+                }
+
+                return subscriptions;
             });
 
     /// <summary>

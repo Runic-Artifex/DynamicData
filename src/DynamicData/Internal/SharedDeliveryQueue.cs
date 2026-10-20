@@ -44,6 +44,9 @@ internal sealed class SharedDeliveryQueue : IDisposable
     private int _drainThreadId = -1;
     private volatile bool _isTerminated;
 
+    // Runic (DD-044, fork issue #37): the exception an observer threw while a notification was delivered.
+    private DeliveryFault? _deliveryFault;
+
     /// <summary>Initializes a new instance of the <see cref="SharedDeliveryQueue"/> class with its own internal lock.</summary>
     public SharedDeliveryQueue()
     {
@@ -105,6 +108,13 @@ internal sealed class SharedDeliveryQueue : IDisposable
         while (Volatile.Read(ref _drainThreadId) != -1)
             spinner.SpinOnce();
     }
+
+    /// <summary>
+    /// Runic (DD-044, fork issue #37): throws <paramref name="error"/> if an observer of this queue threw it while a
+    /// notification was delivered and it is now returning as <c>OnError</c>, instead of delivering it.
+    /// </summary>
+    /// <param name="error">The error about to be enqueued.</param>
+    internal void ThrowIfReturnedFault(Exception error) => DeliveryFault.ThrowIfReturned(Volatile.Read(ref _deliveryFault), error);
 
     /// <summary>Records that the given source has one more notification pending. Must be called under the lock.</summary>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -275,7 +285,15 @@ internal sealed class SharedDeliveryQueue : IDisposable
 
         _gate.Exit();
 
-        source.DeliverStaged();
+        try
+        {
+            source.DeliverStaged();
+        }
+        catch (Exception error)
+        {
+            DeliveryFault.Record(ref _deliveryFault, error);
+            throw;
+        }
 
         if (!isError)
         {
@@ -399,6 +417,8 @@ internal sealed class DeliverySubQueue<T> : DrainableBase, IObserver<T>, IDispos
     /// <summary>Enqueues an OnError notification via the lock, then delivers.</summary>
     public void OnError(Exception error)
     {
+        _parent.ThrowIfReturnedFault(error);
+
         using var scope = AcquireLock();
         scope.EnqueueError(error);
     }

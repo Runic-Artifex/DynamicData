@@ -170,23 +170,33 @@ private sealed class Subscription
 
                 using var @lock = SwappableLock.CreateAndEnter(UpstreamSynchronizationGate);
 
-                _predicateStateSubscription = OperatorSubscription.SubscribeSafe(
-                    predicateState,
-                    OnPredicateStateNext,
-                    onError,
-                    OnPredicateStateCompleted);
+                try
+                {
+                    _predicateStateSubscription = OperatorSubscription.SubscribeSafe(
+                        predicateState,
+                        OnPredicateStateNext,
+                        onError,
+                        OnPredicateStateCompleted);
 
-                _reapplyFilterSubscription = OperatorSubscription.SubscribeSafe(
-                    reapplyFilter,
-                    OnReapplyFilterNext,
-                    onError,
-                    OnReapplyFilterCompleted);
+                    _reapplyFilterSubscription = OperatorSubscription.SubscribeSafe(
+                        reapplyFilter,
+                        OnReapplyFilterNext,
+                        onError,
+                        OnReapplyFilterCompleted);
 
-                _sourceSubscription = OperatorSubscription.SubscribeSafe(
-                    source,
-                    OnSourceNext,
-                    onError,
-                    OnSourceCompleted);
+                    _sourceSubscription = OperatorSubscription.SubscribeSafe(
+                        source,
+                        OnSourceNext,
+                        onError,
+                        OnSourceCompleted);
+                }
+                catch
+                {
+                    // Runic (DD-044, fork issue #36): a subscriber exception thrown at the initial changes must not leave
+                    // the predicate state and reapply signals subscribed.
+                    Dispose();
+                    throw;
+                }
 
                 _hasInitialized = true;
 

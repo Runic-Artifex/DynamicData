@@ -216,6 +216,7 @@ internal static class SubscriberFault
         private static readonly IDisposable Detached = Disposable.Empty;
 
         private IDisposable? _subscription;
+        private DeliveryFault? _fault;
         private volatile bool _faulted;
 
         /// <summary>
@@ -253,6 +254,9 @@ internal static class SubscriberFault
         {
             if (_faulted)
             {
+                // Runic (fork issue #37): the subscriber's own exception, delivered back by a System.Reactive
+                // subscribe safeguard, goes to the producer.
+                DeliveryFault.ThrowIfReturned(Volatile.Read(ref _fault), error);
                 return;
             }
 
@@ -292,6 +296,7 @@ internal static class SubscriberFault
             // Like System.Reactive's subscription safeguard: an observer that throws is detached before
             // the exception propagates to the producer, and receives nothing further.
             Mark(error);
+            DeliveryFault.Record(ref _fault, error);
             _faulted = true;
             Dispose();
         }
@@ -368,6 +373,53 @@ internal sealed class SubscriberFaultRelay
         {
             downstream.OnCompleted();
             relay.RethrowCaptured();
+        }
+    }
+}
+
+/// <summary>
+/// Runic (DD-044, fork issue #37): the exception a delivery point's downstream observer threw, so that the point
+/// throws it again, instead of delivering it, when the exception comes back to it as <c>OnError</c>.
+/// </summary>
+/// <remarks>
+/// System.Reactive's <c>Observable.Create</c> and <c>SubscribeSafe</c> deliver an exception thrown while they
+/// subscribe as <c>OnError</c> to their observer, unless that observer threw it itself. A subscriber exception
+/// thrown during the initial snapshot can leave such a subscribe call without passing through its observer, for
+/// example when a shared delivery queue delivers another input's value, when a <c>MergeMany</c> child is
+/// subscribed or when <c>Concat</c> subscribes an inner source. The <c>OnError</c> then reached the delivery queue
+/// or guard that the exception had passed through, which forwarded it to the subscriber that had already thrown,
+/// or dropped it, and <c>Subscribe</c> returned normally. Only an exception returning on the thread that threw it
+/// is thrown again; it propagates to the producer, which for the initial snapshot is the caller of
+/// <c>Subscribe</c>.
+/// </remarks>
+internal sealed class DeliveryFault
+{
+    private readonly Exception _error;
+    private readonly int _threadId;
+
+    private DeliveryFault(Exception error)
+    {
+        _error = error;
+        _threadId = Environment.CurrentManagedThreadId;
+    }
+
+    /// <summary>
+    /// Records the exception a downstream observer threw while a notification was delivered to it.
+    /// </summary>
+    /// <param name="slot">The delivery point's record.</param>
+    /// <param name="error">The exception.</param>
+    public static void Record(ref DeliveryFault? slot, Exception error) => Volatile.Write(ref slot, new DeliveryFault(error));
+
+    /// <summary>
+    /// Throws <paramref name="error"/> if it is the recorded exception, returning on the thread that threw it.
+    /// </summary>
+    /// <param name="fault">The delivery point's record.</param>
+    /// <param name="error">The error about to be delivered.</param>
+    public static void ThrowIfReturned(DeliveryFault? fault, Exception error)
+    {
+        if (fault is not null && ReferenceEquals(fault._error, error) && fault._threadId == Environment.CurrentManagedThreadId)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(error);
         }
     }
 }

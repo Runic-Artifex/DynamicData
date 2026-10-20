@@ -68,6 +68,19 @@ internal sealed class SubscribeMany<TObject, TKey>
                         onError: observer.OnError,
                         onCompleted: static () => { }));
 
-                return new CompositeDisposable(subscriptions, published.SubscribeSafe(observer), published.Connect());
+                var disposables = new CompositeDisposable(subscriptions, published.SubscribeSafe(observer));
+                try
+                {
+                    disposables.Add(published.Connect());
+                }
+                catch
+                {
+                    // Runic (DD-044, fork issue #36): a subscriber exception thrown at an initial value must not leave
+                    // the subscriptions made for the earlier items attached to their sources.
+                    disposables.Dispose();
+                    throw;
+                }
+
+                return disposables;
             });
 }

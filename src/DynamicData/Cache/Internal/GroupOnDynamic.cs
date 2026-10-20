@@ -101,15 +101,31 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
             onError: output.OnError,
             onCompleted: output.OnCompleted);
 
-        return new CompositeDisposable(
-            Disposable.Create(queue.Terminate),
-            sharedGroupSelector.Connect(),
-            sharedSource.Connect(),
-            sharedRegrouper.Connect(),
-            dynamicGrouper,
-            subChanges,
-            subGroupSelector,
-            subRegrouper,
-            subOnComplete);
+        var subscriptions = new CompositeDisposable(Disposable.Create(queue.Terminate));
+        try
+        {
+            subscriptions.Add(sharedGroupSelector.Connect());
+            subscriptions.Add(sharedSource.Connect());
+            subscriptions.Add(sharedRegrouper.Connect());
+        }
+        catch
+        {
+            // Runic (DD-044, fork issue #36): a subscriber exception thrown at the initial groups must not leave the
+            // inputs connected so far attached to their sources.
+            subscriptions.Add(dynamicGrouper);
+            subscriptions.Add(subChanges);
+            subscriptions.Add(subGroupSelector);
+            subscriptions.Add(subRegrouper);
+            subscriptions.Add(subOnComplete);
+            subscriptions.Dispose();
+            throw;
+        }
+
+        subscriptions.Add(dynamicGrouper);
+        subscriptions.Add(subChanges);
+        subscriptions.Add(subGroupSelector);
+        subscriptions.Add(subRegrouper);
+        subscriptions.Add(subOnComplete);
+        return subscriptions;
     });
 }

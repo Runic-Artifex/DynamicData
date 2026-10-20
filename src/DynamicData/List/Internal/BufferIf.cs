@@ -88,54 +88,66 @@ internal sealed class BufferIf<T>(IObservable<IChangeSet<T>> source, IObservable
             .Concat(_pauseIfTrueSelector.DeliveryQueueMerge(timeoutSubject))
             .ObserveOn(_scheduler).SynchronizeSafe(queue);
 
-        subscriptions.Add(bufferSelector.Subscribe(state =>
+        try
         {
-            if (stopped)
-            {
-                return;
-            }
-
-            paused = state;
-            timeoutSubscriber.Disposable = Disposable.Empty;
-            if (!paused)
-            {
-                Flush();
-            }
-            else if (_timeOut != TimeSpan.Zero)
-            {
-                timeoutSubscriber.Disposable = Observable.Timer(_timeOut, _scheduler)
-                    .Select(static _ => false).SubscribeSafe(timeoutSubject);
-            }
-        }, Fail));
-
-        if (!stopped)
-        {
-            subscriptions.Add(_source.SynchronizeSafe(queue).Subscribe(updates =>
+            subscriptions.Add(bufferSelector.Subscribe(state =>
             {
                 if (stopped)
                 {
                     return;
                 }
 
-                if (paused)
+                paused = state;
+                timeoutSubscriber.Disposable = Disposable.Empty;
+                if (!paused)
                 {
-                    buffer.AddRange(updates);
+                    Flush();
                 }
-                else
+                else if (_timeOut != TimeSpan.Zero)
                 {
-                    output.OnNext(updates);
+                    timeoutSubscriber.Disposable = Observable.Timer(_timeOut, _scheduler)
+                        .Select(static _ => false).SubscribeSafe(timeoutSubject);
                 }
-            }, Fail, () =>
-            {
-                if (stopped)
-                {
-                    return;
-                }
+            }, Fail));
 
-                stopped = true;
-                Flush();
-                output.OnCompleted();
-            }));
+            if (!stopped)
+            {
+                subscriptions.Add(_source.SynchronizeSafe(queue).Subscribe(updates =>
+                {
+                    if (stopped)
+                    {
+                        return;
+                    }
+
+                    if (paused)
+                    {
+                        buffer.AddRange(updates);
+                    }
+                    else
+                    {
+                        output.OnNext(updates);
+                    }
+                }, Fail, () =>
+                {
+                    if (stopped)
+                    {
+                        return;
+                    }
+
+                    stopped = true;
+                    Flush();
+                    output.OnCompleted();
+                }));
+            }
+        }
+        catch
+        {
+            // Runic (DD-044, fork issue #36): a subscriber exception thrown at an initial value must not leave
+            // the pause selector subscribed.
+            queue.Terminate();
+            subscriptions.Dispose();
+            timeoutSubject.Dispose();
+            throw;
         }
 
         return Disposable.Create(() =>
