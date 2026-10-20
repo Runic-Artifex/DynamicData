@@ -195,6 +195,182 @@ checkContentAction: async result => { await Assert.That(result.Count).IsEqualTo(
         await Assert.That(isDisposed).IsTrue();
     }
 
+    [Test]
+    public async Task TaskCompletesTheStreamAfterItsChanges()
+    {
+        var task = new TaskCompletionSource();
+        ISourceCache<Person, string>? captured = null;
+        var person = new Person("Name1", 10);
+
+        using var subscription = ObservableChangeSet.Create<Person, string>((cache, _) => { captured = cache; return task.Task; }, p => p.Name).RecordCacheItems(out var results);
+
+        captured!.AddOrUpdate(person);
+        await Assert.That(results.HasCompleted).IsFalse().Because("the task has not completed yet");
+
+        task.SetResult();
+
+        await Assert.That(results.RecordedItemsByKey.Values.ToArray()).IsEquivalentTo(new[] { person }).Because("changes made by the task arrive ahead of completion");
+        await Assert.That(results.HasCompleted).IsTrue().Because("nothing can follow the end of the task");
+        await Assert.That(results.Error).IsNull();
+    }
+
+    [Test]
+    public async Task TaskFailureIsDeliveredOnTheThreadThatFailsIt()
+    {
+        var task = new TaskCompletionSource();
+
+        using var subscription = ObservableChangeSet.Create<Person, string>((_, _) => task.Task, p => p.Name).RecordCacheItems(out var results);
+
+        var expectedError = new Exception("Test Exception");
+        task.SetException(expectedError);
+
+        await Assert.That(results.Error).IsSameReferenceAs(expectedError).Because("the failure should arrive before SetException returns, not later on another thread");
+    }
+
+    [Test]
+    public async Task TaskOutcomeIsNotPostedToTheCompletingThreadsSynchronizationContext()
+    {
+        var task = new TaskCompletionSource();
+        var context = new RecordingSynchronizationContext();
+        var completedBeforeSetResultReturned = false;
+
+        using var subscription = ObservableChangeSet.Create<Person, string>((_, _) => task.Task, p => p.Name).RecordCacheItems(out var results);
+
+        var thread = new Thread(() =>
+        {
+            SynchronizationContext.SetSynchronizationContext(context);
+            task.SetResult();
+            completedBeforeSetResultReturned = results.HasCompleted;
+        });
+        thread.Start();
+        thread.Join();
+
+        await Assert.That(completedBeforeSetResultReturned).IsTrue().Because("completion arrives on the thread that completes the task");
+        await Assert.That(context.Posts).IsEqualTo(0);
+    }
+
+    [Test]
+    public async Task TaskCompletingWhileAChangeIsBeingDeliveredCompletesAfterIt()
+    {
+        var task = new TaskCompletionSource();
+        ISourceCache<Person, string>? captured = null;
+        var completerReturned = false;
+        var observer = new OverlapDetectingObserver<IChangeSet<Person, string>>(_ =>
+        {
+            // Complete the task on another thread while this change is still being delivered.
+            var completer = new Thread(() => task.SetResult());
+            completer.Start();
+            completerReturned = completer.Join(TimeSpan.FromSeconds(10));
+        });
+
+        using var subscription = ObservableChangeSet.Create<Person, string>((cache, _) => { captured = cache; return task.Task; }, p => p.Name).Subscribe(observer);
+        captured!.AddOrUpdate(new Person("Name0", 0));
+
+        await observer.Terminated.WaitAsync(TimeSpan.FromSeconds(10));
+        await Assert.That(completerReturned).IsTrue().Because("the completing thread hands the completion over instead of waiting for the delivery");
+        await Assert.That(observer.MaxConcurrentCalls).IsEqualTo(1).Because("the completion must not overlap the change being delivered");
+        await Assert.That(observer.HasCompleted).IsTrue();
+        await Assert.That(observer.Values).IsEqualTo(1);
+    }
+
+    [Test]
+    [Arguments(false)]
+    [Arguments(true)]
+    public async Task TaskOutcomeRacingConcurrentEditsIsSerializedAndLast(bool fail)
+    {
+        for (var iteration = 0; iteration < 10; iteration++)
+        {
+            var task = new TaskCompletionSource();
+            var error = new InvalidOperationException("task failed");
+            ISourceCache<Person, string>? captured = null;
+            var observer = new OverlapDetectingObserver<IChangeSet<Person, string>>(_ => Thread.SpinWait(200));
+            using var subscription = ObservableChangeSet.Create<Person, string>((cache, _) => { captured = cache; return task.Task; }, p => p.Name).Subscribe(observer);
+
+            // The editor runs until the terminal arrives, with a cap so that it cannot load the machine indefinitely
+            // if the terminal never comes.
+            const int MaxEdits = 200_000;
+            var stop = 0;
+            var valuesWhenTaskEnded = int.MaxValue;
+            var editor = new Thread(() =>
+            {
+                try
+                {
+                    for (var i = 0; i < MaxEdits && Volatile.Read(ref stop) == 0 && observer.TerminalCount == 0; i++)
+                    {
+                        captured!.AddOrUpdate(new Person($"Name{i}", i));
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // The stream may dispose the collection once the task has ended it.
+                }
+            });
+            var completer = new Thread(() =>
+            {
+                SpinWait.SpinUntil(() => observer.Values >= 5, TimeSpan.FromSeconds(5));
+                if (fail)
+                {
+                    task.SetException(error);
+                }
+                else
+                {
+                    task.SetResult();
+                }
+
+                Volatile.Write(ref valuesWhenTaskEnded, observer.Values);
+            });
+
+            editor.Start();
+            completer.Start();
+            try
+            {
+                await observer.Terminated.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+            finally
+            {
+                Volatile.Write(ref stop, 1);
+                editor.Join(TimeSpan.FromSeconds(10));
+                completer.Join(TimeSpan.FromSeconds(10));
+            }
+
+            await Assert.That(observer.MaxConcurrentCalls).IsEqualTo(1).Because("notifications must never overlap");
+            await Assert.That(observer.CallsAfterTerminal).IsEqualTo(0).Because("the terminal notification is the last one");
+            await Assert.That(observer.Values - Volatile.Read(ref valuesWhenTaskEnded)).IsLessThanOrEqualTo(1).Because("once the task has ended, at most the change already being delivered precedes the outcome, however fast the editor keeps writing");
+            await Assert.That(observer.TerminalCount).IsEqualTo(1);
+            if (fail)
+            {
+                await Assert.That(observer.Error).IsSameReferenceAs(error);
+            }
+            else
+            {
+                await Assert.That(observer.HasCompleted).IsTrue();
+            }
+        }
+    }
+
+    [Test]
+    public async Task DisposingTheSubscriptionCancelsTheTask()
+    {
+        var token = CancellationToken.None;
+
+        var subscription = ObservableChangeSet.Create<Person, string>((_, cancellationToken) => { token = cancellationToken; return new TaskCompletionSource().Task; }, p => p.Name).RecordCacheItems(out _);
+        subscription.Dispose();
+
+        await Assert.That(token.IsCancellationRequested).IsTrue();
+    }
+
+    [Test]
+    public async Task TaskThatFinishesDuringSubscriptionStillDeliversItsChanges()
+    {
+        var person = new Person("Name1", 10);
+
+        using var subscription = ObservableChangeSet.Create<Person, string>((cache, _) => { cache.AddOrUpdate(person); return Task.CompletedTask; }, p => p.Name).RecordCacheItems(out var results);
+
+        await Assert.That(results.RecordedItemsByKey.Values.ToArray()).IsEquivalentTo(new[] { person }).Because("the change was made before the task finished");
+        await Assert.That(results.HasCompleted).IsTrue();
+        await Assert.That(results.Error).IsNull();
+    }
+
     [System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1822:Mark members as static", Justification = "Accetable for test.")]
     private async Task SubscribeAndAssert<TObject, TKey>(IObservable<IChangeSet<TObject, TKey>> observableChangeset, bool expectsError = false, Func<IObservableCache<TObject, TKey>, Task>? checkContentAction = null)
         where TKey : notnull
@@ -220,5 +396,16 @@ checkContentAction: async result => { await Assert.That(result.Count).IsEqualTo(
         }
 
         await Assert.That(complete).IsTrue();
+    }
+
+    private sealed class RecordingSynchronizationContext : SynchronizationContext
+    {
+        public int Posts { get; private set; }
+
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            Posts++;
+            base.Post(d, state);
+        }
     }
 }
