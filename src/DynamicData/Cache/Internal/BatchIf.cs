@@ -48,6 +48,10 @@ internal sealed class BatchIf<TObject, TKey>(IObservable<IChangeSet<TObject, TKe
             {
                 var batchedChanges = new List<IChangeSet<TObject, TKey>>();
                 var queue = new SharedDeliveryQueue();
+
+                // Deliver through the queue too: a notification raised from inside the observer, through
+                // another input, is then delivered after the observer returns instead of re-entrantly.
+                var output = queue.CreateQueue<ChangeSet<TObject, TKey>>(observer);
                 var paused = initialPauseState;
                 var timeoutDisposer = new SerialDisposable();
                 var intervalTimerDisposer = new SerialDisposable();
@@ -65,8 +69,9 @@ internal sealed class BatchIf<TObject, TKey>(IObservable<IChangeSet<TObject, TKe
                         resultingBatch.AddRange(cs);
                     }
 
-                    observer.OnNext(resultingBatch);
+                    // Clear before publishing: changes raised while the batch is being delivered start the next batch.
                     batchedChanges.Clear();
+                    output.OnNext(resultingBatch);
                 }
 
                 IDisposable IntervalFunction() =>
@@ -80,7 +85,7 @@ internal sealed class BatchIf<TObject, TKey>(IObservable<IChangeSet<TObject, TKe
                                 paused = true;
                             }
                         },
-                        observer.OnError);
+                        output.OnError);
 
                 if (intervalTimer is not null)
                 {
@@ -109,10 +114,10 @@ internal sealed class BatchIf<TObject, TKey>(IObservable<IChangeSet<TObject, TKe
                                     paused = false;
                                     ResumeAction();
                                 },
-                                observer.OnError);
+                                output.OnError);
                         }
                     },
-                    observer.OnError);
+                    output.OnError);
 
                 var publisher = _source.SynchronizeSafe(queue).Subscribe(
                     changes =>
@@ -125,12 +130,12 @@ internal sealed class BatchIf<TObject, TKey>(IObservable<IChangeSet<TObject, TKe
                             ResumeAction();
                         }
                     },
-                    observer.OnError,
+                    output.OnError,
                     () =>
                     {
                         // Anything still held back would otherwise be lost, so flush before finishing.
                         ResumeAction();
-                        observer.OnCompleted();
+                        output.OnCompleted();
                     });
 
                 return new CompositeDisposable(publisher, pausedHandler, timeoutDisposer, intervalTimerDisposer, queue);

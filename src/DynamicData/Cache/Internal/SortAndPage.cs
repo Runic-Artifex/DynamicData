@@ -156,11 +156,13 @@ internal sealed class SortAndPage<TObject, TKey>
                         return ApplyPagedChanges(changes);
                     });
 
+                // Deliver through the queue too: a notification raised from inside the observer, through
+                // another input, is then delivered after the observer returns instead of re-entrantly.
                 return new CompositeDisposable(comparerChanged.Skip(1)
                         .UnsynchronizedMerge(
                             paramsChanged.Where(changes => changes.Count is not 0),
                             dataChange.Where(changes => changes.Count is not 0))
-                    .SubscribeSafe(observer), queue);
+                    .SubscribeSafe(queue.CreateQueue(observer)), queue);
 
                 ChangeSet<TObject, TKey, PageContext<TObject>> ApplyPagedChanges(IChangeSet<TObject, TKey>? changeSet = null)
                 {

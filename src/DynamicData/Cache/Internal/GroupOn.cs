@@ -56,7 +56,10 @@ internal sealed class GroupOn<TObject, TKey, TGroupKey>(IObservable<IChangeSet<T
 
                 var regroup = _regrouper.SynchronizeSafe(queue).Select(_ => grouper.Regroup());
 
-                var published = groups.UnsynchronizedMerge(regroup).Where(changes => changes.Count != 0).Publish();
+                // Deliver through the queue too: a notification raised from inside the observer, through
+                // another input, is then delivered after the observer returns instead of re-entrantly.
+                // Before Publish, so removed groups are still disposed after the observer has seen them.
+                var published = groups.UnsynchronizedMerge(regroup).Where(changes => changes.Count != 0).SynchronizeSafe(queue).Publish();
                 var subscriber = published.SubscribeSafe(observer);
 
                 var disposer = published.DisposeMany().Subscribe(static _ => { }, static _ => { });

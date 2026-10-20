@@ -32,10 +32,12 @@ internal sealed class Page<TObject, TKey>(IObservable<ISortedChangeSet<TObject, 
                 var request = pageRequests.SynchronizeSafe(queue).Select(paginator.Paginate);
                 var dataChange = source.SynchronizeSafe(queue).Select(paginator.Update);
 
+                // Deliver through the queue too: a notification raised from inside the observer, through
+                // another input, is then delivered after the observer returns instead of re-entrantly.
                 return new CompositeDisposable(request.UnsynchronizedMerge(dataChange)
                     .Where(updates => updates is not null)
                     .Select(x => x!)
-                    .SubscribeSafe(observer), queue);
+                    .SubscribeSafe(queue.CreateQueue(observer)), queue);
             });
 
 /// <summary>
