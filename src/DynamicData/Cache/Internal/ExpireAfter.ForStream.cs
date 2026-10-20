@@ -71,9 +71,11 @@ private abstract class SubscriptionBase
             private readonly ChangeAwareCache<TObject, TKey> _itemsCache;
 
             /// <summary>
-            /// The _observer field.
+            /// The downstream observer. Notifications are queued under its gate, which also guards
+            /// this subscription's state, and delivered after the gate is released, so an observer
+            /// that writes into another pipeline cannot deadlock against a producer of this one.
             /// </summary>
-            private readonly IObserver<IChangeSet<TObject, TKey>> _observer;
+            private readonly DeliveryQueue<IChangeSet<TObject, TKey>> _observer;
 
             /// <summary>
             /// The _proposedExpirationsQueue field.
@@ -118,7 +120,7 @@ private abstract class SubscriptionBase
                 IObservable<IChangeSet<TObject, TKey>> source,
                 Func<TObject, TimeSpan?> timeSelector)
             {
-                _observer = observer;
+                _observer = new(new Lock(), observer);
                 _timeSelector = timeSelector;
 
                 _scheduler = scheduler ?? GlobalConfig.DefaultScheduler;
@@ -128,10 +130,22 @@ private abstract class SubscriptionBase
                 _proposedExpirationsQueue = [];
 
                 _sourceSubscription = PrimitivesLinqExtensions.SubscribeSafe(
-                    source.Synchronize(SynchronizationGate),
-                    OnSourceNext,
-                    OnSourceError,
-                    OnSourceCompleted);
+                    source,
+                    changes =>
+                    {
+                        using (_observer.AcquireLock())
+                            OnSourceNext(changes);
+                    },
+                    error =>
+                    {
+                        using (_observer.AcquireLock())
+                            OnSourceError(error);
+                    },
+                    () =>
+                    {
+                        using (_observer.AcquireLock())
+                            OnSourceCompleted();
+                    });
             }
 
             /// <summary>
@@ -139,12 +153,15 @@ private abstract class SubscriptionBase
             /// </summary>
             public void Dispose()
             {
-                lock (SynchronizationGate)
+                using (_observer.AcquireLock())
                 {
                     _sourceSubscription.Dispose();
 
                     TryCancelNextScheduledManagement();
                 }
+
+                // Wait for any in-flight delivery, and drop anything still queued.
+                _observer.Dispose();
             }
 
             /// <summary>
@@ -152,13 +169,6 @@ private abstract class SubscriptionBase
             /// </summary>
             protected IScheduler Scheduler
                 => _scheduler;
-            // Instead of using a dedicated _synchronizationGate object, we can save an allocation by using any object that is never exposed to public consumers.
-
-            /// <summary>
-            /// Gets the SynchronizationGate value.
-            /// </summary>
-            protected object SynchronizationGate
-                => _expirationDueTimesByKey;
 
             /// <summary>
             /// Executes the GetNextManagementDueTime operation.
@@ -196,7 +206,7 @@ private abstract class SubscriptionBase
             /// </summary>
             private void ManageExpirations()
             {
-                lock (SynchronizationGate)
+                using (_observer.AcquireLock())
                 {
                     // The scheduler only promises "best effort" to cancel scheduled operations, so we need to make sure.
                     if (_nextScheduledManagement is not { } thisScheduledManagement)

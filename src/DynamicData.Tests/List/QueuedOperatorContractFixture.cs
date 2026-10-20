@@ -76,6 +76,8 @@ public class QueuedOperatorContractFixture
     }
 
     [Test]
+    [Arguments("expire-after")]
+    [Arguments("expire-after-polling")]
     [Arguments("to-observable-change-set")]
     public async Task ConcurrentCrossExpirationsReleaseOperatorGates(string operation)
     {
@@ -161,6 +163,19 @@ public class QueuedOperatorContractFixture
         var scheduler = new TestScheduler();
         switch (operation)
         {
+            case "expire-after":
+            case "expire-after-polling":
+                {
+                    var source = new SourceList<int>();
+                    var polling = operation == "expire-after-polling" ? Lifetime : (TimeSpan?)null;
+                    return new(
+                        source.ExpireAfter(ExpireBelowNonExpiring, polling, scheduler).Select(static items => items.Count()),
+                        source.Add,
+                        scheduler,
+                        UpdatesPerRound: 1,
+                        source);
+                }
+
             case "to-observable-change-set":
                 {
                     var source = new DirectSource<int>();

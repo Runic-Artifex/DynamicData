@@ -66,6 +66,10 @@ public class QueuedOperatorContractFixture
     }
 
     [Test]
+    [Arguments("expire-after-source")]
+    [Arguments("expire-after-source-polling")]
+    [Arguments("expire-after-stream")]
+    [Arguments("expire-after-stream-polling")]
     [Arguments("to-observable-change-set")]
     public async Task ConcurrentCrossExpirationsReleaseOperatorGates(string operation)
     {
@@ -155,6 +159,30 @@ public class QueuedOperatorContractFixture
         var polling = operation.EndsWith("-polling", StringComparison.Ordinal) ? Lifetime : (TimeSpan?)null;
         switch (operation)
         {
+            case "expire-after-source":
+            case "expire-after-source-polling":
+                {
+                    var source = new SourceCache<int, int>(static value => value);
+                    return new(
+                        source.ExpireAfter(ExpireBelowNonExpiring, polling, scheduler).Select(static items => items.Count()),
+                        source.AddOrUpdate,
+                        scheduler,
+                        UpdatesPerRound: 1,
+                        source);
+                }
+
+            case "expire-after-stream":
+            case "expire-after-stream-polling":
+                {
+                    var source = new SourceCache<int, int>(static value => value);
+                    return new(
+                        source.Connect().ExpireAfter(ExpireBelowNonExpiring, polling, scheduler).Select(static changes => changes.Count),
+                        source.AddOrUpdate,
+                        scheduler,
+                        UpdatesPerRound: 2,
+                        source);
+                }
+
             case "to-observable-change-set":
                 {
                     var source = new DirectSource<int>();

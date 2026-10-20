@@ -4,6 +4,9 @@
 #if REACTIVE_SHIM
 
 namespace DynamicData.Reactive.List.Internal;
+
+// Inside the namespace, so the internal delivery notification is preferred over System.Reactive's.
+using DynamicData.Reactive.Internal;
 #else
 
 namespace DynamicData.List.Internal;
@@ -69,9 +72,16 @@ private abstract class SubscriptionBase
         private readonly List<int> _expiringItemsBuffer;
 
         /// <summary>
-        /// The _observer field.
+        /// Delivers to the downstream observer. It is only fed by <see cref="PublishPendingNotifications"/>,
+        /// outside the synchronization gate and the source edit, so an observer that writes into another
+        /// source cannot deadlock against an expiration of that source writing into this one.
         /// </summary>
-        private readonly IObserver<IEnumerable<T>> _observer;
+        private readonly DeliveryQueue<IEnumerable<T>> _observer;
+
+        /// <summary>
+        /// Notifications produced under the synchronization gate, in order, awaiting publication.
+        /// </summary>
+        private readonly Queue<Notification<IEnumerable<T>>> _pendingNotifications;
 
         /// <summary>
         /// The _onEditingSource field.
@@ -130,7 +140,8 @@ private abstract class SubscriptionBase
             ISourceList<T> source,
             Func<T, TimeSpan?> timeSelector)
         {
-            _observer = observer;
+            _observer = new(observer);
+            _pendingNotifications = new();
             _source = source;
             _timeSelector = timeSelector;
 
@@ -153,11 +164,34 @@ private abstract class SubscriptionBase
             _sourceSubscription = PrimitivesLinqExtensions.SubscribeSafe(
                 changes
                     // It's important to set this flag outside the context of a lock, because it'll be read outside of lock as well.
-                    .Finally(() => _hasSourceCompleted = true)
-                    .Synchronize(SynchronizationGate),
-                onNext: update => OnSourceNext(update.Changes, update.Version),
-                onError: OnSourceError,
-                onCompleted: OnSourceCompleted);
+                    .Finally(() => _hasSourceCompleted = true),
+                onNext: update =>
+                {
+                    int pendingCount;
+                    lock (SynchronizationGate)
+                    {
+                        pendingCount = _pendingNotifications.Count;
+                        OnSourceNext(update.Changes, update.Version);
+                        pendingCount = _pendingNotifications.Count - pendingCount;
+                    }
+
+                    if (pendingCount != 0)
+                        PublishPendingNotifications();
+                },
+                onError: error =>
+                {
+                    lock (SynchronizationGate)
+                        OnSourceError(error);
+
+                    PublishPendingNotifications();
+                },
+                onCompleted: () =>
+                {
+                    lock (SynchronizationGate)
+                        OnSourceCompleted();
+
+                    PublishPendingNotifications();
+                });
         }
 
         /// <summary>
@@ -165,6 +199,9 @@ private abstract class SubscriptionBase
         /// </summary>
         public void Dispose()
         {
+            // Stop delivery first: once this returns, no observer callback is running or will run.
+            _observer.Dispose();
+
             lock (SynchronizationGate)
             {
                 _hasSourceCompleted = true;
@@ -172,6 +209,7 @@ private abstract class SubscriptionBase
                 _sourceSubscription.Dispose();
 
                 TryCancelNextScheduledManagement();
+                _pendingNotifications.Clear();
             }
         }
 
@@ -243,6 +281,30 @@ private abstract class SubscriptionBase
                 // entering the source edit. The closed subscription has no
                 // remaining expiration work or observer to notify.
             }
+            finally
+            {
+                // The expired items are published once the edit has committed and released the source.
+                PublishPendingNotifications();
+            }
+        }
+
+        /// <summary>
+        /// Publishes the notifications produced under the synchronization gate, in the order they were
+        /// produced. Must not be called while holding the gate or inside a source edit: the queue
+        /// delivers on this thread once its own gate is released.
+        /// </summary>
+        private void PublishPendingNotifications()
+        {
+            // The queue's gate is held while moving the notifications, so two publishers cannot reorder
+            // them, and the queue delivers only after both gates are released.
+            using (_observer.AcquireLock())
+            {
+                lock (SynchronizationGate)
+                {
+                    while (_pendingNotifications.TryDequeue(out var notification))
+                        notification.Accept(_observer);
+                }
+            }
         }
 
         /// <summary>
@@ -303,7 +365,7 @@ private abstract class SubscriptionBase
 
                     if (removedItems.Count != 0)
                     {
-                        _observer.OnNext(removedItems);
+                        _pendingNotifications.Enqueue(Notification<IEnumerable<T>>.CreateNext(removedItems));
                     }
 
                     _expiringItemsBuffer.Clear();
@@ -384,7 +446,7 @@ private abstract class SubscriptionBase
             // If the source completes, we can no longer remove items from it, so any pending expirations are moot.
             TryCancelNextScheduledManagement();
 
-            _observer.OnCompleted();
+            _pendingNotifications.Enqueue(Notification<IEnumerable<T>>.CreateCompleted());
         }
 
         /// <summary>
@@ -397,7 +459,7 @@ private abstract class SubscriptionBase
             _editCompletionSubscription.Dispose();
             TryCancelNextScheduledManagement();
 
-            _observer.OnError(error);
+            _pendingNotifications.Enqueue(Notification<IEnumerable<T>>.CreateError(error));
         }
 
         /// <summary>
@@ -548,7 +610,7 @@ private abstract class SubscriptionBase
             {
                 TryCancelNextScheduledManagement();
 
-                _observer.OnError(error);
+                _pendingNotifications.Enqueue(Notification<IEnumerable<T>>.CreateError(error));
             }
         }
 
