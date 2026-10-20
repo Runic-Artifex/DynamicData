@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+
 #if REACTIVE_TESTS
 using DynamicData.Reactive.Binding;
 #else
@@ -28,17 +30,19 @@ public sealed class DeadlockTortureTest
 
     private static async Task<bool> RunBidirectionalDeadlockTest(
         Func<IObservable<IChangeSet<Person>>, IObservable<IChangeSet<Person>>> pipeline,
-        int iterations = Iterations)
+        int iterations = Iterations,
+        bool propagatesEveryItem = true)
     {
         for (var iter = 0; iter < iterations; iter++)
         {
             using var sourceA = new SourceList<Person>();
             using var sourceB = new SourceList<Person>();
+            var errors = new ConcurrentQueue<Exception>();
 
             // Filter prefixes prevent the feedback loop: items from A flowing into B keep their
             // "A" prefix, so the B-to-A filter rejects them. Likewise for the reverse direction.
-            using var aToB = pipeline(sourceA.Connect().Filter(p => p.Name.StartsWith("A"))).PopulateInto(sourceB);
-            using var bToA = pipeline(sourceB.Connect().Filter(p => p.Name.StartsWith("B"))).PopulateInto(sourceA);
+            using var aToB = pipeline(sourceA.Connect().Filter(p => p.Name.StartsWith("A"))).ValidateSynchronization().RecordErrors(errors).PopulateInto(sourceB);
+            using var bToA = pipeline(sourceB.Connect().Filter(p => p.Name.StartsWith("B"))).ValidateSynchronization().RecordErrors(errors).PopulateInto(sourceA);
 
             using var barrier = new Barrier(2);
             var taskA = Task.Run(() => { barrier.SignalAndWait(); for (var i = 0; i < ItemCount; i++) sourceA.Add(new Person("A-" + iter + "-" + i, i)); });
@@ -47,8 +51,52 @@ public sealed class DeadlockTortureTest
             var completed = Task.WhenAll(taskA, taskB);
             if (await Task.WhenAny(completed, Task.Delay(TimeSpan.FromSeconds(TimeoutSeconds))) != completed)
                 return false;
+
+            await completed;
+            await Assert.That(errors.IsEmpty).IsTrue().Because("iteration " + iter + ": " + string.Join(Environment.NewLine, errors));
+            await Assert.That(sourceA.Items.Count(p => p.Name.StartsWith("A-"))).IsEqualTo(ItemCount);
+            await Assert.That(sourceB.Items.Count(p => p.Name.StartsWith("B-"))).IsEqualTo(ItemCount);
+
+            // Each destination must end up holding what a fresh subscription to the same pipeline
+            // over the other source produces.
+            await AssertPropagated(pipeline, sourceA, sourceB, "A", iter, propagatesEveryItem);
+            await AssertPropagated(pipeline, sourceB, sourceA, "B", iter, propagatesEveryItem);
+
+            await Assert.That(errors.IsEmpty).IsTrue().Because("iteration " + iter + ": " + string.Join(Environment.NewLine, errors));
         }
         return true;
+    }
+
+    private static async Task AssertPropagated(
+        Func<IObservable<IChangeSet<Person>>, IObservable<IChangeSet<Person>>> pipeline,
+        SourceList<Person> from,
+        SourceList<Person> to,
+        string prefix,
+        int iter,
+        bool propagatesEveryItem)
+    {
+        // Operators that hop to a scheduler (BufferIf observes its pause state on the task pool) can
+        // still be delivering on a pool thread after the writers return, so wait for quiescence.
+        var deadline = DateTime.UtcNow.AddSeconds(TimeoutSeconds);
+        string[] expected;
+        string[] actual;
+        while (true)
+        {
+            using (var fresh = pipeline(from.Connect().Filter(p => p.Name.StartsWith(prefix))).AsObservableList())
+            {
+                expected = fresh.Items.Select(p => p.Name).Order().ToArray();
+            }
+
+            actual = to.Items.Where(p => p.Name.StartsWith(prefix + "-")).Select(p => p.Name).Order().ToArray();
+            if (actual.SequenceEqual(expected) || DateTime.UtcNow > deadline)
+                break;
+
+            await Task.Delay(10);
+        }
+
+        await Assert.That(actual).IsEquivalentTo(expected).Because("items from " + prefix + " in iteration " + iter);
+        if (propagatesEveryItem)
+            await Assert.That(actual.Length).IsEqualTo(ItemCount).Because("items from " + prefix + " in iteration " + iter);
     }
 
     [Test]
@@ -63,14 +111,14 @@ public sealed class DeadlockTortureTest
     public async Task Page_DoesNotDeadlock()
     {
         using var req = new ReactiveUI.Primitives.Signals.StateSignal<IPageRequest>(new PageRequest(1, 50));
-        await Assert.That((await RunBidirectionalDeadlockTest(s => s.Sort(SortExpressionComparer<Person>.Ascending(p => p.Age)).Page(req)))).IsTrue();
+        await Assert.That((await RunBidirectionalDeadlockTest(s => s.Sort(SortExpressionComparer<Person>.Ascending(p => p.Age)).Page(req), propagatesEveryItem: false))).IsTrue();
     }
 
     [Test]
     public async Task Virtualise_DoesNotDeadlock()
     {
         using var req = new ReactiveUI.Primitives.Signals.StateSignal<IVirtualRequest>(new VirtualRequest(0, 50));
-        await Assert.That((await RunBidirectionalDeadlockTest(s => s.Sort(SortExpressionComparer<Person>.Ascending(p => p.Age)).Virtualise(req)))).IsTrue();
+        await Assert.That((await RunBidirectionalDeadlockTest(s => s.Sort(SortExpressionComparer<Person>.Ascending(p => p.Age)).Virtualise(req), propagatesEveryItem: false))).IsTrue();
     }
 
     [Test]
@@ -107,7 +155,8 @@ public sealed class DeadlockTortureTest
                   .DisposeMany()
                   .Sort(SortExpressionComparer<Person>.Ascending(p => p.Age))
                   .Page(pageReq),
-            iterations: Iterations * 2)).IsTrue();
+            iterations: Iterations * 2,
+            propagatesEveryItem: false)).IsTrue();
     }
 
     [Test]
