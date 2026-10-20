@@ -64,20 +64,22 @@ public sealed class LockFreeObservableCache<TObject, TKey> : IObservableCache<TO
 
         _updater = new CacheUpdater<TObject, TKey>(_innerCache);
 
-        var loader = source.Select(
-            changes =>
-            {
-                _innerCache.Clone(changes);
-                return _innerCache.CaptureChanges();
-            }).SubscribeSafe(_changes);
+        var loader = PrimitivesLinqExtensions.SubscribeSafe(
+            source.Select(
+                changes =>
+                {
+                    _innerCache.Clone(changes);
+                    return _innerCache.CaptureChanges();
+                }),
+            _changes.OnNext,
+            NotifyError,
+            NotifyCompleted);
 
         _cleanUp = Disposable.Create(
             () =>
             {
                 loader.Dispose();
-                _changesPreview.OnCompleted();
-                _changes.OnCompleted();
-                _countChanged.OnCompleted();
+                NotifyCompleted();
             });
     }
 
@@ -88,12 +90,7 @@ public sealed class LockFreeObservableCache<TObject, TKey> : IObservableCache<TO
     {
         _updater = new CacheUpdater<TObject, TKey>(_innerCache);
 
-        _cleanUp = Disposable.Create(
-            () =>
-            {
-                _changes.OnCompleted();
-                _countChanged.OnCompleted();
-            });
+        _cleanUp = Disposable.Create(NotifyCompleted);
     }
 
     /// <inheritdoc />
@@ -188,6 +185,29 @@ public sealed class LockFreeObservableCache<TObject, TKey> : IObservableCache<TO
                                 observer.OnNext(change);
                             }
                         }
-                    });
+                    },
+                    observer.OnError,
+                    observer.OnCompleted);
             });
+
+    /// <summary>
+    /// Completes every stream the cache exposes.
+    /// </summary>
+    private void NotifyCompleted()
+    {
+        _changesPreview.OnCompleted();
+        _changes.OnCompleted();
+        _countChanged.OnCompleted();
+    }
+
+    /// <summary>
+    /// Fails every stream the cache exposes with the source's error.
+    /// </summary>
+    /// <param name="error">The source's error.</param>
+    private void NotifyError(Exception error)
+    {
+        _changesPreview.OnError(error);
+        _changes.OnError(error);
+        _countChanged.OnError(error);
+    }
 }

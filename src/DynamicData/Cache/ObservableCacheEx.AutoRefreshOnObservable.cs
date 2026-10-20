@@ -50,7 +50,8 @@ public static partial class ObservableCacheEx
     /// <param name="scheduler">An optional <see cref="IScheduler"/> for scheduling work.</param>
     /// <returns>An observable change set with additional refresh changes.</returns>
     /// <remarks>
-    /// <para><b>Worth noting:</b> Per-item observable errors are silently ignored (not forwarded to the downstream observer). Only source stream errors propagate.</para>
+    /// <para><b>Worth noting:</b> Per-item observable errors are silently ignored (not forwarded to the downstream observer): an error ends only that item's refresh subscription, and other items keep refreshing. Only source stream errors propagate.</para>
+    /// <para>The stream completes once the source has completed and every per-item subscription has ended (completed, failed, or removed with its item).</para>
     /// </remarks>
     public static IObservable<IChangeSet<TObject, TKey>> AutoRefreshOnObservable<TObject, TKey, TAny>(this IObservable<IChangeSet<TObject, TKey>> source, Func<TObject, TKey, IObservable<TAny>> reevaluator, TimeSpan? changeSetBuffer = null, IScheduler? scheduler = null)
         where TObject : notnull

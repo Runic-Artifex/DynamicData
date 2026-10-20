@@ -37,11 +37,13 @@ internal sealed class FilterOnObservable<TObject>(IObservable<IChangeSet<TObject
     public IObservable<IChangeSet<TObject>> Run() => Observable.Create<IChangeSet<TObject>>(
             observer =>
             {
-                var locker = InternalEx.NewMonitorGate();
+                // Source changes and filter refreshes share one delivery queue, so allItems is only
+                // touched on the queue and no lock is held while the downstream observer runs.
+                var queue = new SharedDeliveryQueue();
 
                 var allItems = new List<ObjWithFilterValue>();
 
-                var shared = _source.Synchronize(locker).Transform(v => new ObjWithFilterValue(v, false))
+                var shared = _source.SynchronizeSafe(queue).Transform(v => new ObjWithFilterValue(v, false))
                     .Clone(allItems) // clone all items so we can look up the index when a change has been made
                     .Publish();
 
@@ -53,18 +55,18 @@ internal sealed class FilterOnObservable<TObject>(IObservable<IChangeSet<TObject
                     itemHasChanged.Select(t => new[] { t }) :
                     itemHasChanged.Buffer(buffer.Value, scheduler ?? GlobalConfig.DefaultScheduler).Where(list => list.Count > 0);
 
-                var requiresRefresh = itemsChanged.Synchronize(locker).Select(
+                var requiresRefresh = itemsChanged.SynchronizeSafe(queue).Select(
                     items => // catch all the indices of items which have been refreshed
                         IndexOfMany(allItems, items, v => v.Obj, (t, idx) => new Change<ObjWithFilterValue>(ListChangeReason.Refresh, t, idx))).Select(changes => new ChangeSet<ObjWithFilterValue>(changes));
 
-                // publish refreshes and underlying changes
-                var publisher = shared.Merge(requiresRefresh).Filter(v => v.Filter)
+                // publish refreshes and underlying changes; both inputs are serialized by the same queue
+                var publisher = shared.UnsynchronizedMerge(requiresRefresh).Filter(v => v.Filter)
                     .Transform(v => v.Obj)
                     .SuppressRefresh() // suppress refreshes from filter, avoids excessive refresh messages for no-op filter updates
                     .NotEmpty()
                     .SubscribeSafe(observer);
 
-                return new CompositeDisposable(publisher, shared.Connect());
+                return new CompositeDisposable(publisher, shared.Connect(), queue);
             });
 
     private IObservable<ObjWithFilterValue> ObserveFilter(TObject item)

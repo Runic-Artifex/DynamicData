@@ -4,6 +4,7 @@ using DynamicData.Reactive.Experimental;
 using DynamicData.Experimental;
 #endif
 using DynamicData.Tests.Domain;
+using ReactiveUI.Primitives.Signals;
 
 namespace DynamicData.Tests.Cache;
 
@@ -77,6 +78,17 @@ public class WatcherFixture : IDisposable
     }
 
     [Test]
+    public async Task SubscribesToTheSourceOnce()
+    {
+        var subscriptions = 0;
+        using var source = new Signal<IChangeSet<Person, string>>();
+
+        using var watcher = Observable.Defer(() => { subscriptions++; return source; }).AsWatcher(_scheduler);
+
+        await Assert.That(subscriptions).IsEqualTo(1).Because("a cold source runs once for every subscription");
+    }
+
+    [Test]
     public async Task Update()
     {
         var first = new Person("Adult1", 50);
@@ -112,6 +124,43 @@ public class WatcherFixture : IDisposable
         _scheduler.AdvanceBy(TimeSpan.FromMilliseconds(500).Ticks);
 
         watch.Dispose();
+    }
+
+    [Test]
+    public async Task WatchCompletesAfterPendingChangesWhenTheSourceCompletes()
+    {
+        using var source = new TestSourceCache<Person, string>(p => p.Key);
+        using var watcher = source.Connect().AsWatcher(_scheduler);
+
+        var received = new List<Change<Person, string>>();
+        var receivedAtCompletion = 0;
+        var isCompleted = false;
+        using var subscription = watcher.Watch("Adult1").Subscribe(received.Add, () => { isCompleted = true; receivedAtCompletion = received.Count; });
+
+        source.AddOrUpdate(new Person("Adult1", 50));
+        source.Complete();
+        _scheduler.Start();
+
+        await Assert.That(isCompleted).IsTrue().Because("the source completed");
+        await Assert.That(receivedAtCompletion).IsEqualTo(1).Because("the change was scheduled ahead of the completion, so it should arrive first");
+    }
+
+    [Test]
+    public async Task WatchFailsWhenTheSourceFails()
+    {
+        using var source = new TestSourceCache<Person, string>(p => p.Key);
+        using var watcher = source.Connect().AsWatcher(_scheduler);
+
+        var actualError = default(Exception);
+        var isCompleted = false;
+        using var subscription = watcher.Watch("Adult1").Subscribe(static _ => { }, error => actualError = error, () => isCompleted = true);
+
+        var expectedError = new Exception("Test Exception");
+        source.SetError(expectedError);
+        _scheduler.Start();
+
+        await Assert.That(actualError).IsSameReferenceAs(expectedError).Because("a watch should be told when the source fails");
+        await Assert.That(isCompleted).IsFalse().Because("the source failed, it did not complete");
     }
 
     [Test]
@@ -156,5 +205,73 @@ public class WatcherFixture : IDisposable
         watch1.Dispose();
         watch2.Dispose();
         watch3.Dispose();
+    }
+
+    [Test]
+    public async Task WatchStartedAfterTheSourceCompletedReceivesTheCurrentValueThenCompletes()
+    {
+        using var source = new TestSourceCache<Person, string>(p => p.Key);
+        using var watcher = source.Connect().AsWatcher(_scheduler);
+
+        var person = new Person("Adult1", 50);
+        source.AddOrUpdate(person);
+        source.Complete();
+        _scheduler.Start();
+
+        var received = new List<Change<Person, string>>();
+        var isCompleted = false;
+        using var subscription = watcher.Watch(person.Key).Subscribe(received.Add, () => isCompleted = true);
+
+        await Assert.That(received).HasSingleItem().Because("the watch starts with the current value");
+        await Assert.That(received[0].Current).IsEqualTo(person);
+        await Assert.That(isCompleted).IsTrue().Because("a watch on a finished source can never receive anything more");
+    }
+
+    [Test]
+    public async Task WatchJoiningAKeyWhoseWatchesHaveEndedReceivesTheLastValueThenEnds()
+    {
+        using var source = new TestSourceCache<Person, string>(p => p.Key);
+        using var watcher = source.Connect().AsWatcher(_scheduler);
+
+        var person = new Person("Adult1", 50);
+        source.AddOrUpdate(person);
+        using var first = watcher.Watch(person.Key).Subscribe(static _ => { }, static _ => { });
+
+        var expectedError = new Exception("Test Exception");
+        source.SetError(expectedError);
+        _scheduler.Start();
+
+        var received = new List<Change<Person, string>>();
+        var actualError = default(Exception);
+        using var second = watcher.Watch(person.Key).Subscribe(received.Add, error => actualError = error);
+
+        await Assert.That(received).HasSingleItem().Because("the watch starts with the last value");
+        await Assert.That(received[0].Current).IsEqualTo(person);
+        await Assert.That(actualError).IsSameReferenceAs(expectedError).Because("the key's watches have already failed with the source");
+    }
+
+    [Test]
+    public async Task WatchStartedWhileTheSourceIsDeliveringAChangeReceivesItOnce()
+    {
+        // A hot source hands each change to its subscribers one after another, so a watch can start part way through.
+        var observers = new List<IObserver<IChangeSet<Person, string>>>();
+        using var watcher = Observable.Create<IChangeSet<Person, string>>(observer => { observers.Add(observer); return Disposable.Empty; }).AsWatcher(_scheduler);
+
+        var person = new Person("Adult1", 50);
+        var changes = new ChangeSet<Person, string> { new(ChangeReason.Add, person.Key, person) };
+        observers[0].OnNext(changes);
+
+        var received = new List<Change<Person, string>>();
+        using var subscription = watcher.Watch(person.Key).Subscribe(received.Add);
+
+        foreach (var observer in observers.Skip(1))
+        {
+            observer.OnNext(changes);
+        }
+
+        _scheduler.Start();
+
+        await Assert.That(received).HasSingleItem().Because("the person was added once");
+        await Assert.That(received[0].Current).IsEqualTo(person);
     }
 }

@@ -33,12 +33,13 @@ never committed.
 | #1089, #1090, #1121, #1172, #1195 | DD-025 |
 | #1160, #983, #1086 | DD-026 |
 | #1142, #1143, #1146 | DD-027 |
-| #1142, #1144, #1147, #1115 (selected list queues) | DD-028 |
+| #1142, #1144, #1147, #1115 (selected list queues), #1073 (list `AutoRefresh`/`FilterOnObservable` queues) | DD-028 |
 | #1037, #1164, #1166, #1115 (list viewport) | DD-029 |
 | #1167, #896, #1196 | DD-030 |
 | #1115, #1025 (list expiration) | DD-032 |
 | #1039, #1044 | DD-033 |
 | #1066 | DD-034 |
+| #1142, #1147 (list `AutoRefreshOnObservable` child errors) | DD-041 |
 | #1099 | Existing behavior kept; concurrency tests enabled |
 
 ## Open gaps
@@ -47,11 +48,9 @@ Verified against the code after the October 2026 integration:
 
 | Gap | Upstream | Fork issue |
 | --- | --- | --- |
-| List `AutoRefresh` / `FilterOnObservable` hold a lock across downstream delivery | #1073, #1115 | [#3](https://github.com/Runic-Artifex/DynamicData/issues/3) |
 | `StdDev` ignores Refresh | #896, #1196 | [#4](https://github.com/Runic-Artifex/DynamicData/issues/4) |
 | Lock-free cache `Watch` and `Watcher` drop terminal notifications | #1142 | [#5](https://github.com/Runic-Artifex/DynamicData/issues/5) |
 | Cache `EditDiff` over an observable drops late errors | #1142 | [#6](https://github.com/Runic-Artifex/DynamicData/issues/6) |
-| List `AutoRefreshOnObservable` child-error policy differs from the cache | #1142, #1147 | [#7](https://github.com/Runic-Artifex/DynamicData/issues/7) |
 | `Switch` emits removals and additions as two changesets | #1150 | [#8](https://github.com/Runic-Artifex/DynamicData/issues/8) |
 
 ## Deferred

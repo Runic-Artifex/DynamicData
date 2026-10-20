@@ -42,8 +42,9 @@ public static partial class ObservableCacheEx
     /// <returns>Base keyed changesets from the selected source, with removals on each switch.</returns>
     /// <remarks>
     /// This overload returns the base keyed type, so viewport ordering and <see cref="VirtualContext{TObject}"/>
-    /// are not guaranteed on every batch. Incoming batches may retain their runtime context type, but
-    /// clearing batches contain no viewport context. Switch the keyed source before each presentation's
+    /// are not guaranteed on every batch. Incoming batches may retain their runtime context type, but a
+    /// handoff batch (the removals, together with the new source's first non-empty changeset when it arrives during
+    /// subscription) is a base keyed changeset without viewport context or indexes. Switch the keyed source before each presentation's
     /// SortAndVirtualize when context is needed. Context-preserving switching requires a separate contract.
     /// </remarks>
     public static IObservable<IChangeSet<TObject, TKey>> Switch<TObject, TKey>(this IObservable<IObservable<IChangeSet<TObject, TKey, VirtualContext<TObject>>>> sources)
@@ -64,12 +65,20 @@ public static partial class ObservableCacheEx
     /// <param name="sources">An <c>IObservable&lt;T&gt;</c> of <c>IObservable&lt;T&gt;</c> changeset streams. The operator subscribes to the latest inner stream.</param>
     /// <returns>A changeset stream reflecting the items from the most recently emitted inner source.</returns>
     /// <remarks>
-    /// <para>On switch: <b>Remove</b> is emitted for all items from the previous source, then <b>Add</b> for all items from the new source.</para>
+    /// <para>
+    /// On switch, the previous source's items are taken out and the new source's put in. When the new source delivers its first non-empty
+    /// changeset while it is being subscribed (as <c>Connect()</c> on a populated cache does), subscribers receive one changeset:
+    /// <b>Remove</b> for previous keys the new source does not add, <b>Update</b> (with the previous value) for keys it adds again,
+    /// and the rest of its changes, such as <b>Add</b> for its other keys. That changeset carries no indexes.
+    /// A new source that has not delivered by the time it is subscribed (delayed or empty) gets a
+    /// changeset of <b>Remove</b>s first and its own changesets when they arrive. Pending removals are also published on their
+    /// own before an error or completion that ends the handoff.
+    /// </para>
     /// <para>
     /// At most one inner source is subscribed at a time: the previous subscription is disposed before the replacement
     /// is subscribed, so an inner source that acquires a resource exclusively is never held concurrently across a switch.
     /// </para>
-    /// <para><b>Worth noting:</b> Each switch clears the entire downstream cache before populating from the new source. Subscribers see a full remove-then-add reset on every switch.</para>
+    /// <para><b>Worth noting:</b> Each switch replaces the entire downstream contents: unchanged items are still reported as updates, and with a delayed new source subscribers see the empty result until it delivers.</para>
     /// <para><b>Also worth noting:</b>This operator intentionally shadows the native <see cref="Observable.Switch{TSource}(IObservable{IObservable{TSource}})"/> operator, as downstream listeners will generally become corrupt when the native operator is used. This is due to its lack of the automatic-clearing behavior mentioned above.</para>
     /// </remarks>
     public static IObservable<IChangeSet<TObject, TKey>> Switch<TObject, TKey>(this IObservable<IObservable<IChangeSet<TObject, TKey>>> sources)

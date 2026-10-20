@@ -462,97 +462,9 @@ public static class AvgEx
         ArgumentNullException.ThrowIfNull(removeAction);
         ArgumentNullException.ThrowIfNull(resultAction);
 
-        return Observable.Defer(() =>
-        {
-            var projections = new List<(TObject Item, TValue Value)>();
-            return source.Scan(default(Avg<TValue>), (state, changes) =>
-            {
-                var hasMembershipChanges = false;
-                var mutations = retainProjections ? changes : AvgWithoutUnchangedPairs(changes, valueSelector);
-                using var iterator = mutations.GetEnumerator();
-                var hasCurrent = iterator.MoveNext();
-                while (hasCurrent)
-                {
-                    var change = iterator.Current;
-                    hasCurrent = iterator.MoveNext();
-                    hasMembershipChanges = true;
-                    if (retainProjections && change.Type == AggregateType.Remove && hasCurrent && iterator.Current.Type == AggregateType.Add)
-                    {
-                        var index = AvgOccurrenceIndex(projections, change.Item);
-                        if (index < 0)
-                        {
-                            throw new UnspecifiedIndexException($"Cannot find aggregate occurrence of {change.Item}");
-                        }
-
-                        var replacement = iterator.Current;
-                        var previousValue = projections[index].Value;
-                        var currentValue = valueSelector(replacement.Item);
-                        projections.RemoveAt(index);
-                        projections.Add((replacement.Item, currentValue));
-                        if (!EqualityComparer<TValue>.Default.Equals(previousValue, currentValue))
-                        {
-                            state = removeAction(state, previousValue);
-                            state = addAction(state, currentValue);
-                        }
-
-                        hasCurrent = iterator.MoveNext();
-                        continue;
-                    }
-
-                    if (change.Type == AggregateType.Add)
-                    {
-                        var value = valueSelector(change.Item);
-                        if (retainProjections)
-                        {
-                            projections.Add((change.Item, value));
-                        }
-
-                        state = addAction(state, value);
-                    }
-                    else if (retainProjections)
-                    {
-                        var index = AvgOccurrenceIndex(projections, change.Item);
-                        if (index < 0)
-                        {
-                            throw new UnspecifiedIndexException($"Cannot find aggregate occurrence of {change.Item}");
-                        }
-
-                        state = removeAction(state, projections[index].Value);
-                        projections.RemoveAt(index);
-                    }
-                    else
-                    {
-                        state = removeAction(state, valueSelector(change.Item));
-                    }
-                }
-
-                // ForAggregation drops Refresh and Moved details. Only an empty aggregate
-                // batch can serve as an invalidation signal; it invalidates every occurrence.
-                if (retainProjections && !hasMembershipChanges)
-                {
-                    for (var index = 0; index < projections.Count; index++)
-                    {
-                        var item = projections[index].Item;
-                        var value = valueSelector(item);
-                        if (EqualityComparer<TValue>.Default.Equals(projections[index].Value, value))
-                        {
-                            continue;
-                        }
-
-                        state = removeAction(state, projections[index].Value);
-                        state = addAction(state, value);
-                        projections[index] = (item, value);
-                    }
-                }
-
-                if (state.Count == 0)
-                {
-                    state = default;
-                }
-
-                return state;
-            }).Select(values => values.Count == 0 ? fallbackValue : resultAction(values));
-        }).AvgWithInitial(fallbackValue);
+        return source.ScanProjected(valueSelector, addAction, removeAction, static state => state.Count == 0, retainProjections)
+            .Select(values => values.Count == 0 ? fallbackValue : resultAction(values))
+            .AvgWithInitial(fallbackValue);
     }
 
     private static IObservable<IAggregateChangeSet<TValue>> AvgProject<TObject, TKey, TValue>(IObservable<IChangeSet<TObject, TKey>> source, Func<TObject, TValue> valueSelector)
@@ -627,51 +539,6 @@ public static class AvgEx
             static (current, value) => new Avg<float>(current.Count + 1, current.Sum + value),
             static (current, value) => new Avg<float>(current.Count - 1, current.Sum - value),
             static values => values.Sum / values.Count, retainProjections: false);
-
-    private static int AvgOccurrenceIndex<TObject, TValue>(List<(TObject Item, TValue Value)> projections, TObject item)
-    {
-        if (!typeof(TObject).IsValueType)
-        {
-            for (var index = 0; index < projections.Count; index++)
-            {
-                if (ReferenceEquals(projections[index].Item, item))
-                {
-                    return index;
-                }
-            }
-        }
-
-        for (var index = 0; index < projections.Count; index++)
-        {
-            if (EqualityComparer<TObject>.Default.Equals(projections[index].Item, item))
-            {
-                return index;
-            }
-        }
-
-        return -1;
-    }
-
-    private static IEnumerable<AggregateItem<TObject>> AvgWithoutUnchangedPairs<TObject, TValue>(IEnumerable<AggregateItem<TObject>> changes, Func<TObject, TValue> valueSelector)
-    {
-        using var iterator = changes.GetEnumerator();
-        var hasCurrent = iterator.MoveNext();
-        while (hasCurrent)
-        {
-            var current = iterator.Current;
-            hasCurrent = iterator.MoveNext();
-            // Transform emits Remove/Add for a Replace or Update. Avoid perturbing
-            // floating-point sums (including infinity) when the projection is unchanged.
-            if (current.Type == AggregateType.Remove && hasCurrent && iterator.Current.Type == AggregateType.Add &&
-                EqualityComparer<TValue>.Default.Equals(valueSelector(current.Item), valueSelector(iterator.Current.Item)))
-            {
-                hasCurrent = iterator.MoveNext();
-                continue;
-            }
-
-            yield return current;
-        }
-    }
 
     private static IObservable<TResult> AvgWithInitial<TResult>(this IObservable<TResult> source, TResult fallbackValue) =>
         Observable.Create<TResult>(observer =>

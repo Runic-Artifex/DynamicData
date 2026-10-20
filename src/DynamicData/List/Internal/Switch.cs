@@ -35,9 +35,14 @@ internal sealed class Switch<T>(IObservable<IObservable<IChangeSet<T>>> sources)
                 // crossing into another collection cannot deadlock against it.
                 var queue = new DeliveryQueue<IChangeSet<T>>(observer);
 
-                // What the current source has contributed, so that switching away can take it back out.
+                // What has been published downstream, so that switching away can take it back out.
                 var current = new List<T>();
                 var subscription = new SerialDisposable();
+
+                // The source whose clearing of the previous items is still unpublished. The clear waits for
+                // the new source's first non-empty changeset so both reach subscribers as one batch; it is
+                // published alone if Subscribe returns without one or the source terminates first.
+                var handoff = 0;
 
                 // Identifies the current source. A superseded one may still be mid-delivery, and anything
                 // it produces after this point belongs to a source that has already been switched away from.
@@ -50,16 +55,13 @@ internal sealed class Switch<T>(IObservable<IObservable<IChangeSet<T>>> sources)
                     {
                         int id;
 
-                        using (var scope = queue.AcquireLock())
+                        // Nothing is published yet. A clear left unpublished by a superseded source is taken
+                        // over, because current still holds what subscribers last saw.
+                        using (queue.AcquireReadLock())
                         {
                             id = ++active;
                             isSourceRunning = true;
-
-                            if (current.Count != 0)
-                            {
-                                scope.EnqueueNext(new ChangeSet<T> { new Change<T>(ListChangeReason.Clear, current.ToArray()) });
-                                current.Clear();
-                            }
+                            handoff = id;
                         }
 
                         // Subscribed outside the lock. The source may deliver synchronously, and that
@@ -81,6 +83,24 @@ internal sealed class Switch<T>(IObservable<IObservable<IChangeSet<T>>> sources)
                                     return;
                                 }
 
+                                // An empty changeset carries no state, so the handoff waits for one that does.
+                                if (changes.Count != 0 && handoff == id)
+                                {
+                                    handoff = 0;
+
+                                    if (current.Count != 0)
+                                    {
+                                        // The first non-empty changeset is the new source's snapshot: it follows
+                                        // the clear in the same batch, and its indexes start from the empty list.
+                                        var batch = new ChangeSet<T>(changes.Count + 1) { new Change<T>(ListChangeReason.Clear, current.ToArray()) };
+                                        batch.AddRange(changes);
+                                        current.Clear();
+                                        current.Clone(changes);
+                                        scope.EnqueueNext(batch);
+                                        return;
+                                    }
+                                }
+
                                 current.Clone(changes);
 
                                 if (changes.Count != 0)
@@ -97,6 +117,8 @@ internal sealed class Switch<T>(IObservable<IObservable<IChangeSet<T>>> sources)
                                     return;
                                 }
 
+                                // A clear already owed to subscribers precedes the error.
+                                PublishPendingClear(scope);
                                 scope.EnqueueError(error);
                             },
                             () =>
@@ -108,6 +130,7 @@ internal sealed class Switch<T>(IObservable<IObservable<IChangeSet<T>>> sources)
                                     return;
                                 }
 
+                                PublishPendingClear(scope);
                                 isSourceRunning = false;
 
                                 if (areSourcesComplete)
@@ -115,8 +138,24 @@ internal sealed class Switch<T>(IObservable<IObservable<IChangeSet<T>>> sources)
                                     scope.EnqueueCompleted();
                                 }
                             }));
+
+                        // A source that has not delivered by the time Subscribe returns is delayed (or empty):
+                        // its changes follow the clear as separate batches when they arrive.
+                        using (var scope = queue.AcquireLock())
+                        {
+                            if (id == active)
+                            {
+                                PublishPendingClear(scope);
+                            }
+                        }
                     },
-                    queue.OnError,
+                    error =>
+                    {
+                        using var scope = queue.AcquireLock();
+
+                        PublishPendingClear(scope);
+                        scope.EnqueueError(error);
+                    },
                     () =>
                     {
                         using var scope = queue.AcquireLock();
@@ -138,5 +177,22 @@ internal sealed class Switch<T>(IObservable<IObservable<IChangeSet<T>>> sources)
                     outer.Dispose();
                     subscription.Dispose();
                 });
+
+                // Publishes the current source's unpublished clear on its own. Callers hold the gate.
+                void PublishPendingClear(DeliveryQueue<IChangeSet<T>>.ScopedAccess scope)
+                {
+                    if (handoff == 0 || handoff != active)
+                    {
+                        return;
+                    }
+
+                    handoff = 0;
+
+                    if (current.Count != 0)
+                    {
+                        scope.EnqueueNext(new ChangeSet<T> { new Change<T>(ListChangeReason.Clear, current.ToArray()) });
+                        current.Clear();
+                    }
+                }
             });
 }
