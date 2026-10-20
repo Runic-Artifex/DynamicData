@@ -190,11 +190,13 @@ public class QueuedOperatorDisposalFixture
         ["cache-filter-on-observable"] = static scheduler => CacheCase(source => source.Connect().FilterOnObservable(static _ => Observable.Return(true)).Counts(), scheduler),
         ["cache-on-item-removed"] = static scheduler => CacheCase(source => source.Connect().OnItemRemoved(static _ => { }).Counts(), scheduler),
         ["cache-async-dispose-many"] = static scheduler => CacheCase(source => source.Connect().AsyncDisposeMany(static _ => { }).Counts(), scheduler),
+        ["cache-switch"] = static scheduler => CacheCase(source => Observable.Return(source.Connect()).Switch().Counts(), scheduler),
 
         // List operators.
         ["source-list-connect"] = static scheduler => ListCase(source => source.Connect().Counts(), scheduler),
         ["list-group-on"] = static scheduler => ListCase(source => source.Connect().GroupOn(static value => value % 2).Counts(), scheduler),
         ["list-dispose-many"] = static scheduler => ListCase(source => source.Connect().DisposeMany().Counts(), scheduler),
+        ["list-switch"] = static scheduler => ListCase(source => Observable.Return(source.Connect()).Switch().Counts(), scheduler),
 
         // Property observation.
     };
