@@ -54,13 +54,9 @@ public class ListTransformBoundaryCoverageFixture
         using var results = source.Transform(static value => value.ToString()).AsAggregator();
 
         source.OnNext(new ChangeSet<int> { new(ListChangeReason.AddRange, new[] { 1, 2 }, 0) });
-#if REACTIVE_TESTS
+        // DD-044: both flavours deliver the accumulator failure as OnError.
         source.OnNext(new ChangeSet<int> { new(ListChangeReason.Moved, 1, ReactiveUI.Primitives.Optional<int>.None, -1, 0) });
         await Assert.That(results.Exception).IsTypeOf<UnspecifiedIndexException>();
-#else
-        await Assert.That(() => source.OnNext(new ChangeSet<int> { new(ListChangeReason.Moved, 1, ReactiveUI.Primitives.Optional<int>.None, -1, 0) })).Throws<UnspecifiedIndexException>();
-        await Assert.That(results.Exception).IsNull();
-#endif
     }
 
     [Test]
