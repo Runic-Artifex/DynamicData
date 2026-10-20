@@ -66,7 +66,7 @@ internal sealed class FilterOnObservable<TObject>(IObservable<IChangeSet<TObject
                     .NotEmpty()
                     .SubscribeSafe(observer);
 
-                return new CompositeDisposable(publisher, shared.Connect(), queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher, shared.Connect());
             });
 
     private IObservable<ObjWithFilterValue> ObserveFilter(TObject item)

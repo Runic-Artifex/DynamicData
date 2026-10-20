@@ -200,6 +200,8 @@ public class QueuedOperatorDisposalFixture
 
         // List operators.
         ["source-list-connect"] = static scheduler => ListCase(source => source.Connect().Counts(), scheduler),
+        ["list-auto-refresh"] = static scheduler => ListCase(source => source.Connect().AutoRefreshOnObservable(static _ => Observable.Never<Unit>()).Counts(), scheduler),
+        ["list-filter-on-observable"] = static scheduler => ListCase(source => source.Connect().FilterOnObservable(static _ => Observable.Return(true)).Counts(), scheduler),
         ["list-buffer-initial"] = static scheduler => ListCase(source => source.Connect().BufferInitial(Lifetime / 2, scheduler).Counts(), scheduler),
         ["list-group-on"] = static scheduler => ListCase(source => source.Connect().GroupOn(static value => value % 2).Counts(), scheduler),
         ["list-bind"] = static scheduler => ListCase(source => source.Connect().Bind(new ObservableCollectionExtended<int>()).Counts(), scheduler),
