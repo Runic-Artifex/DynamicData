@@ -34,6 +34,10 @@ internal sealed class DynamicCombiner<TObject, TKey>(IObservableList<IObservable
             {
                 var queue = new SharedDeliveryQueue();
 
+                // Runic (DD-045): deliver through the queue too, so a notification an observer causes through another
+                // input while it is being delivered to arrives after it returns, not re-entrantly.
+                var output = queue.CreateQueue(observer);
+
                 // this is the resulting cache which produces all notifications
                 var resultCache = new ChangeAwareCache<TObject, TKey>();
 
@@ -55,11 +59,11 @@ internal sealed class DynamicCombiner<TObject, TKey>(IObservableList<IObservable
                         var notifications = resultCache.CaptureChanges();
                         if (notifications.Count != 0)
                         {
-                            observer.OnNext(notifications);
+                            output.OnNext(notifications);
                         }
                     },
-                    observer.OnError,
-                    observer.OnCompleted);
+                    output.OnError,
+                    output.OnCompleted);
 
                 // when an list is removed, need to
                 var removedItem = sharedLists.OnItemRemoved(
@@ -77,7 +81,7 @@ internal sealed class DynamicCombiner<TObject, TKey>(IObservableList<IObservable
                         var notifications = resultCache.CaptureChanges();
                         if (notifications.Count != 0)
                         {
-                            observer.OnNext(notifications);
+                            output.OnNext(notifications);
                         }
                     })
                     .Subscribe(static _ => { }, static _ => { });
@@ -96,7 +100,7 @@ internal sealed class DynamicCombiner<TObject, TKey>(IObservableList<IObservable
                         var notifications = resultCache.CaptureChanges();
                         if (notifications.Count != 0)
                         {
-                            observer.OnNext(notifications);
+                            output.OnNext(notifications);
                         }
                     })
                     .Subscribe(static _ => { }, static _ => { });

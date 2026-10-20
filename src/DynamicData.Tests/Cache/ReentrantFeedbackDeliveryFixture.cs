@@ -123,6 +123,42 @@ public sealed class ReentrantFeedbackDeliveryFixture
     }
 
     [Test]
+    [Arguments("And")]
+    [Arguments("Or")]
+    [Arguments("Xor")]
+    [Arguments("Except")]
+    public async Task Combiner(string operation)
+    {
+        using var combined = new CombinerSources(operation);
+        await AssertCacheFeedback(() => Combine(operation, combined.First.Connect(), combined.Second.Connect()), combined.Trigger, combined.Feedback, combined.FeedbackKey);
+    }
+
+    [Test]
+    [Arguments("And")]
+    [Arguments("Or")]
+    [Arguments("Xor")]
+    [Arguments("Except")]
+    public async Task DynamicCombiner(string operation)
+    {
+        using var combined = new CombinerSources(operation);
+        using var sources = new SourceList<IObservable<IChangeSet<Person, string>>>();
+        sources.AddRange([combined.First.Connect(), combined.Second.Connect()]);
+        await AssertCacheFeedback(() => CombineDynamic(operation, sources), combined.Trigger, combined.Feedback, combined.FeedbackKey);
+    }
+
+    [Test]
+    public async Task DynamicCombinerFeedbackAddsSource()
+    {
+        using var first = new SourceCache<Person, string>(static p => p.Name);
+        using var second = new SourceCache<Person, string>(static p => p.Name);
+        using var third = new SourceCache<Person, string>(static p => p.Name);
+        third.AddOrUpdate(new Person("C", 3));
+        using var sources = new SourceList<IObservable<IChangeSet<Person, string>>>();
+        sources.AddRange([first.Connect(), second.Connect()]);
+        await AssertCacheFeedback(() => sources.Or(), () => second.AddOrUpdate(new Person("B", 2)), () => sources.Add(third.Connect()), "C");
+    }
+
+    [Test]
     public async Task MergeChangeSetsFromObservableList()
     {
         using var first = new SourceCache<Person, string>(static p => p.Name);
@@ -350,6 +386,24 @@ public sealed class ReentrantFeedbackDeliveryFixture
         await Assert.That(mirror.Keys).IsEquivalentTo(expected.Keys);
     }
 
+    private static IObservable<IChangeSet<Person, string>> Combine(string operation, IObservable<IChangeSet<Person, string>> first, IObservable<IChangeSet<Person, string>> second) => operation switch
+    {
+        "And" => ObservableCacheEx.And(first, second),
+        "Or" => first.Or(second),
+        "Xor" => first.Xor(second),
+        "Except" => first.Except(second),
+        _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+    };
+
+    private static IObservable<IChangeSet<Person, string>> CombineDynamic(string operation, IObservableList<IObservable<IChangeSet<Person, string>>> sources) => operation switch
+    {
+        "And" => sources.And(),
+        "Or" => sources.Or(),
+        "Xor" => sources.Xor(),
+        "Except" => sources.Except(),
+        _ => throw new ArgumentOutOfRangeException(nameof(operation)),
+    };
+
     /// <summary>
     /// Subscribes, runs <paramref name="trigger"/>, and runs <paramref name="feedback"/> from inside the first
     /// notification that follows. Asserts that no notification overlapped another and that the feedback was
@@ -430,6 +484,38 @@ public sealed class ReentrantFeedbackDeliveryFixture
             {
                 await Assert.That(mirror[pair.Key]).IsEqualTo(pair.Value);
             }
+        }
+    }
+
+    /// <summary>
+    /// Two caches to combine: the first holds A, the second C. The trigger writes into the second and the
+    /// feedback into the first, each changing the combined result.
+    /// </summary>
+    private sealed class CombinerSources : IDisposable
+    {
+        private readonly string _operation;
+
+        public CombinerSources(string operation)
+        {
+            _operation = operation;
+            First.AddOrUpdate(new Person("A", 1));
+            Second.AddOrUpdate(new Person("C", 3));
+        }
+
+        public SourceCache<Person, string> First { get; } = new(static p => p.Name);
+
+        public SourceCache<Person, string> Second { get; } = new(static p => p.Name);
+
+        public string FeedbackKey => _operation == "And" ? "C" : "D";
+
+        public void Trigger() => Second.AddOrUpdate(_operation is "And" or "Except" ? new Person("A", 1) : new Person("B", 2));
+
+        public void Feedback() => First.AddOrUpdate(_operation == "And" ? new Person("C", 3) : new Person("D", 4));
+
+        public void Dispose()
+        {
+            First.Dispose();
+            Second.Dispose();
         }
     }
 
