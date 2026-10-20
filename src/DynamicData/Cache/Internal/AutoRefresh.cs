@@ -131,7 +131,7 @@ internal sealed class AutoRefresh<TObject, TKey, TAny>(IObservable<IChangeSet<TO
                     });
 
                 return new CompositeDisposable(
-                    queue,
+                    Disposable.Create(queue.Terminate),
                     sourceSubscription,
                     refreshSubscription,
                     Disposable.Create(

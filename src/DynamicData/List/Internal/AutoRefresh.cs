@@ -64,7 +64,7 @@ internal sealed class AutoRefresh<TObject, TAny>(IObservable<IChangeSet<TObject>
                 // publish refreshes and underlying changes; both inputs are serialized by the same queue
                 var publisher = shared.UnsynchronizedMerge(requiresRefresh).SubscribeSafe(observer);
 
-                return new CompositeDisposable(publisher, shared.Connect(), queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher, shared.Connect());
             });
 
     /// <summary>

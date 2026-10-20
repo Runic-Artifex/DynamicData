@@ -52,7 +52,7 @@ public static partial class ObservableListEx
             var queue = new SharedDeliveryQueue();
             var limiter = new LimitSizeTo<T>(source, sizeLimit, effectiveScheduler, queue);
             var subscription = limiter.Run().SynchronizeSafe(queue).Do(source.RemoveMany).SubscribeSafe(observer);
-            return new CompositeDisposable(subscription, queue);
+            return new CompositeDisposable(Disposable.Create(queue.Terminate), subscription);
         });
     }
 }

@@ -57,7 +57,7 @@ internal sealed class Pager<T>(IObservable<IChangeSet<T>> source, IObservable<IP
                     .Where(changes => changes is not null && changes.Count != 0)
                     .Select(x => x!)
                     .SubscribeSafe(observer);
-                return new CompositeDisposable(publisher, queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher);
             });
 
     /// <summary>

@@ -182,7 +182,7 @@ internal sealed class TransformMany<TSource, TDestination>(IObservable<IChangeSe
 
                 var allChanges = init.UnsynchronizedMerge(subsequentSelection);
 
-                return new CompositeDisposable(allChanges.SubscribeSafe(observer), transformed.Connect(), queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), allChanges.SubscribeSafe(observer), transformed.Connect());
             });
     }
     // make this an instance

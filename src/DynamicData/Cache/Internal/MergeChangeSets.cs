@@ -49,6 +49,7 @@ internal sealed class MergeChangeSets<TObject, TKey>(IObservable<IObservable<ICh
 
             // Create a ChangeSet of Caches, synchronize, update the local copy, and merge the sub-observables together.
             return new CompositeDisposable(
+                Disposable.Create(queue.Terminate),
                 OperatorSubscription.SubscribeSafe(
                     CreateContainerObservable(source, queue)
                         .SynchronizeSafe(queue)
@@ -56,8 +57,7 @@ internal sealed class MergeChangeSets<TObject, TKey>(IObservable<IObservable<ICh
                         .MergeMany(mc => mc.Source.Do(static _ => { }, observer.OnError)),
                     changes => changeTracker.ProcessChangeSet(changes, observer),
                     observer.OnError,
-                    observer.OnCompleted),
-                queue);
+                    observer.OnCompleted));
         });
     // Can optimize for the Add case because that's the only one that applies
 

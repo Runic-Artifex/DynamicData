@@ -107,6 +107,6 @@ internal sealed class SpecifiedGrouper<TObject, TKey, TGroupKey>(IObservable<ICh
                 }));
                 initialization.OnNext(Unit.Default);
 
-                return new CompositeDisposable(sourceConnection, groupConnection, notifier, sourceGroups, parentGroups, updatesFromChildren, initialization, queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), sourceConnection, groupConnection, notifier, sourceGroups, parentGroups, updatesFromChildren, initialization);
             });
 }

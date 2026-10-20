@@ -159,10 +159,11 @@ internal sealed class SortAndVirtualize<TObject, TKey>
                     });
 
                 return new CompositeDisposable(
+                    Disposable.Create(queue.Terminate),
                     comparerChanged
                         .UnsynchronizedMerge(paramsChanged, dataChange)
                         .Where(changes => !ReferenceEquals(changes, Empty))
-                        .SubscribeSafe(observer), queue);
+                        .SubscribeSafe(observer));
 
                 ChangeSet<TObject, TKey, VirtualContext<TObject>> ApplyVirtualChanges(IChangeSet<TObject, TKey>? changeSet = null)
                 {

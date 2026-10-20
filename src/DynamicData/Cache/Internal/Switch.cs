@@ -56,11 +56,12 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
         {
             try
             {
+                // The error terminates the queue once delivered. It is not cleared or waited for: a delivery in
+                // progress on another thread delivers it next, and its observer may need a lock the caller holds.
                 Fail(error, null);
             }
             finally
             {
-                queue.Dispose();
                 currentSubscription.Dispose();
             }
 
@@ -68,7 +69,8 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
         }
         catch
         {
-            queue.Dispose();
+            // Stop delivery without waiting for one in progress on another thread.
+            queue.Terminate();
             currentSubscription.Dispose();
 
             throw;
@@ -76,15 +78,16 @@ internal sealed class Switch<TObject, TKey>(IObservable<IObservable<IChangeSet<T
 
         return Disposable.Create(() =>
         {
-            // Invalidate pending work before waiting for delivery; this scope does not drain.
+            // Invalidate pending work before stopping delivery; this scope does not drain.
             using (queue.AcquireReadLock())
             {
                 isStopped = true;
                 pendingSource = null;
             }
 
-            // Finish downstream delivery before tearing down the sources feeding it.
-            queue.Dispose();
+            // Stop downstream delivery before tearing down the sources feeding it, without waiting for one
+            // in progress on another thread: its observer may need a lock the caller holds.
+            queue.Terminate();
             try
             {
                 sourcesSubscription.Dispose();

@@ -122,7 +122,7 @@ internal static partial class Filter
                     var publisher = predicateChanged.UnsynchronizedMerge(filteredResult).NotEmpty()
                         .Select(changes => changes.Transform(iwm => iwm.Item)) // use convert, not transform
                         .SubscribeSafe(observer);
-                    return new CompositeDisposable(publisher, queue);
+                    return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher);
                 });
 
         /// <summary>

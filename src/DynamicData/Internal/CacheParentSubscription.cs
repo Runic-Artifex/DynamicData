@@ -29,6 +29,7 @@ internal abstract class CacheParentSubscription<TParent, TKey, TChild, TObserver
     private readonly KeyedDisposable<TKey> _childSubscriptions = new();
     private readonly Dictionary<TKey, long> _activeChildSubscriptionIds = [];
     private readonly SingleAssignmentDisposable _parentSubscription = new();
+    [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Terminated in Dispose: disposing would wait for an in-flight delivery, which can deadlock.")]
     private readonly SharedDeliveryQueue _queue;
     private readonly IObserver<TObserver> _observer;
     private int _subscriptionCounter = 1; // Starts at 1 for the parent subscription
@@ -112,7 +113,7 @@ internal abstract class CacheParentSubscription<TParent, TKey, TChild, TObserver
         {
             if (disposing)
             {
-                _queue.Dispose();
+                _queue.Terminate();
                 _parentSubscription.Dispose();
                 _childSubscriptions.Dispose();
             }

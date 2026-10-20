@@ -25,9 +25,10 @@ internal sealed class DisposeMany<T>(IObservable<IChangeSet<T>> source)
         => Observable.Create<IChangeSet<T>>(observer =>
         {
             var cachedItems = new List<T>();
+            var teardown = new QueuedTeardown();
 
             var sourceSubscription = source
-                .SynchronizeSafe()
+                .SynchronizeSafe(teardown)
                 .SubscribeSafe(Observer.Create<IChangeSet<T>>(
                     onNext: changeSet =>
                     {
@@ -102,7 +103,9 @@ internal sealed class DisposeMany<T>(IObservable<IChangeSet<T>> source)
             {
                 sourceSubscription.Dispose();
 
-                ProcessFinalization(cachedItems);
+                // Disposing does not wait for a delivery in progress on another thread; that thread disposes
+                // the remaining items once its delivery returns, so none is disposed while it may be in use.
+                teardown.Run(() => ProcessFinalization(cachedItems));
             });
         });
 

@@ -40,7 +40,8 @@ public static partial class ObservableListEx
         return Observable.Create<IChangeSet<T>>(
             observer =>
             {
-                return source.SynchronizeSafe().Select(
+                // Serialized without waiting for an in-flight delivery on dispose: nothing is torn down here.
+                return source.SynchronizeSafe(new Lock()).Select(
                     changes =>
                     {
                         adaptor.Adapt(changes);

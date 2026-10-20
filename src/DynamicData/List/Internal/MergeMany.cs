@@ -42,7 +42,7 @@ internal sealed class MergeMany<T, TDestination>(IObservable<IChangeSet<T>> sour
                                                 .SubscribeMany(t => SubscribeChild(t, queue, counter, observer))
                                                 .Subscribe(_ => { }, observer.OnError, observer.OnCompleted);
 
-                return new CompositeDisposable(disposable, counter, queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), disposable, counter);
             });
 
     /// <summary>

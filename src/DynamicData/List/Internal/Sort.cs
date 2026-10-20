@@ -67,7 +67,7 @@ internal sealed class Sort<T>(IObservable<IChangeSet<T>> source, IComparer<T>? c
                 var changeComparer = _comparerObservable.SynchronizeSafe(queue).Select(comparer => ChangeComparer(target, comparer));
 
                 var publisher = changeComparer.UnsynchronizedMerge(resortSync, dataChanged).Where(changes => changes.Count != 0).SubscribeSafe(observer);
-                return new CompositeDisposable(publisher, queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher);
             });
 
     /// <summary>

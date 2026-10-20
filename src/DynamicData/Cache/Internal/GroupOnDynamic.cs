@@ -98,6 +98,7 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
             onCompleted: observer.OnCompleted);
 
         return new CompositeDisposable(
+            Disposable.Create(queue.Terminate),
             sharedGroupSelector.Connect(),
             sharedSource.Connect(),
             sharedRegrouper.Connect(),
@@ -105,7 +106,6 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
             subChanges,
             subGroupSelector,
             subRegrouper,
-            subOnComplete,
-            queue);
+            subOnComplete);
     });
 }

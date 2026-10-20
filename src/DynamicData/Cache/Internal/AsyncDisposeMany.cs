@@ -42,37 +42,33 @@ internal static class AsyncDisposeMany<TObject, TKey>
                 var teardownStarted = false;
                 var teardownCompleted = false;
                 var disposalsFinalized = false;
+                var queuedTeardown = new QueuedTeardown();
+                var isDelivering = false;
+                var isTeardownDeferred = false;
 
                 disposalsCompletedAccessor.Invoke(disposalsCompleted);
 
                 var sourceSubscription = OperatorSubscription.SubscribeSafe(
-                    source.SynchronizeSafe(),
+                    source.SynchronizeSafe(queuedTeardown),
                     onNext: upstreamChanges =>
                     {
-                        downstreamObserver.OnNext(upstreamChanges);
+                        // Track ownership before delivery: downstream can dispose the subscription from OnNext, and
+                        // the teardown must see the items this changeset adds.
+                        itemsByKey.Clone(upstreamChanges);
 
-                        foreach (var change in upstreamChanges.ToConcreteType())
+                        isDelivering = true;
+                        try
                         {
-                            switch (change.Reason)
+                            DeliverAndDisposeReplaced(upstreamChanges);
+                        }
+                        finally
+                        {
+                            isDelivering = false;
+                            if (isTeardownDeferred)
                             {
-                                case ChangeReason.Update:
-                                    // Reference items are owned instances, even when their values compare equal.
-                                    // Value items have no stable reference identity; keep their value comparison.
-                                    if (change.Previous.HasValue && !(typeof(TObject).IsValueType
-                                        ? EqualityComparer<TObject>.Default.Equals(change.Current, change.Previous.Value)
-                                        : ReferenceEquals(change.Current, change.Previous.Value)))
-                                    {
-                                        TryDisposeItem(change.Previous.Value);
-                                    }
-                                    break;
-
-                                case ChangeReason.Remove:
-                                    TryDisposeItem(change.Current);
-                                    break;
+                                TearDown();
                             }
                         }
-
-                        itemsByKey.Clone(upstreamChanges);
                     },
                     onError: error =>
                     {
@@ -88,8 +84,50 @@ internal static class AsyncDisposeMany<TObject, TKey>
                 return Disposable.Create(() =>
                 {
                     sourceSubscription.Dispose();
-                    TearDown();
+
+                    // Disposing does not wait for a delivery in progress on another thread; that thread disposes
+                    // the remaining items once its delivery returns, and disposals complete after that.
+                    queuedTeardown.Run(TearDownAfterDelivery);
                 });
+
+                void DeliverAndDisposeReplaced(IChangeSet<TObject, TKey> upstreamChanges)
+                {
+                    downstreamObserver.OnNext(upstreamChanges);
+
+                    foreach (var change in upstreamChanges.ToConcreteType())
+                    {
+                        switch (change.Reason)
+                        {
+                            case ChangeReason.Update:
+                                // Reference items are owned instances, even when their values compare equal.
+                                // Value items have no stable reference identity; keep their value comparison.
+                                if (change.Previous.HasValue && !(typeof(TObject).IsValueType
+                                    ? EqualityComparer<TObject>.Default.Equals(change.Current, change.Previous.Value)
+                                    : ReferenceEquals(change.Current, change.Previous.Value)))
+                                {
+                                    TryDisposeItem(change.Previous.Value);
+                                }
+                                break;
+
+                            case ChangeReason.Remove:
+                                TryDisposeItem(change.Current);
+                                break;
+                        }
+                    }
+                }
+
+                // Disposed from inside OnNext, the teardown follows the rest of that delivery, so items it
+                // replaces or removes are disposed before disposals complete.
+                void TearDownAfterDelivery()
+                {
+                    if (isDelivering)
+                    {
+                        isTeardownDeferred = true;
+                        return;
+                    }
+
+                    TearDown();
+                }
 
                 void TearDown()
                 {
