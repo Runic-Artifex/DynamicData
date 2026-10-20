@@ -241,17 +241,29 @@ internal sealed class TransformMany<TDestination, TDestinationKey, TSource, TSou
         /// <returns>The result of the operation.</returns>
         public IEnumerator<Change<TDestination, TDestinationKey>> GetEnumerator()
         {
+            // Removals come first. A destination key that moves from one source item to another within
+            // the changeset (for example an item regrouped by GroupWithImmutableState) would otherwise be
+            // removed after it was added, and lost.
+            var others = new List<Change<TDestination, TDestinationKey>>();
             foreach (var change in changes.ToConcreteType())
             {
                 switch (change.Reason)
                 {
-                    case ChangeReason.Add:
                     case ChangeReason.Remove:
-                    case ChangeReason.Refresh:
                         {
                             foreach (var destination in change.Current.Destination)
                             {
                                 yield return new Change<TDestination, TDestinationKey>(change.Reason, destination.Key, destination.Item);
+                            }
+                        }
+
+                        break;
+                    case ChangeReason.Add:
+                    case ChangeReason.Refresh:
+                        {
+                            foreach (var destination in change.Current.Destination)
+                            {
+                                others.Add(new Change<TDestination, TDestinationKey>(change.Reason, destination.Key, destination.Item));
                             }
                         }
 
@@ -272,7 +284,7 @@ internal sealed class TransformMany<TDestination, TDestinationKey, TSource, TSou
 
                             foreach (var destination in adds)
                             {
-                                yield return new Change<TDestination, TDestinationKey>(ChangeReason.Add, destination.Key, destination.Item);
+                                others.Add(new Change<TDestination, TDestinationKey>(ChangeReason.Add, destination.Key, destination.Item));
                             }
 
                             foreach (var destination in updates)
@@ -283,13 +295,18 @@ internal sealed class TransformMany<TDestination, TDestinationKey, TSource, TSou
                                 // Do not update is items are the same reference
                                 if (!ReferenceEquals(current.Item, previous.Item))
                                 {
-                                    yield return new Change<TDestination, TDestinationKey>(ChangeReason.Update, destination.Key, current.Item, previous.Item);
+                                    others.Add(new Change<TDestination, TDestinationKey>(ChangeReason.Update, destination.Key, current.Item, previous.Item));
                                 }
                             }
                         }
 
                         break;
                 }
+            }
+
+            foreach (var change in others)
+            {
+                yield return change;
             }
         }
 

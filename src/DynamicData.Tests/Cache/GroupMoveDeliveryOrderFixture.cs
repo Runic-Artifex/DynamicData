@@ -240,6 +240,35 @@ public sealed class GroupMoveDeliveryOrderFixture
         await AssertContains(merged, ("a", 2), ("b", 2), ("d", 2));
     }
 
+    [Test]
+    public async Task ImmutableRegrouperMovesIntoExistingGroup()
+    {
+        using var regrouper = new ReactiveUI.Primitives.Signals.Signal<Unit>();
+        using var source = new SourceCache<Person, string>(p => p.Name);
+        var a = new Person("a", 1);
+        source.AddOrUpdate([a, new Person("b", 2), new Person("c", 1)]);
+
+        using var merged = source.Connect().GroupWithImmutableState(ByAge, regrouper).TransformMany(g => g.Items, p => p.Name).AsObservableCache();
+
+        a.Age = 2;
+        regrouper.OnNext(default(Unit));
+
+        await AssertContains(merged, ("a", 2), ("b", 2), ("c", 1));
+    }
+
+    [Test]
+    public async Task ImmutableUpdatesSwapItemsBetweenGroups()
+    {
+        using var source = new SourceCache<Person, string>(p => p.Name);
+        source.AddOrUpdate([new Person("a", 1), new Person("b", 2), new Person("c", 1), new Person("d", 2)]);
+
+        using var merged = source.Connect().GroupWithImmutableState(ByAge).TransformMany(g => g.Items, p => p.Name).AsObservableCache();
+
+        source.AddOrUpdate([new Person("a", 2), new Person("b", 1)]);
+
+        await AssertContains(merged, ("a", 2), ("b", 1), ("c", 1), ("d", 2));
+    }
+
     private static async Task AssertContains(IObservableCache<Person, string> merged, params (string Name, int Age)[] expected)
     {
         var actual = merged.KeyValues.ToDictionary(kv => kv.Key, kv => kv.Value.Age);
