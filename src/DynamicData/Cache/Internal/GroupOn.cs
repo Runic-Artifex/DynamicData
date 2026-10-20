@@ -63,7 +63,7 @@ internal sealed class GroupOn<TObject, TKey, TGroupKey>(IObservable<IChangeSet<T
 
                 var connected = published.Connect();
 
-                return new CompositeDisposable(connected, disposer, subscriber, queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), connected, disposer, subscriber);
             });
 
 /// <summary>

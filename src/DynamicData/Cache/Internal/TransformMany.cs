@@ -168,7 +168,7 @@ internal sealed class TransformMany<TDestination, TDestinationKey, TSource, TSou
                         return result.CaptureChanges();
                     });
 
-                return new CompositeDisposable(allChanges.SubscribeSafe(observer), transformed.Connect(), queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), allChanges.SubscribeSafe(observer), transformed.Connect());
             });
     }
 

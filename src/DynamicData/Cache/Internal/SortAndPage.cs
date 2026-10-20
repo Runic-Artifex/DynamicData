@@ -156,11 +156,11 @@ internal sealed class SortAndPage<TObject, TKey>
                         return ApplyPagedChanges(changes);
                     });
 
-                return new CompositeDisposable(comparerChanged.Skip(1)
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), comparerChanged.Skip(1)
                         .UnsynchronizedMerge(
                             paramsChanged.Where(changes => changes.Count is not 0),
                             dataChange.Where(changes => changes.Count is not 0))
-                    .SubscribeSafe(observer), queue);
+                    .SubscribeSafe(observer));
 
                 ChangeSet<TObject, TKey, PageContext<TObject>> ApplyPagedChanges(IChangeSet<TObject, TKey>? changeSet = null)
                 {

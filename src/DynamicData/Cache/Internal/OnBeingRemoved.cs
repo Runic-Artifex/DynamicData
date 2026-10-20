@@ -38,7 +38,8 @@ internal sealed class OnBeingRemoved<TObject, TKey>(IObservable<IChangeSet<TObje
             observer =>
             {
                 var cache = new Cache<TObject, TKey>();
-                var subscriber = _source.SynchronizeSafe()
+                var teardown = new QueuedTeardown();
+                var subscriber = _source.SynchronizeSafe(teardown)
                     .Do(changes => RegisterForRemoval(changes, cache))
                     .SubscribeSafe(observer);
 
@@ -46,8 +47,14 @@ internal sealed class OnBeingRemoved<TObject, TKey>(IObservable<IChangeSet<TObje
                     () =>
                     {
                         subscriber.Dispose();
-                        cache.KeyValues.ForEach(kvp => _removeAction(kvp.Value, kvp.Key));
-                        cache.Clear();
+
+                        // Disposing does not wait for a delivery in progress on another thread; that thread
+                        // removes the remaining items once its delivery returns.
+                        teardown.Run(() =>
+                        {
+                            cache.KeyValues.ForEach(kvp => _removeAction(kvp.Value, kvp.Key));
+                            cache.Clear();
+                        });
                     });
             });
 

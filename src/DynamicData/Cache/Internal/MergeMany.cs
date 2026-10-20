@@ -65,7 +65,7 @@ internal sealed class MergeMany<TObject, TKey, TDestination>
 
                 // Queue first: terminate before subscription disposal to prevent
                 // Finally callbacks from delivering spurious OnCompleted during teardown.
-                return new CompositeDisposable(queue, _source
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), _source
                     .Do(static _ => { }, static _ => { }, () => CheckCompleted(counter, queue))
                     .Concat(Observable.Never<IChangeSet<TObject, TKey>>())
                     .SubscribeMany((t, key) =>

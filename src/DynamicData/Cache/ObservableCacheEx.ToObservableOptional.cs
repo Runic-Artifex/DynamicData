@@ -113,7 +113,7 @@ public static partial class ObservableCacheEx
 
                 return Disposable.Create(() =>
                 {
-                    queue.Dispose();
+                    queue.Terminate();
                     subscription.Dispose();
                 });
             });

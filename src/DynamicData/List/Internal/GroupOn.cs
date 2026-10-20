@@ -61,7 +61,7 @@ internal sealed class GroupOn<TObject, TGroupKey>(IObservable<IChangeSet<TObject
                 var publisher = grouper.UnsynchronizedMerge(regrouperFunc).DisposeMany() // dispose removes as the grouping is disposable
                     .NotEmpty().SubscribeSafe(observer);
 
-                return new CompositeDisposable(publisher, shared.Connect(), queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher, shared.Connect());
             });
 
     /// <summary>

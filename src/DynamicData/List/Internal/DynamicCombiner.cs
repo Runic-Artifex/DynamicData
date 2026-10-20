@@ -95,7 +95,7 @@ internal sealed class DynamicCombiner<T>(IObservableList<IObservable<IChangeSet<
                         }
                     }).Subscribe(static _ => { }, static _ => { });
 
-                return new CompositeDisposable(sourceLists, allChanges, removedItem, sourceChanged, queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), sourceLists, allChanges, removedItem, sourceChanged);
             });
 
     /// <summary>
