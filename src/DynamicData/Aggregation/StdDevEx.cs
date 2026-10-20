@@ -16,6 +16,13 @@ namespace DynamicData.Aggregation;
 /// Computes sample standard deviation using incremental central moments. Integral and decimal
 /// selectors use decimal accumulators; their central moments must fit in <see cref="decimal"/>.
 /// Floating-point selectors retain the precision limits of double arithmetic.
+/// Direct list and cache overloads retain projected values and apply Refresh by index or key:
+/// a refreshed item whose projection changed replaces its previous value, and removals and
+/// updates subtract the value that was added rather than re-evaluating a mutated item.
+/// Aggregate streams have no keys, indexes or Refresh metadata: aggregate removals subtract the
+/// retained projection of the matching occurrence (reference, then equality), and an empty aggregate
+/// batch re-evaluates every retained occurrence. A Refresh mixed with membership changes cannot
+/// be recovered after conversion through ForAggregation; use the direct overload for that case.
 /// </remarks>
 public static class StdDevEx
 {
@@ -33,7 +40,7 @@ public static class StdDevEx
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.ForAggregation().StdDev(valueSelector, fallbackValue);
+        return StdDevProject(source, item => (decimal)valueSelector(item)).StdDevCalc(static value => value, (decimal)fallbackValue, retainProjections: false).Select(static value => (double)value);
     }
 
     /// <summary>
@@ -50,7 +57,7 @@ public static class StdDevEx
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.ForAggregation().StdDev(valueSelector, fallbackValue);
+        return StdDevProject(source, item => (decimal)valueSelector(item)).StdDevCalc(static value => value, (decimal)fallbackValue, retainProjections: false).Select(static value => (double)value);
     }
 
     /// <summary>
@@ -67,7 +74,7 @@ public static class StdDevEx
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.ForAggregation().StdDev(valueSelector, fallbackValue);
+        return StdDevProject(source, valueSelector).StdDevCalc(static value => value, (double)fallbackValue, retainProjections: false);
     }
 
     /// <summary>
@@ -84,7 +91,7 @@ public static class StdDevEx
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.ForAggregation().StdDev(valueSelector, fallbackValue);
+        return StdDevProject(source, valueSelector).StdDevCalc(static value => value, (decimal)fallbackValue, retainProjections: false);
     }
 
     /// <summary>
@@ -101,7 +108,7 @@ public static class StdDevEx
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.ForAggregation().StdDev(valueSelector, fallbackValue);
+        return StdDevProject(source, item => (double)valueSelector(item)).StdDevCalc(static value => value, (double)fallbackValue, retainProjections: false);
     }
 
     /// <summary>
@@ -120,7 +127,7 @@ public static class StdDevEx
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.ForAggregation().StdDev(valueSelector, fallbackValue);
+        return StdDevProject(source, item => (decimal)valueSelector(item)).StdDevCalc(static value => value, (decimal)fallbackValue, retainProjections: false).Select(static value => (double)value);
     }
 
     /// <summary>
@@ -139,7 +146,7 @@ public static class StdDevEx
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.ForAggregation().StdDev(valueSelector, fallbackValue);
+        return StdDevProject(source, item => (decimal)valueSelector(item)).StdDevCalc(static value => value, (decimal)fallbackValue, retainProjections: false).Select(static value => (double)value);
     }
 
     /// <summary>
@@ -158,7 +165,7 @@ public static class StdDevEx
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.ForAggregation().StdDev(valueSelector, fallbackValue);
+        return StdDevProject(source, valueSelector).StdDevCalc(static value => value, (double)fallbackValue, retainProjections: false);
     }
 
     /// <summary>
@@ -177,7 +184,7 @@ public static class StdDevEx
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.ForAggregation().StdDev(valueSelector, fallbackValue);
+        return StdDevProject(source, valueSelector).StdDevCalc(static value => value, (decimal)fallbackValue, retainProjections: false);
     }
 
     /// <summary>
@@ -196,7 +203,7 @@ public static class StdDevEx
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.ForAggregation().StdDev(valueSelector, fallbackValue);
+        return StdDevProject(source, item => (double)valueSelector(item)).StdDevCalc(static value => value, (double)fallbackValue, retainProjections: false);
     }
 
     /// <summary>
@@ -281,23 +288,15 @@ public static class StdDevEx
     /// <param name="source">The source value.</param>
     /// <param name="valueSelector">The valueSelector value.</param>
     /// <param name="fallbackValue">The fallbackValue value.</param>
+    /// <param name="retainProjections">Whether to retain aggregate occurrences; false when items are already projected values.</param>
     /// <returns>The result of the operation.</returns>
-    private static IObservable<double> StdDevCalc<TObject>(this IObservable<IAggregateChangeSet<TObject>> source, Func<TObject, double> valueSelector, double fallbackValue)
+    private static IObservable<double> StdDevCalc<TObject>(this IObservable<IAggregateChangeSet<TObject>> source, Func<TObject, double> valueSelector, double fallbackValue, bool retainProjections = true)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.Scan(
-            default(StdDev<double>),
-            (state, changes) =>
-            {
-                foreach (var aggregateItem in changes)
-                {
-                    state = aggregateItem.Type == AggregateType.Add ? Add(state, valueSelector(aggregateItem.Item)) : Remove(state, valueSelector(aggregateItem.Item));
-                }
-
-                return state;
-            }).Select(values => values.Count < 2 ? fallbackValue : Math.Sqrt(Math.Max(values.SumOfSquaredDifferences, 0D) / (values.Count - 1)));
+        return source.ScanProjected<TObject, double, StdDev<double>>(valueSelector, Add, Remove, static values => values.Count == 0, retainProjections)
+            .Select(values => values.Count < 2 ? fallbackValue : Math.Sqrt(Math.Max(values.SumOfSquaredDifferences, 0D) / (values.Count - 1)));
     }
 
     /// <summary>
@@ -307,24 +306,42 @@ public static class StdDevEx
     /// <param name="source">The source value.</param>
     /// <param name="valueSelector">The valueSelector value.</param>
     /// <param name="fallbackValue">The fallbackValue value.</param>
+    /// <param name="retainProjections">Whether to retain aggregate occurrences; false when items are already projected values.</param>
     /// <returns>The result of the operation.</returns>
-    private static IObservable<decimal> StdDevCalc<TObject>(this IObservable<IAggregateChangeSet<TObject>> source, Func<TObject, decimal> valueSelector, decimal fallbackValue)
+    private static IObservable<decimal> StdDevCalc<TObject>(this IObservable<IAggregateChangeSet<TObject>> source, Func<TObject, decimal> valueSelector, decimal fallbackValue, bool retainProjections = true)
     {
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(valueSelector);
 
-        return source.Scan(
-            default(StdDev<decimal>),
-            (state, changes) =>
-            {
-                foreach (var aggregateItem in changes)
-                {
-                    state = aggregateItem.Type == AggregateType.Add ? Add(state, valueSelector(aggregateItem.Item)) : Remove(state, valueSelector(aggregateItem.Item));
-                }
-
-                return state;
-            }).Select(values => values.Count < 2 ? fallbackValue : Sqrt(Math.Max(values.SumOfSquaredDifferences, 0M) / (values.Count - 1)));
+        return source.ScanProjected<TObject, decimal, StdDev<decimal>>(valueSelector, Add, Remove, static values => values.Count == 0, retainProjections)
+            .Select(values => values.Count < 2 ? fallbackValue : Sqrt(Math.Max(values.SumOfSquaredDifferences, 0M) / (values.Count - 1)));
     }
+
+    /// <summary>
+    /// Projects a keyed change set to immutable values so that Refresh becomes remove-old/add-new.
+    /// </summary>
+    /// <typeparam name="TObject">The type of the object.</typeparam>
+    /// <typeparam name="TKey">The type of the key.</typeparam>
+    /// <typeparam name="TValue">The type of the projected value.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="valueSelector">The value selector.</param>
+    /// <returns>The projected aggregate stream.</returns>
+    private static IObservable<IAggregateChangeSet<TValue>> StdDevProject<TObject, TKey, TValue>(IObservable<IChangeSet<TObject, TKey>> source, Func<TObject, TValue> valueSelector)
+        where TObject : notnull
+        where TKey : notnull
+        where TValue : notnull => source.Transform(valueSelector, transformOnRefresh: true).ForAggregation();
+
+    /// <summary>
+    /// Projects a list change set to immutable values so that Refresh becomes remove-old/add-new.
+    /// </summary>
+    /// <typeparam name="TObject">The type of the object.</typeparam>
+    /// <typeparam name="TValue">The type of the projected value.</typeparam>
+    /// <param name="source">The source.</param>
+    /// <param name="valueSelector">The value selector.</param>
+    /// <returns>The projected aggregate stream.</returns>
+    private static IObservable<IAggregateChangeSet<TValue>> StdDevProject<TObject, TValue>(IObservable<IChangeSet<TObject>> source, Func<TObject, TValue> valueSelector)
+        where TObject : notnull
+        where TValue : notnull => source.Transform(valueSelector, transformOnRefresh: true).ForAggregation();
 
     private static StdDev<double> Add(StdDev<double> current, double item)
     {
