@@ -122,6 +122,42 @@ public sealed class ReentrantFeedbackDeliveryFixture
             });
     }
 
+    [Test]
+    public async Task FeedbackPendingWhenDisposedIsNotDelivered()
+    {
+        using var requests = new ReactiveUI.Primitives.Signals.StateSignal<IVirtualRequest>(new VirtualRequest(0, 3));
+        using var source = new SourceCache<Person, string>(p => p.Name);
+        source.AddOrUpdate(Enumerable.Range(1, 10).Select(i => new Person("Seed" + i, i)));
+
+        var armed = false;
+        var deliveredAfterDispose = 0;
+        var disposed = false;
+        IDisposable? subscription = null;
+        subscription = source.Connect().SortAndVirtualize(ByAge, requests).Subscribe(_ =>
+        {
+            if (disposed)
+            {
+                deliveredAfterDispose++;
+            }
+
+            if (armed)
+            {
+                armed = false;
+
+                // Held back until this delivery returns, by which time the subscription is disposed.
+                source.AddOrUpdate(new Person("Feedback", 0));
+                subscription!.Dispose();
+                disposed = true;
+            }
+        });
+
+        armed = true;
+        requests.OnNext(new VirtualRequest(0, 5));
+
+        await Assert.That(disposed).IsTrue();
+        await Assert.That(deliveredAfterDispose).IsEqualTo(0);
+    }
+
     private static async Task AssertFeedbackIsNotReentrant<T>(
         Func<IObservable<IChangeSet<Person, string>>, IObservable<T>> pipeline,
         Action triggerFromOtherInput)

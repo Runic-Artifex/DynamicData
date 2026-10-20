@@ -74,6 +74,42 @@ public sealed class ReentrantFeedbackDeliveryFixture
             () => first!.Age = 100);
     }
 
+    [Test]
+    public async Task FeedbackPendingWhenDisposedIsNotDelivered()
+    {
+        using var comparers = new ReactiveUI.Primitives.Signals.StateSignal<IComparer<Person>>(ByAge);
+        using var source = new SourceList<Person>();
+        source.AddRange(Enumerable.Range(1, 10).Select(i => new Person("Seed" + i, i)));
+
+        var armed = false;
+        var deliveredAfterDispose = 0;
+        var disposed = false;
+        IDisposable? subscription = null;
+        subscription = source.Connect().Sort(comparers).Subscribe(_ =>
+        {
+            if (disposed)
+            {
+                deliveredAfterDispose++;
+            }
+
+            if (armed)
+            {
+                armed = false;
+
+                // Held back until this delivery returns, by which time the subscription is disposed.
+                source.Add(new Person("Feedback", 0));
+                subscription!.Dispose();
+                disposed = true;
+            }
+        });
+
+        armed = true;
+        comparers.OnNext(SortExpressionComparer<Person>.Descending(p => p.Age));
+
+        await Assert.That(disposed).IsTrue();
+        await Assert.That(deliveredAfterDispose).IsEqualTo(0);
+    }
+
     private static async Task AssertFeedbackIsDeliveredAfterwards<TChanges>(
         Func<IObservable<IChangeSet<Person>>, IObservable<TChanges>> pipeline,
         Action triggerFromOtherInput,
