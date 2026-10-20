@@ -186,6 +186,8 @@ public class QueuedOperatorDisposalFixture
 
         // Cache operators.
         ["source-cache-connect"] = static scheduler => CacheCase(source => source.Connect().Counts(), scheduler),
+        ["cache-auto-refresh"] = static scheduler => CacheCase(source => source.Connect().AutoRefreshOnObservable(static _ => Observable.Never<Unit>()).Counts(), scheduler),
+        ["cache-filter-on-observable"] = static scheduler => CacheCase(source => source.Connect().FilterOnObservable(static _ => Observable.Return(true)).Counts(), scheduler),
         ["cache-on-item-removed"] = static scheduler => CacheCase(source => source.Connect().OnItemRemoved(static _ => { }).Counts(), scheduler),
         ["cache-async-dispose-many"] = static scheduler => CacheCase(source => source.Connect().AsyncDisposeMany(static _ => { }).Counts(), scheduler),
 
