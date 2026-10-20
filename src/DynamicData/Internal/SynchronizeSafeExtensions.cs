@@ -18,19 +18,27 @@ namespace DynamicData.Internal;
 /// declaration order. The queue and the source subscription have different roles:</para>
 /// <list type="bullet">
 ///   <item>
-///     <term>Subscription-first (gate and SDQ overloads)</term>
-///     <description>The queue is the <c>IObserver</c> that the source sends notifications to.
+///     <term>Subscription-first (SDQ overload)</term>
+///     <description>The sub-queue is the <c>IObserver</c> that the source sends notifications to.
 ///     Disposing the subscription first allows any final terminal notification (OnCompleted/OnError
 ///     triggered by Rx's disposal cascade or a <c>Finally</c> operator) to flow through the
-///     still-active queue. The queue is disposed last as cleanup.</description>
+///     still-active sub-queue. The sub-queue is removed last as cleanup. Operators terminate the
+///     shared queue itself first when they are disposed.</description>
 ///   </item>
 ///   <item>
-///     <term>Queue-first (parameterless overload)</term>
-///     <description>Used by operators with teardown side effects (DisposeMany, OnBeingRemoved).
-///     The queue is terminated first via <c>DeliveryQueue&lt;T&gt;.Dispose</c>, which ensures
-///     all in-flight deliveries complete before the subscription is disposed and teardown logic
-///     (e.g., disposing removed items) runs. Terminal notifications are not needed because
-///     the subscriber is explicitly tearing down.</description>
+///     <term>Terminate-first (gate overload)</term>
+///     <description>The queue is terminated before the subscription is disposed, without waiting
+///     for a delivery in progress on another thread, whose observer may need a lock the disposing
+///     caller holds. That delivery finishes and nothing is delivered after it.</description>
+///   </item>
+///   <item>
+///     <term>Terminate-first with deferred teardown (teardown overload)</term>
+///     <description>Used by operators with teardown side effects (DisposeMany, OnBeingRemoved,
+///     AsyncDisposeMany). The queue is terminated, the subscription disposed, and the teardown
+///     (e.g., disposing the remaining items) runs once no delivery is in progress on another
+///     thread: immediately, or on the delivering thread right after its delivery returns. Disposal
+///     never waits for that delivery, and the teardown never runs while it may still use the items.
+///     Terminal notifications are not needed because the subscriber is explicitly tearing down.</description>
 ///   </item>
 /// </list>
 /// </remarks>
@@ -68,27 +76,29 @@ internal static class SynchronizeSafeExtensions
         {
             var queue = new DeliveryQueue<T>(gate, observer);
 
-            // Subscription first: terminal notifications flow through the still-active queue
-            return new CompositeDisposable(source.SubscribeSafe(queue), queue);
+            // Terminate first, without waiting for a delivery in progress on another thread.
+            return new CompositeDisposable(Disposable.Create(queue.Terminate), source.SubscribeSafe(queue));
         });
 
     /// <summary>
-    /// Synchronizes the source observable through an implicitly created <c>DeliveryQueue&lt;T&gt;</c>
-    /// with automatic delivery completion on dispose. The queue is terminated and drained
-    /// before the source subscription is disposed, ensuring all in-flight notifications
-    /// are delivered before teardown.
+    /// Synchronizes the source observable through an implicitly created <c>DeliveryQueue&lt;T&gt;</c> whose
+    /// deliveries <paramref name="teardown"/> keeps track of. Disposing the subscription stops further delivery
+    /// without waiting for one in progress on another thread; the operator then runs its teardown through
+    /// <see cref="QueuedTeardown.Run"/>, which defers it to the delivering thread until that delivery returns.
     /// </summary>
     /// <typeparam name="T">The type of the T value.</typeparam>
     /// <param name="source">The source value.</param>
+    /// <param name="teardown">Tracks the queue for the operator's teardown. One per subscription.</param>
     /// <returns>The result of the operation.</returns>
-    public static IObservable<T> SynchronizeSafe<T>(this IObservable<T> source)
+    public static IObservable<T> SynchronizeSafe<T>(this IObservable<T> source, QueuedTeardown teardown)
         =>
         Observable.Create<T>(observer =>
         {
             var queue = new DeliveryQueue<T>(observer);
+            teardown.Attach(queue.RunWhenNotDelivering);
 
-            // Queue first: ensures in-flight deliveries complete before teardown side effects run
-            return new CompositeDisposable(queue, source.SubscribeSafe(queue));
+            // Terminate first, without waiting for a delivery in progress on another thread.
+            return new CompositeDisposable(Disposable.Create(queue.Terminate), source.SubscribeSafe(queue));
         });
 
     // Merges every input into a single observable without taking any synchronization gate.

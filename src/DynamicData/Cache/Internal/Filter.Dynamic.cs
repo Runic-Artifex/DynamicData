@@ -45,7 +45,7 @@ public static class Dynamic<TObject, TKey, TState>
             ArgumentNullException.ThrowIfNull(predicate);
             ArgumentNullException.ThrowIfNull(reapplyFilter);
 
-            return Observable.Create<IChangeSet<TObject, TKey>>(downstreamObserver => new Subscription(
+            return OperatorSubscription.Create<IChangeSet<TObject, TKey>>(downstreamObserver => new Subscription(
                 downstreamObserver: downstreamObserver,
                 predicate: predicate,
                 predicateState: predicateState,
@@ -170,18 +170,19 @@ private sealed class Subscription
 
                 using var @lock = SwappableLock.CreateAndEnter(UpstreamSynchronizationGate);
 
-                _predicateStateSubscription = predicateState.SubscribeSafe(Observer.Create<TState>(
-                    onNext: OnPredicateStateNext,
-                    onError: onError,
-                    onCompleted: OnPredicateStateCompleted));
+                _predicateStateSubscription = OperatorSubscription.SubscribeSafe(
+                    predicateState,
+                    OnPredicateStateNext,
+                    onError,
+                    OnPredicateStateCompleted);
 
-                _reapplyFilterSubscription = PrimitivesLinqExtensions.SubscribeSafe(
+                _reapplyFilterSubscription = OperatorSubscription.SubscribeSafe(
                     reapplyFilter,
                     OnReapplyFilterNext,
                     onError,
                     OnReapplyFilterCompleted);
 
-                _sourceSubscription = PrimitivesLinqExtensions.SubscribeSafe(
+                _sourceSubscription = OperatorSubscription.SubscribeSafe(
                     source,
                     OnSourceNext,
                     onError,

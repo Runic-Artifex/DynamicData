@@ -45,7 +45,7 @@ public static class WithPredicateState<T, TState>
             if (!Enum.IsDefined(filterPolicy))
                 throw new ArgumentException($"Invalid {nameof(ListFilterPolicy)} value {filterPolicy}");
 
-            return Observable.Create<IChangeSet<T>>(observer =>
+            return OperatorSubscription.Create<IChangeSet<T>>(observer =>
             {
                 SubscriptionBase subscription = (filterPolicy is ListFilterPolicy.CalculateDiff)
                     ? new CalculateDiffSubscription(
@@ -184,12 +184,13 @@ private abstract class SubscriptionBase
                 // Both inputs are serialized by one delivery queue, so the item states are only touched
                 // on the queue and no lock is held while the downstream observer runs. A producer that
                 // arrives during delivery enqueues and returns instead of waiting for the observer.
-                predicateStateSubscription.Disposable = predicateState.SynchronizeSafe(_queue).SubscribeSafe(Observer.Create<TState>(
+                predicateStateSubscription.Disposable = OperatorSubscription.SubscribeSafe(
+                    predicateState.SynchronizeSafe(_queue),
                     onNext: OnPredicateStateNext,
                     onError: onError,
-                    onCompleted: OnPredicateStateCompleted));
+                    onCompleted: OnPredicateStateCompleted);
 
-                sourceSubscription.Disposable = PrimitivesLinqExtensions.SubscribeSafe(
+                sourceSubscription.Disposable = OperatorSubscription.SubscribeSafe(
                     source.SynchronizeSafe(_queue),
                     onNext: OnSourceNext,
                     onError: onError,

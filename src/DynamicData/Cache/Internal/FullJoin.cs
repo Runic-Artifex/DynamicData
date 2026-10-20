@@ -149,7 +149,7 @@ internal sealed class FullJoin<TLeft, TLeftKey, TRight, TRightKey, TDestination>
 
                 lock (locker)
                 {
-                    return new CompositeDisposable(leftLoader.Merge(rightLoader).SubscribeSafe(observer), leftCache, rightCache, queue);
+                    return new CompositeDisposable(Disposable.Create(queue.Terminate), leftLoader.Merge(rightLoader).SubscribeSafe(observer), leftCache, rightCache);
                 }
             });
 }

@@ -63,7 +63,7 @@ internal sealed class GroupOnImmutable<TObject, TGroupKey>(IObservable<IChangeSe
 
                 var publisher = grouper.UnsynchronizedMerge(reGroupFunc).NotEmpty().SubscribeSafe(observer);
 
-                return new CompositeDisposable(publisher, shared.Connect(), queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher, shared.Connect());
             });
 
     /// <summary>

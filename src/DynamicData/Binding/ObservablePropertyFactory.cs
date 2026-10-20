@@ -116,6 +116,7 @@ private sealed class SinglePropertySubscription : IDisposable
         /// <summary>
         /// The _queue field.
         /// </summary>
+        [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Terminated in Dispose: disposing would wait for an in-flight delivery, which can deadlock.")]
         private readonly DeliveryQueue<PropertyValue<TObject, TProperty>> _queue;
 
         /// <summary>
@@ -143,7 +144,7 @@ private sealed class SinglePropertySubscription : IDisposable
         public void Dispose()
         {
             _source.PropertyChanged -= OnPropertyChanged;
-            _queue.Dispose();
+            _queue.Terminate();
         }
 
         public void Start(bool notifyInitial)
@@ -252,6 +253,7 @@ private sealed class DeepChainSubscription : IDisposable
         /// <summary>
         /// The _sharedQueue field.
         /// </summary>
+        [SuppressMessage("Usage", "CA2213:Disposable fields should be disposed", Justification = "Terminated in Dispose: disposing would wait for an in-flight delivery, which can deadlock.")]
         private readonly SharedDeliveryQueue _sharedQueue;
 
         /// <summary>
@@ -326,9 +328,9 @@ private sealed class DeepChainSubscription : IDisposable
                 slot.Dispose();
             }
 
+            _sharedQueue.Terminate();
             _signalSub.Dispose();
             _userSub.Dispose();
-            _sharedQueue.Dispose();
         }
 
         // Initial setup uses the same delivery ordering and reentrancy as subsequent changes.

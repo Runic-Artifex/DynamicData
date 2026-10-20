@@ -64,14 +64,15 @@ public sealed class LockFreeObservableCache<TObject, TKey> : IObservableCache<TO
 
         _updater = new CacheUpdater<TObject, TKey>(_innerCache);
 
-        var loader = PrimitivesLinqExtensions.SubscribeSafe(
+        var loader = OperatorSubscription.SubscribeSafe(
             source.Select(
                 changes =>
                 {
                     _innerCache.Clone(changes);
                     return _innerCache.CaptureChanges();
                 }),
-            _changes.OnNext,
+            // Runic (DD-044): a subscriber's exception propagates to the source instead of becoming NotifyError.
+            SubscriberFault.Guard<IChangeSet<TObject, TKey>>(_changes).OnNext,
             NotifyError,
             NotifyCompleted);
 

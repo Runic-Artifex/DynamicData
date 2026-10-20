@@ -40,7 +40,7 @@ public static class ForStream<TObject, TKey>
             ArgumentNullException.ThrowIfNull(source);
             ArgumentNullException.ThrowIfNull(timeSelector);
 
-            return Observable.Create<IChangeSet<TObject, TKey>>(observer => (pollingInterval is { } pollingIntervalValue)
+            return OperatorSubscription.Create<IChangeSet<TObject, TKey>>(observer => (pollingInterval is { } pollingIntervalValue)
                 ? new PollingSubscription(
                     observer: observer,
                     pollingInterval: pollingIntervalValue,
@@ -130,7 +130,7 @@ private abstract class SubscriptionBase
                 _itemsCache = new();
                 _proposedExpirationsQueue = [];
 
-                _sourceSubscription = PrimitivesLinqExtensions.SubscribeSafe(
+                _sourceSubscription = OperatorSubscription.SubscribeSafe(
                     source,
                     changes =>
                     {

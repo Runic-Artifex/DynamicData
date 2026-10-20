@@ -66,7 +66,7 @@ internal sealed class AutoRefresh<TObject, TAny>(IObservable<IChangeSet<TObject>
                 // another input, is then delivered after the observer returns instead of re-entrantly.
                 var publisher = shared.UnsynchronizedMerge(requiresRefresh).SubscribeSafe(queue.CreateQueue(observer));
 
-                return new CompositeDisposable(publisher, shared.Connect(), queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher, shared.Connect());
             });
 
     /// <summary>

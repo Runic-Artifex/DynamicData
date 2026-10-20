@@ -140,10 +140,10 @@ internal sealed class BufferIf<T>(IObservable<IChangeSet<T>> source, IObservable
 
         return Disposable.Create(() =>
         {
-            queue.Dispose();
+            // Not cleared: a delivery in progress on another thread may still be adding to the buffer.
+            queue.Terminate();
             subscriptions.Dispose();
             timeoutSubject.Dispose();
-            buffer.Clear();
         });
     });
 }

@@ -67,8 +67,9 @@ internal sealed class Combiner<TObject, TKey>(CombineOperator type, Action<IChan
         var subscriptions = new CompositeDisposable();
         var disposable = Disposable.Create(() =>
         {
-            // Stop delivery before upstream teardown can invoke any final callbacks.
-            queue.Dispose();
+            // Stop delivery before upstream teardown can invoke any final callbacks, without waiting for
+            // one in progress on another thread: its observer may need a lock the caller holds.
+            queue.Terminate();
             subscriptions.Dispose();
         });
         try

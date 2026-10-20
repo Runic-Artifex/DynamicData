@@ -36,7 +36,7 @@ internal sealed class ExpireAfter<T>
         ArgumentNullException.ThrowIfNull(source);
         ArgumentNullException.ThrowIfNull(timeSelector);
 
-        return Observable.Create<IEnumerable<T>>(observer => (pollingInterval is { } pollingIntervalValue)
+        return OperatorSubscription.Create<IEnumerable<T>>(observer => (pollingInterval is { } pollingIntervalValue)
             ? new PollingSubscription(
                 observer: observer,
                 pollingInterval: pollingIntervalValue,
@@ -162,7 +162,7 @@ private abstract class SubscriptionBase
                 ? versionedSource.ConnectWithVersion()
                 : source.Connect().Select(static changes => (Changes: changes, Version: 0L));
 
-            _sourceSubscription = PrimitivesLinqExtensions.SubscribeSafe(
+            _sourceSubscription = OperatorSubscription.SubscribeSafe(
                 changes
                     // It's important to set this flag outside the context of a lock, because it'll be read outside of lock as well.
                     .Finally(() => _hasSourceCompleted = true),

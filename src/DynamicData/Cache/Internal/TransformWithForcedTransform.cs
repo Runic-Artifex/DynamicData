@@ -46,9 +46,7 @@ internal sealed class TransformWithForcedTransform<TDestination, TSource, TKey>(
                 // do raw transform
                 var transform = new Transform<TDestination, TSource, TKey>(sourceAndRefreshes, transformFactory, exceptionCallback, true).Run();
 
-                // Deliver through the queue too: a notification raised from inside the observer, through
-                // another input, is then delivered after the observer returns instead of re-entrantly.
-                return new CompositeDisposable(cacheLoader, transform.SubscribeSafe(queue.CreateQueue(observer)), shared.Connect(), queue);
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), cacheLoader, transform.SubscribeSafe(queue.CreateQueue(observer)), shared.Connect());
             });
 
     /// <summary>

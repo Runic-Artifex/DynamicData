@@ -27,14 +27,15 @@ internal sealed class OfType<TObject, TKey, TDestination>(IObservable<IChangeSet
     /// </summary>
     /// <returns>The result of the operation.</returns>
     public IObservable<IChangeSet<TDestination, TKey>> Run() =>
-        Observable.Create<IChangeSet<TDestination, TKey>>(observer => PrimitivesLinqExtensions.SubscribeSafe(
-            source,
-            onNext: upstreamChanges =>
-            {
-                var downstreamChanges = new ChangeSet<TDestination, TKey>(capacity: upstreamChanges.Count);
-
-                try
+        // Runic (DD-044): a subscriber's exception propagates to the producer; a failure of this
+        // operator is still delivered as OnError by OperatorSubscription.
+        OperatorSubscription.Create<IChangeSet<TDestination, TKey>>(observer =>
+            OperatorSubscription.SubscribeSafe(
+                source,
+                onNext: upstreamChanges =>
                 {
+                    var downstreamChanges = new ChangeSet<TDestination, TKey>(capacity: upstreamChanges.Count);
+
                     foreach (var change in upstreamChanges.ToConcreteType())
                     {
                         // Don't propagate moves at all, since we don't preserve indexes.
@@ -70,12 +71,7 @@ internal sealed class OfType<TObject, TKey, TDestination>(IObservable<IChangeSet
                     {
                         observer.OnNext(downstreamChanges);
                     }
-                }
-                catch (Exception error)
-                {
-                    observer.OnError(error);
-                }
-            },
-            onError: observer.OnError,
-            onCompleted: observer.OnCompleted));
+                },
+                onError: observer.OnError,
+                onCompleted: observer.OnCompleted));
 }

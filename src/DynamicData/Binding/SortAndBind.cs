@@ -115,7 +115,7 @@ internal sealed class SortAndBind<[DynamicallyAccessedMembers(DynamicallyAccesse
                 })
                 .SubscribeSafe(observer);
 
-            return new CompositeDisposable(latestComparer, subscriber, queue);
+            return new CompositeDisposable(Disposable.Create(queue.Terminate), latestComparer, subscriber);
         });
 
     /// <summary>

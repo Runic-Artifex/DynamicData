@@ -38,7 +38,7 @@ internal sealed class MergeChangeSets<TObject, TKey>(IObservable<IObservable<ICh
     /// Executes the Run operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    public IObservable<IChangeSet<TObject, TKey>> Run() => Observable.Create<IChangeSet<TObject, TKey>>(
+    public IObservable<IChangeSet<TObject, TKey>> Run() => OperatorSubscription.Create<IChangeSet<TObject, TKey>>(
         observer =>
         {
             var queue = new SharedDeliveryQueue();
@@ -49,15 +49,15 @@ internal sealed class MergeChangeSets<TObject, TKey>(IObservable<IObservable<ICh
 
             // Create a ChangeSet of Caches, synchronize, update the local copy, and merge the sub-observables together.
             return new CompositeDisposable(
-                PrimitivesLinqExtensions.SubscribeSafe(
+                Disposable.Create(queue.Terminate),
+                OperatorSubscription.SubscribeSafe(
                     CreateContainerObservable(source, queue)
                         .SynchronizeSafe(queue)
                         .Do(cache.Clone)
                         .MergeMany(mc => mc.Source.Do(static _ => { }, observer.OnError)),
                     changes => changeTracker.ProcessChangeSet(changes, observer),
                     observer.OnError,
-                    observer.OnCompleted),
-                queue);
+                    observer.OnCompleted));
         });
     // Can optimize for the Add case because that's the only one that applies
 

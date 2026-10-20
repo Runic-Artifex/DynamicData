@@ -43,12 +43,10 @@ internal sealed class Virtualise<TObject, TKey>(IObservable<ISortedChangeSet<TOb
                 var request = _virtualRequests.Where(parameters => parameters is not null).SynchronizeSafe(queue).Select(virtualiser.Virtualise);
                 var dataChange = _source.SynchronizeSafe(queue).Select(virtualiser.Update);
 
-                // Deliver through the queue too: a notification raised from inside the observer, through
-                // another input, is then delivered after the observer returns instead of re-entrantly.
-                return new CompositeDisposable(request.UnsynchronizedMerge(dataChange)
+                return new CompositeDisposable(Disposable.Create(queue.Terminate), request.UnsynchronizedMerge(dataChange)
                     .Where(updates => updates is not null)
                     .Select(x => x!)
-                    .SubscribeSafe(queue.CreateQueue(observer)), queue);
+                    .SubscribeSafe(queue.CreateQueue(observer)));
             });
 
 /// <summary>

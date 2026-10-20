@@ -73,7 +73,7 @@ internal sealed class Virtualiser<T>(IObservable<IChangeSet<T>> source, IObserva
                 .Select(changes => changes!)
                 .SubscribeSafe(queue.CreateQueue(observer));
 
-            return new CompositeDisposable(publisher, queue);
+            return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher);
         });
 
     private static IChangeSet<Occurrence> Virtualise(List<Occurrence> all,

@@ -550,7 +550,7 @@ public static class AvgEx
 
             void Dispose()
             {
-                queue.Dispose();
+                queue.Terminate();
                 using (queue.AcquireLock())
                 {
                     stopped = true;
