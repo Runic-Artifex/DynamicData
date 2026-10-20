@@ -98,15 +98,28 @@ internal sealed class SpecifiedGrouper<TObject, TKey, TGroupKey>(IObservable<ICh
                         return new GroupChangeSet<TObject, TKey, TGroupKey>(groups);
                     }).Subscribe(observer.OnNext, Fail, Finish);
 
-                var sourceConnection = source.Connect();
-                var groupConnection = groups.Connect();
-                var initialization = queue.CreateQueue(Observer.Create<Unit>(_ =>
+                var connections = new CompositeDisposable();
+                var subscriptions = new CompositeDisposable(Disposable.Create(queue.Terminate), connections, notifier, sourceGroups, parentGroups, updatesFromChildren);
+                try
                 {
-                    initializing = false;
-                    if (completed) observer.OnCompleted();
-                }));
-                initialization.OnNext(Unit.Default);
+                    connections.Add(source.Connect());
+                    connections.Add(groups.Connect());
+                    var initialization = queue.CreateQueue(Observer.Create<Unit>(_ =>
+                    {
+                        initializing = false;
+                        if (completed) observer.OnCompleted();
+                    }));
+                    subscriptions.Add(initialization);
+                    initialization.OnNext(Unit.Default);
+                }
+                catch
+                {
+                    // Runic (DD-044, fork issue #39): a subscriber exception thrown at the initial groups must not leave
+                    // the source connected, which keeps the groups and the observer reachable from it.
+                    subscriptions.Dispose();
+                    throw;
+                }
 
-                return new CompositeDisposable(Disposable.Create(queue.Terminate), sourceConnection, groupConnection, notifier, sourceGroups, parentGroups, updatesFromChildren, initialization);
+                return subscriptions;
             });
 }

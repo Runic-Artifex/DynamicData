@@ -22,7 +22,7 @@ public partial class CallbackErrorDeliveryFixture
     private static readonly HashSet<string> PipelinesWithoutInitialValue = ["SkipInitial"];
 
     public static IEnumerable<Func<string>> CacheLiveInputPipelines() =>
-        new[] { "LeftJoin", "RightJoin", "FullJoin", "InnerJoin", "Or", "And", "Xor", "Except", "DynamicOr", "DynamicAnd", "DynamicXor", "DynamicExcept", "MergeChangeSets", "Sort", "Page", "Virtualise", "SortAndPage", "SortAndVirtualize", "Filter", "FilterPredicateState", "FilterReapply", "TransformForced", "BatchIf", "GroupWithRegrouper", "GroupWithImmutableStateWithRegrouper", "GroupDynamic", "GroupOnObservable", "QueryWhenChangedWithItemTrigger", "TransformOnObservable", "MergeMany", "AutoRefreshOnObservable", "TrueForAll", "TransformToTree", "MergeManyChangeSets", "Switch" }
+        new[] { "LeftJoin", "RightJoin", "FullJoin", "InnerJoin", "Or", "And", "Xor", "Except", "DynamicOr", "DynamicAnd", "DynamicXor", "DynamicExcept", "MergeChangeSets", "Sort", "Page", "Virtualise", "SortAndPage", "SortAndVirtualize", "Filter", "FilterPredicateState", "FilterReapply", "TransformForced", "BatchIf", "GroupWithRegrouper", "GroupWithImmutableStateWithRegrouper", "GroupDynamic", "GroupOnObservable", "QueryWhenChangedWithItemTrigger", "TransformOnObservable", "MergeMany", "AutoRefreshOnObservable", "TrueForAll", "TransformToTree", "MergeManyChangeSets", "Switch", "QueryWhenChangedWithLiveTrigger", "QueryWhenChangedWithItemTriggerLiveSource", "TrueForAny", "TrueForAllLiveSource", "GroupWithGroupSource", "GroupWithLiveGroupSource", "BindPaged", "BindPagedWithOptions", "BindVirtualized", "BindVirtualizedWithOptions", "TransformToTreeLiveSource" }
             .Select(name => (Func<string>)(() => name));
 
     public static IEnumerable<Func<string>> ListLiveInputPipelines() =>
@@ -139,6 +139,17 @@ public partial class CallbackErrorDeliveryFixture
         "TransformToTree" => cache.Connect().Transform(static value => value.ToString()).TransformToTree(static _ => -1, LiveParameter<Func<Node<string, int>, bool>>(static _ => true, signal, static _ => static _ => true)),
         "MergeManyChangeSets" => other.Connect().Or(cache.Connect()).MergeManyChangeSets(value => SingleChange(value).Concat(signal.Select(next => (IChangeSet<int, int>)new ChangeSet<int, int> { new Change<int, int>(ChangeReason.Add, next + 100, next + 100) }))),
         "Switch" => LiveParameter(other.Connect(), signal, _ => other.Connect()).Select(source => source.Or(cache.Connect())).Switch(),
+        "QueryWhenChangedWithLiveTrigger" => cache.Connect().QueryWhenChanged((int _) => LiveParameter(Unit.Default, signal, static _ => Unit.Default)),
+        "QueryWhenChangedWithItemTriggerLiveSource" => other.Connect().Or(cache.Connect()).QueryWhenChanged((int _) => LiveParameter(Unit.Default, signal, static _ => Unit.Default)),
+        "TrueForAny" => cache.Connect().TrueForAny(_ => LiveParameter(true, signal, static _ => true), static value => value).Select(static value => (object)value),
+        "TrueForAllLiveSource" => other.Connect().Or(cache.Connect()).TrueForAll(_ => LiveParameter(true, signal, static _ => true), static value => value).Select(static value => (object)value),
+        "GroupWithGroupSource" => cache.Connect().Group(static value => value % 2, other.Connect().Or(cache.Connect()).DistinctValues(static value => value % 2)),
+        "GroupWithLiveGroupSource" => other.Connect().Or(cache.Connect()).Group(static value => value % 2, LiveParameter<IDistinctChangeSet<int>>(GroupKeys(0), signal, static key => GroupKeys(key))),
+        "BindPaged" => cache.Connect().SortAndPage(SortExpressionComparer<int>.Ascending(static value => value), LiveParameter(new PageRequest(1, 10), signal, static size => new PageRequest(1, size + 1))).Bind(new List<int>()),
+        "BindPagedWithOptions" => cache.Connect().SortAndPage(SortExpressionComparer<int>.Ascending(static value => value), LiveParameter(new PageRequest(1, 10), signal, static size => new PageRequest(1, size + 1))).Bind(new List<int>(), new SortAndBindOptions()),
+        "BindVirtualized" => cache.Connect().SortAndVirtualize(SortExpressionComparer<int>.Ascending(static value => value), LiveParameter<IVirtualRequest>(new VirtualRequest(0, 10), signal, static size => new VirtualRequest(0, size + 1))).Bind(new List<int>()),
+        "BindVirtualizedWithOptions" => cache.Connect().SortAndVirtualize(SortExpressionComparer<int>.Ascending(static value => value), LiveParameter<IVirtualRequest>(new VirtualRequest(0, 10), signal, static size => new VirtualRequest(0, size + 1))).Bind(new List<int>(), new SortAndBindOptions()),
+        "TransformToTreeLiveSource" => other.Connect().Or(cache.Connect()).Transform(static value => value.ToString()).TransformToTree(static _ => -1, LiveParameter<Func<Node<string, int>, bool>>(static _ => true, signal, static _ => static _ => true)),
         _ => throw new ArgumentOutOfRangeException(nameof(pipeline), pipeline, null),
     };
 
@@ -165,6 +176,8 @@ public partial class CallbackErrorDeliveryFixture
         "Switch" => LiveParameter(other.Connect(), signal, _ => other.Connect()).Select(source => source.Or(list.Connect())).Switch(),
         _ => throw new ArgumentOutOfRangeException(nameof(pipeline), pipeline, null),
     };
+
+    private static IDistinctChangeSet<int> GroupKeys(int key) => new DistinctChangeSet<int> { new Change<int, int>(ChangeReason.Add, key, key) };
 
     private static IObservableList<IObservable<T>> Sources<T>(IObservable<T> first, IObservable<T> second)
     {

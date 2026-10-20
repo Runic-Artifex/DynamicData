@@ -25,11 +25,11 @@ namespace DynamicData.Tests.Internal;
 public partial class CallbackErrorDeliveryFixture
 {
     public static IEnumerable<Func<string>> ListPipelines() =>
-        new[] { "Connect", "ConnectWithPredicate", "Transform", "Filter", "Sort", "DeferUntilLoaded", "SkipInitial", "QueryWhenChanged", "Sum", "IsEmpty", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "FilterPredicateChanges", "BufferIf", "AutoRefreshOnObservable", "AutoRefreshOnObservableSynchronous", "FilterOnObservable", "Or", "DynamicOr", "MergeChangeSets", "MergeMany", "MergeManyChangeSets", "TransformMany", "GroupWithImmutableStateWithRegrouper", "FilterPredicateState" }
+        new[] { "Connect", "ConnectWithPredicate", "Transform", "Filter", "Sort", "DeferUntilLoaded", "SkipInitial", "QueryWhenChanged", "Sum", "IsEmpty", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "FilterPredicateChanges", "BufferIf", "AutoRefreshOnObservable", "AutoRefreshOnObservableSynchronous", "FilterOnObservable", "Or", "DynamicOr", "MergeChangeSets", "MergeMany", "MergeManyChangeSets", "TransformMany", "GroupWithImmutableStateWithRegrouper", "FilterPredicateState", "QueryWhenChangedWithSelector" }
             .Select(name => (Func<string>)(() => name));
 
     public static IEnumerable<Func<string>> CachePipelines() =>
-        new[] { "Connect", "Transform", "Filter", "Sort", "ToCollection", "Group", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "SortAndPage", "SortAndVirtualize", "TransformForced", "TransformAsyncForced", "BatchIf", "GroupWithRegrouper", "GroupWithImmutableStateWithRegrouper", "InnerJoin", "LeftJoin", "RightJoin", "FullJoin", "Or", "DynamicOr", "MergeMany", "AutoRefreshOnObservable", "AutoRefreshOnObservableSynchronous", "FilterOnObservable", "MergeManyChangeSets", "MergeManyChangeSetsWithSourceComparer", "MergeManyListChangeSets", "TransformOnObservable", "GroupOnObservable", "TransformManyAsync", "TransformMany", "QueryWhenChangedWithItemTrigger", "TransformToTree" }
+        new[] { "Connect", "Transform", "Filter", "Sort", "ToCollection", "Group", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "SortAndPage", "SortAndVirtualize", "TransformForced", "TransformAsyncForced", "BatchIf", "GroupWithRegrouper", "GroupWithImmutableStateWithRegrouper", "InnerJoin", "LeftJoin", "RightJoin", "FullJoin", "Or", "DynamicOr", "MergeMany", "AutoRefreshOnObservable", "AutoRefreshOnObservableSynchronous", "FilterOnObservable", "MergeManyChangeSets", "MergeManyChangeSetsWithSourceComparer", "MergeManyListChangeSets", "TransformOnObservable", "GroupOnObservable", "TransformManyAsync", "TransformMany", "QueryWhenChangedWithItemTrigger", "TransformToTree", "QueryWhenChanged", "QueryWhenChangedWithSelector", "TrueForAll", "TrueForAny", "GroupWithGroupSource", "BindPaged", "BindPagedWithOptions", "BindVirtualized", "BindVirtualizedWithOptions", "TransformToTreeWithPredicate" }
             .Select(name => (Func<string>)(() => name));
 
     [Test]
@@ -279,6 +279,7 @@ public partial class CallbackErrorDeliveryFixture
         "TransformMany" => list.Connect().TransformMany(static value => new ObservableCollection<int> { value }),
         "GroupWithImmutableStateWithRegrouper" => list.Connect().GroupWithImmutableState(static value => value, Observable.Never<Unit>()),
         "FilterPredicateState" => list.Connect().Filter(Observable.Return(true), static (include, _) => include),
+        "QueryWhenChangedWithSelector" => list.Connect().QueryWhenChanged(static items => items.Count).Select(static value => (object)value),
         _ => throw new ArgumentOutOfRangeException(nameof(pipeline), pipeline, null),
     };
 
@@ -320,6 +321,16 @@ public partial class CallbackErrorDeliveryFixture
         "TransformMany" => cache.Connect().TransformMany(static value => new ObservableCollection<int> { value }, static value => value),
         "QueryWhenChangedWithItemTrigger" => cache.Connect().QueryWhenChanged(static (int _) => Observable.Never<Unit>()),
         "TransformToTree" => cache.Connect().Transform(static value => value.ToString()).TransformToTree(static _ => -1),
+        "QueryWhenChanged" => cache.Connect().QueryWhenChanged(),
+        "QueryWhenChangedWithSelector" => cache.Connect().QueryWhenChanged(static query => query.Count).Select(static value => (object)value),
+        "TrueForAll" => cache.Connect().TrueForAll(static value => Observable.Return(value), static (_, value) => value != 1).Select(static value => (object)value),
+        "TrueForAny" => cache.Connect().TrueForAny(static value => Observable.Return(value), static (_, value) => value == 1).Select(static value => (object)value),
+        "GroupWithGroupSource" => cache.Connect().Group(static value => value % 2, cache.Connect().DistinctValues(static value => value % 2)),
+        "BindPaged" => cache.Connect().SortAndPage(SortExpressionComparer<int>.Ascending(static value => value), Observable.Return(new PageRequest(1, 10))).Bind(new List<int>()),
+        "BindPagedWithOptions" => cache.Connect().SortAndPage(SortExpressionComparer<int>.Ascending(static value => value), Observable.Return(new PageRequest(1, 10))).Bind(new List<int>(), new SortAndBindOptions()),
+        "BindVirtualized" => cache.Connect().SortAndVirtualize(SortExpressionComparer<int>.Ascending(static value => value), Observable.Return<IVirtualRequest>(new VirtualRequest(0, 10))).Bind(new List<int>()),
+        "BindVirtualizedWithOptions" => cache.Connect().SortAndVirtualize(SortExpressionComparer<int>.Ascending(static value => value), Observable.Return<IVirtualRequest>(new VirtualRequest(0, 10))).Bind(new List<int>(), new SortAndBindOptions()),
+        "TransformToTreeWithPredicate" => cache.Connect().Transform(static value => value.ToString()).TransformToTree(static _ => -1, Observable.Return<Func<Node<string, int>, bool>>(static _ => true)),
         _ => throw new ArgumentOutOfRangeException(nameof(pipeline), pipeline, null),
     };
 
