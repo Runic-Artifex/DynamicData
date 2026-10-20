@@ -123,6 +123,58 @@ public sealed class ReentrantFeedbackDeliveryFixture
     }
 
     [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task InnerJoin(bool triggerOnRight)
+    {
+        using var join = new JoinSources();
+        await AssertCacheFeedback(
+            () => join.Left.Connect().InnerJoin(join.Right.Connect(), static r => r.Name, static (l, r) => l.Name + l.Age + "+" + r.Age),
+            triggerOnRight ? join.AddRightA : join.AddLeftB,
+            triggerOnRight ? join.AddLeftB : join.AddRightA,
+            triggerOnRight ? ("B", "B") : ("A", "A"));
+    }
+
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task LeftJoin(bool triggerOnRight)
+    {
+        using var join = new JoinSources();
+        await AssertCacheFeedback(
+            () => join.Left.Connect().LeftJoin(join.Right.Connect(), static r => r.Name, static (l, r) => l.Name + l.Age + "+" + (r.HasValue ? r.Value.Age : -1)),
+            triggerOnRight ? join.AddRightA : join.AddLeftB,
+            triggerOnRight ? join.AddLeftB : join.AddRightA,
+            triggerOnRight ? "B" : "A");
+    }
+
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task RightJoin(bool triggerOnRight)
+    {
+        using var join = new JoinSources();
+        await AssertCacheFeedback(
+            () => join.Left.Connect().RightJoin(join.Right.Connect(), static r => r.Name, static (l, r) => (l.HasValue ? l.Value.Age : -1) + "+" + r.Name + r.Age),
+            triggerOnRight ? join.AddRightA : join.AddLeftB,
+            triggerOnRight ? join.AddLeftB : join.AddRightA,
+            triggerOnRight ? "B" : "A");
+    }
+
+    [Test]
+    [Arguments(true)]
+    [Arguments(false)]
+    public async Task FullJoin(bool triggerOnRight)
+    {
+        using var join = new JoinSources();
+        await AssertCacheFeedback(
+            () => join.Left.Connect().FullJoin(join.Right.Connect(), static r => r.Name, static (key, l, r) => key + (l.HasValue ? l.Value.Age : -1) + "+" + (r.HasValue ? r.Value.Age : -1)),
+            triggerOnRight ? join.AddRightA : join.AddLeftB,
+            triggerOnRight ? join.AddLeftB : join.AddRightA,
+            triggerOnRight ? "B" : "A");
+    }
+
+    [Test]
     [Arguments("And")]
     [Arguments("Or")]
     [Arguments("Xor")]
@@ -484,6 +536,30 @@ public sealed class ReentrantFeedbackDeliveryFixture
             {
                 await Assert.That(mirror[pair.Key]).IsEqualTo(pair.Value);
             }
+        }
+    }
+
+    /// <summary>Two caches to join on name: the left holds A, the right holds B, so neither joins yet.</summary>
+    private sealed class JoinSources : IDisposable
+    {
+        public JoinSources()
+        {
+            Left.AddOrUpdate(new Person("A", 1));
+            Right.AddOrUpdate(new Person("B", 20));
+        }
+
+        public SourceCache<Person, string> Left { get; } = new(static p => p.Name);
+
+        public SourceCache<Person, string> Right { get; } = new(static p => p.Name);
+
+        public void AddRightA() => Right.AddOrUpdate(new Person("A", 10));
+
+        public void AddLeftB() => Left.AddOrUpdate(new Person("B", 2));
+
+        public void Dispose()
+        {
+            Left.Dispose();
+            Right.Dispose();
         }
     }
 

@@ -169,9 +169,11 @@ internal sealed class LeftJoin<TLeft, TLeftKey, TRight, TRightKey, TDestination>
                     // Don't forward initial changesets from the right side, only the left
                     .Where(_ => hasInitialized);
 
+                // Runic (DD-045): deliver through the queue too, so a change an observer causes through the other
+                // side while it is being delivered to arrives after it returns, not re-entrantly.
                 lock (locker)
                 {
-                    var observerSubscription = leftLoader.Merge(rightLoader).SubscribeSafe(observer);
+                    var observerSubscription = leftLoader.Merge(rightLoader).SubscribeSafe(queue.CreateQueue(observer));
 
                     var rightShareConnection = rightShare.Connect();
 
