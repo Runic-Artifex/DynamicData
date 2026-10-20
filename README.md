@@ -9,17 +9,21 @@ Earlier previews, published only as GitHub release assets, used the IDs
 `Runic.DynamicData` and `Runic.DynamicData.Reactive`. Keep only one implementation
 of each flavor in an application. The original MIT license and authorship remain.
 
-For build instructions and package assets, see [CONTRIBUTING](CONTRIBUTING.md).
+Install [RunicArtifex.DynamicData](https://www.nuget.org/packages/RunicArtifex.DynamicData)
+or [RunicArtifex.DynamicData.Reactive](https://www.nuget.org/packages/RunicArtifex.DynamicData.Reactive)
+from nuget.org; release notes are on the
+[GitHub releases](https://github.com/Runic-Artifex/DynamicData/releases) page.
+For build instructions, see [CONTRIBUTING](CONTRIBUTING.md).
 For upstream issue/PR summaries and how the fork handled them, see the
 [upstream summaries](docs/upstream/README.md); fork policy is in the
-[maintenance guide](docs/maintenance.md).
-For Runic model scheduling, collection updates and per-presentation virtualization,
-see the [SDK DynamicData guide](https://github.com/Runic-Artifex/runic-sdk/blob/feat/dynamicdata-collections/docs/guides/application/guides/dynamicdata.md). This fork will not be proposed upstream.
+[maintenance guide](docs/maintenance.md). This fork will not be proposed upstream.
 
 ---
 
 [![Build](https://github.com/Runic-Artifex/DynamicData/actions/workflows/ci-build.yml/badge.svg)](https://github.com/Runic-Artifex/DynamicData/actions/workflows/ci-build.yml)
-[Download NuGet assets](https://github.com/Runic-Artifex/DynamicData/releases)
+[RunicArtifex.DynamicData on nuget.org](https://www.nuget.org/packages/RunicArtifex.DynamicData) ·
+[RunicArtifex.DynamicData.Reactive on nuget.org](https://www.nuget.org/packages/RunicArtifex.DynamicData.Reactive) ·
+[Release notes](https://github.com/Runic-Artifex/DynamicData/releases)
 <br />
 <br />
 <a href="https://github.com/reactiveui/DynamicData">

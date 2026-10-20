@@ -27,6 +27,11 @@ regressions for values, completion, errors and subscription disposal when changi
 an operator. Performance work should include a relevant benchmark.
 
 CI builds and tests both flavors and dependency generations on Linux and Windows.
-The manual release workflow attaches the branded packages to a GitHub release; it
-does not publish under upstream package names. Download the assets into a local
-NuGet feed to consume the fork. This fork will not be proposed upstream.
+The manual release workflow publishes the branded packages to nuget.org, as
+[RunicArtifex.DynamicData](https://www.nuget.org/packages/RunicArtifex.DynamicData)
+and [RunicArtifex.DynamicData.Reactive](https://www.nuget.org/packages/RunicArtifex.DynamicData.Reactive),
+and records release notes in a [GitHub release](https://github.com/Runic-Artifex/DynamicData/releases);
+it does not publish under upstream package names. Consume the fork from nuget.org,
+for example `dotnet add package RunicArtifex.DynamicData --prerelease`. Earlier
+previews were only GitHub release assets, under the IDs `Runic.DynamicData` and
+`Runic.DynamicData.Reactive`. This fork will not be proposed upstream.
