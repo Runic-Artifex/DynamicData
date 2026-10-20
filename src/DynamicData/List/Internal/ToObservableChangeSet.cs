@@ -66,7 +66,7 @@ internal static class ToObservableChangeSet<TObject>
     {
         ArgumentNullException.ThrowIfNull(source);
 
-        return Observable.Create<IChangeSet<TObject>>(downstreamObserver => new Subscription(
+        return OperatorSubscription.Create<IChangeSet<TObject>>(downstreamObserver => new Subscription(
             downstreamObserver: downstreamObserver,
             expireAfter: expireAfter,
             limitSizeTo: limitSizeTo,
@@ -163,7 +163,7 @@ private sealed class Subscription
             // producer of this one.
             _downstreamObserver = new(_synchronizationGate, downstreamObserver);
 
-            _sourceSubscription = PrimitivesLinqExtensions.SubscribeSafe(
+            _sourceSubscription = OperatorSubscription.SubscribeSafe(
                 source,
                 onNext: OnSourceNext,
                 onError: _downstreamObserver.OnError,
@@ -250,8 +250,10 @@ private sealed class Subscription
                 if (unfinishedExpiration is ScheduledExpiration unfinishedExpirationValue)
                     FinishSchedulingExpiration(unfinishedExpirationValue, _scheduler);
             }
-            catch (Exception error)
+            catch (Exception error) when (!SubscriberFault.IsSubscriberFault(error))
             {
+                // Runic (DD-044): a subscriber's exception propagates to the producer; only this
+                // operator's own failures (selectors, scheduling) are delivered as OnError.
                 _downstreamObserver.OnError(error);
                 _scheduledExpiration?.Cancellation.Dispose();
             }
@@ -352,8 +354,10 @@ private sealed class Subscription
                 if (unfinishedExpiration is ScheduledExpiration unfinishedExpirationValue)
                     FinishSchedulingExpiration(unfinishedExpirationValue, _scheduler);
             }
-            catch (Exception error)
+            catch (Exception error) when (!SubscriberFault.IsSubscriberFault(error))
             {
+                // Runic (DD-044): a subscriber's exception propagates to the producer; only this
+                // operator's own failures (selectors, scheduling) are delivered as OnError.
                 _downstreamObserver.OnError(error);
                 _scheduledExpiration?.Cancellation.Dispose();
             }

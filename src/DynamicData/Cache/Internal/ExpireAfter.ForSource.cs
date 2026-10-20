@@ -43,7 +43,7 @@ public static class ForSource<TObject, TKey>
             ArgumentNullException.ThrowIfNull(source);
             ArgumentNullException.ThrowIfNull(timeSelector);
 
-            return Observable.Create<IEnumerable<KeyValuePair<TKey, TObject>>>(observer => (pollingInterval is { } pollingIntervalValue)
+            return OperatorSubscription.Create<IEnumerable<KeyValuePair<TKey, TObject>>>(observer => (pollingInterval is { } pollingIntervalValue)
                 ? new PollingSubscription(
                     observer: observer,
                     pollingInterval: pollingIntervalValue,
@@ -152,7 +152,7 @@ private abstract class SubscriptionBase
                 _proposedExpirationsQueue = [];
                 _removedItemsBuffer = [];
 
-                _sourceSubscription = PrimitivesLinqExtensions.SubscribeSafe(
+                _sourceSubscription = OperatorSubscription.SubscribeSafe(
                     source
                         .Connect()
                         // It's important to set this flag outside the context of a lock, because it'll be read outside of lock as well.

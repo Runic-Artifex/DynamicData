@@ -29,7 +29,7 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
     /// Executes the Run operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    public IObservable<IGroupChangeSet<TObject, TKey, TGroupKey>> Run() => Observable.Create<IGroupChangeSet<TObject, TKey, TGroupKey>>(observer =>
+    public IObservable<IGroupChangeSet<TObject, TKey, TGroupKey>> Run() => OperatorSubscription.Create<IGroupChangeSet<TObject, TKey, TGroupKey>>(observer =>
     {
         var dynamicGrouper = new DynamicGrouper<TObject, TKey, TGroupKey>();
         var queue = new SharedDeliveryQueue();
@@ -43,7 +43,7 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
 
         // The first value from the Group Selector should update the Grouper with all the values seen so far
         // Then indicate a selector has been found.  Subsequent values should just update the group selector.
-        var subGroupSelector = PrimitivesLinqExtensions.SubscribeSafe(
+        var subGroupSelector = OperatorSubscription.SubscribeSafe(
             sharedGroupSelector,
             onNext: groupSelector =>
             {
@@ -61,7 +61,7 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
 
         // Ignore values until a selector has been provided
         // Then re-evaluate all the groupings each time it fires
-        var subRegrouper = PrimitivesLinqExtensions.SubscribeSafe(
+        var subRegrouper = OperatorSubscription.SubscribeSafe(
             sharedRegrouper,
             onNext: _ =>
             {
@@ -72,7 +72,7 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
             },
             onError: observer.OnError);
 
-        var subChanges = PrimitivesLinqExtensions.SubscribeSafe(
+        var subChanges = OperatorSubscription.SubscribeSafe(
             sharedSource,
             onNext: changeSet =>
             {
@@ -91,7 +91,7 @@ internal sealed class GroupOnDynamic<TObject, TKey, TGroupKey>(IObservable<IChan
         // are already serialized; the merge is only here to coalesce their completion into a single
         // downstream OnCompleted. UnsynchronizedMerge avoids the ABBA-prone gate that Observable.Merge
         // would hold across the downstream observer.OnCompleted/observer.OnError call.
-        var subOnComplete = PrimitivesLinqExtensions.SubscribeSafe(
+        var subOnComplete = OperatorSubscription.SubscribeSafe(
             sharedSource.ToUnit().UnsynchronizedMerge(sharedGroupSelector.ToUnit(), sharedRegrouper).IgnoreElements(),
             onNext: static _ => { },
             onError: observer.OnError,

@@ -5,9 +5,10 @@
 
 // Runic (DD-044): deliberately in the root DynamicData namespace so that every
 // source.SubscribeSafe(observer) extension call in DynamicData.* code binds here instead of
-// ReactiveUI.Primitives' SubscribeSafe (see ScanExtensions). Static
-// PrimitivesLinqExtensions.SubscribeSafe(...) calls are unaffected; they are shared by both
-// flavours. The System.Reactive flavour keeps System.ObservableExtensions.SubscribeSafe.
+// ReactiveUI.Primitives' SubscribeSafe (see ScanExtensions). Operators that subscribe callbacks
+// use OperatorSubscription.SubscribeSafe in both flavours instead of the static
+// PrimitivesLinqExtensions.SubscribeSafe(...). The System.Reactive flavour keeps
+// System.ObservableExtensions.SubscribeSafe.
 namespace DynamicData;
 
 /// <summary>
