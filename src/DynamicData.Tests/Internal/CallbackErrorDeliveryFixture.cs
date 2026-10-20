@@ -29,7 +29,7 @@ public partial class CallbackErrorDeliveryFixture
             .Select(name => (Func<string>)(() => name));
 
     public static IEnumerable<Func<string>> CachePipelines() =>
-        new[] { "Connect", "Transform", "Filter", "Sort", "ToCollection", "Group", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "SortAndPage", "SortAndVirtualize", "TransformForced", "TransformAsyncForced", "BatchIf", "GroupWithRegrouper", "GroupWithImmutableStateWithRegrouper", "InnerJoin", "LeftJoin", "RightJoin", "FullJoin", "DynamicOr", "MergeManyChangeSets", "MergeManyChangeSetsWithSourceComparer", "MergeManyListChangeSets", "TransformOnObservable", "GroupOnObservable", "TransformManyAsync", "TransformMany", "QueryWhenChangedWithItemTrigger", "TransformToTree" }
+        new[] { "Connect", "Transform", "Filter", "Sort", "ToCollection", "Group", "CountChanged", "SortWithComparerChanges", "Page", "Virtualise", "SortAndPage", "SortAndVirtualize", "TransformForced", "TransformAsyncForced", "BatchIf", "GroupWithRegrouper", "GroupWithImmutableStateWithRegrouper", "InnerJoin", "LeftJoin", "RightJoin", "FullJoin", "DynamicOr", "AutoRefreshOnObservable", "AutoRefreshOnObservableSynchronous", "FilterOnObservable", "MergeManyChangeSets", "MergeManyChangeSetsWithSourceComparer", "MergeManyListChangeSets", "TransformOnObservable", "GroupOnObservable", "TransformManyAsync", "TransformMany", "QueryWhenChangedWithItemTrigger", "TransformToTree" }
             .Select(name => (Func<string>)(() => name));
 
     [Test]
@@ -283,6 +283,9 @@ public partial class CallbackErrorDeliveryFixture
         "RightJoin" => Observable.Never<IChangeSet<int, int>>().RightJoin(cache.Connect(), static right => right, static (_, right) => right),
         "FullJoin" => cache.Connect().FullJoin(Observable.Never<IChangeSet<int, int>>(), static right => right, static (key, _, _) => key),
         "DynamicOr" => Sources(cache.Connect()).Or(),
+        "AutoRefreshOnObservable" => cache.Connect().AutoRefreshOnObservable(static _ => Observable.Never<Unit>()),
+        "AutoRefreshOnObservableSynchronous" => cache.Connect().AutoRefreshOnObservable(static _ => Observable.Return(Unit.Default)),
+        "FilterOnObservable" => cache.Connect().FilterOnObservable(static _ => Observable.Return(true)),
         "MergeManyChangeSets" => cache.Connect().MergeManyChangeSets(static value => SingleChange(value)),
         "MergeManyChangeSetsWithSourceComparer" => cache.Connect().MergeManyChangeSets(static value => SingleChange(value), sourceComparer: Comparer<int>.Default),
         "MergeManyListChangeSets" => cache.Connect().MergeManyChangeSets(static value => Observable.Return<IChangeSet<int>>(new ChangeSet<int>([new Change<int>(ListChangeReason.Add, value)]))),

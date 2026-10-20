@@ -42,7 +42,11 @@ internal sealed class AutoRefresh<TObject, TKey, TAny>(IObservable<IChangeSet<TO
     /// Executes the Run operation.
     /// </summary>
     /// <returns>The result of the operation.</returns>
-    public IObservable<IChangeSet<TObject, TKey>> Run() => Observable.Create<IChangeSet<TObject, TKey>>(
+    /// <remarks>
+    /// Runic (DD-044, fork issue #34): the observer is guarded, so its own exception is thrown to the producer
+    /// and detaches the subscription instead of being delivered back to it as <c>OnError</c>.
+    /// </remarks>
+    public IObservable<IChangeSet<TObject, TKey>> Run() => OperatorSubscription.Create<IChangeSet<TObject, TKey>>(
             observer =>
             {
                 var queue = new DeliveryQueue<IChangeSet<TObject, TKey>>(observer);
@@ -109,6 +113,13 @@ internal sealed class AutoRefresh<TObject, TKey, TAny>(IObservable<IChangeSet<TO
                             {
                                 isProcessingSourceChange = false;
                                 pendingRefreshes = null;
+                            }
+
+                            // Only a failure of the re-evaluator is delivered as OnError; the subscriber's own exception
+                            // from the delivery of the changes or a refresh is thrown to the producer.
+                            if (SubscriberFault.IsSubscriberFault(error))
+                            {
+                                throw;
                             }
 
                             queue.OnError(error);
