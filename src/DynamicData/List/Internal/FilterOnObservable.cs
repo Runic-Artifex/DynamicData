@@ -82,7 +82,40 @@ internal sealed class FilterOnObservable<TObject>(IObservable<IChangeSet<TObject
             var connection = replay.Connect();
             try
             {
-                var subscription = replay.Select(value => new ObjWithFilterValue(item, value)).Subscribe(observer);
+                // Runic (DD-044, fork issue #34): System.Reactive's connectable observable subscribes through
+                // SubscribeSafe, which turns a subscriber exception thrown at the replayed value into OnError for
+                // the observer that has just detached, losing it. Such an exception is rethrown once Subscribe returns.
+                Exception? subscriberFault = null;
+                var isSubscribing = true;
+                var subscription = replay.Select(value => new ObjWithFilterValue(item, value)).Subscribe(
+                    value =>
+                    {
+                        try
+                        {
+                            observer.OnNext(value);
+                        }
+                        catch (Exception error) when (Volatile.Read(ref isSubscribing) && SubscriberFault.IsSubscriberFault(error))
+                        {
+                            subscriberFault = error;
+                            throw;
+                        }
+                    },
+                    error =>
+                    {
+                        if (!ReferenceEquals(error, subscriberFault))
+                        {
+                            observer.OnError(error);
+                        }
+                    },
+                    observer.OnCompleted);
+                Volatile.Write(ref isSubscribing, false);
+
+                if (subscriberFault is not null)
+                {
+                    subscription.Dispose();
+                    System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(subscriberFault);
+                }
+
                 return new CompositeDisposable(subscription, connection);
             }
             catch

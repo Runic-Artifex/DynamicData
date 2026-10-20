@@ -297,3 +297,77 @@ internal static class SubscriberFault
         }
     }
 }
+
+/// <summary>
+/// Runic (DD-044, fork issue #34): carries a subscriber exception out of an operator step that delivers
+/// every exception as <c>OnError</c>, such as a <c>Transform</c> factory, which runs inside <c>Scan</c> in
+/// both flavours.
+/// </summary>
+/// <remarks>
+/// <c>MergeMany</c> subscribes each child inside <c>SubscribeMany</c>'s transform factory, so a child that
+/// emits while it is subscribed (<c>Observable.Return</c>, <c>WhenValueChanged</c> with its initial value)
+/// delivers to the subscriber from inside that factory. <see cref="TryCapture"/> takes a subscriber
+/// exception thrown there, and the observable returned by <see cref="RethrowAfter{T}"/> throws it to the
+/// producer once the source notification being processed returns, as for a value a child emits later.
+/// Source notifications must be serialized and the capture made while one is being processed.
+/// </remarks>
+internal sealed class SubscriberFaultRelay
+{
+    private Exception? _fault;
+
+    /// <summary>
+    /// Captures <paramref name="error"/> if it is a subscriber exception, for <see cref="RethrowAfter{T}"/>
+    /// to rethrow.
+    /// </summary>
+    /// <param name="error">The exception.</param>
+    /// <returns><see langword="true"/> if it was captured; otherwise the caller handles it.</returns>
+    public bool TryCapture(Exception error)
+    {
+        if (!SubscriberFault.IsSubscriberFault(error))
+        {
+            return false;
+        }
+
+        Interlocked.CompareExchange(ref _fault, error, null);
+        return true;
+    }
+
+    /// <summary>
+    /// Forwards the source and, after each notification, rethrows a subscriber exception captured while
+    /// it was processed.
+    /// </summary>
+    /// <typeparam name="T">The type of the values.</typeparam>
+    /// <param name="source">The serialized source.</param>
+    /// <returns>The source, rethrowing captured subscriber exceptions to its producer.</returns>
+    public IObservable<T> RethrowAfter<T>(IObservable<T> source) =>
+        Observable.Create<T>(observer => source.Subscribe(new RelayObserver<T>(observer, this)));
+
+    private void RethrowCaptured()
+    {
+        if (Interlocked.Exchange(ref _fault, null) is { } fault)
+        {
+            System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw(fault);
+        }
+    }
+
+    private sealed class RelayObserver<T>(IObserver<T> downstream, SubscriberFaultRelay relay) : IObserver<T>
+    {
+        public void OnNext(T value)
+        {
+            downstream.OnNext(value);
+            relay.RethrowCaptured();
+        }
+
+        public void OnError(Exception error)
+        {
+            downstream.OnError(error);
+            relay.RethrowCaptured();
+        }
+
+        public void OnCompleted()
+        {
+            downstream.OnCompleted();
+            relay.RethrowCaptured();
+        }
+    }
+}
