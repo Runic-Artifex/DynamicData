@@ -125,6 +125,26 @@ internal sealed class DeliveryQueue<T> : IObserver<T>, IDisposable
     public void Dispose() => EnsureDeliveryComplete();
 
     /// <summary>
+    /// Terminates the queue, dropping pending notifications and rejecting further enqueues,
+    /// without waiting for a delivery in progress on another thread: it finishes, and nothing
+    /// is delivered after it. For subscription disposal, which may run while the caller holds a
+    /// lock that the observer being delivered to is waiting for.
+    /// </summary>
+    internal void Terminate()
+    {
+        EnterQueueLock();
+        try
+        {
+            _isTerminated = true;
+            _queue.Clear();
+        }
+        finally
+        {
+            ExitQueueLock();
+        }
+    }
+
+    /// <summary>
     /// Acquires the gate and returns a scoped access for enqueueing notifications.
     /// Disposing releases the gate and triggers delivery if needed.
     /// </summary>

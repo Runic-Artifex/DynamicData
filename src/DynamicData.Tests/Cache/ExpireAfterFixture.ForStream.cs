@@ -961,10 +961,24 @@ public static partial class ExpireAfterFixture
                 // Identify "completion" as either an error, a completion signal, or all expiring items being removed.
                 if ((results.Error is not null)
                     || results.HasCompleted
-                    || results.RecordedItemsByKey.Values.All(static item => item.Lifetime is null))
+                    || AllRecordedItemsExpired(results))
                 {
                     break;
                 }
+            }
+        }
+
+        // The recording observer's dictionary is mutated by the operator's delivery thread; a poll that
+        // overlaps a delivery sees a concurrent modification and simply tries again on the next interval.
+        private static bool AllRecordedItemsExpired(CacheItemRecordingObserver<StressItem, int> results)
+        {
+            try
+            {
+                return results.RecordedItemsByKey.Values.All(static item => item.Lifetime is null);
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
             }
         }
     }
