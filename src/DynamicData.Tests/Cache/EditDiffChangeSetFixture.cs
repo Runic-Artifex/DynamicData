@@ -1,3 +1,5 @@
+using ReactiveUI.Primitives.Signals;
+
 namespace DynamicData.Tests.Cache;
 
 public class EditDiffChangeSetFixture
@@ -107,6 +109,56 @@ public class EditDiffChangeSetFixture
 
         // then
         await Assert.That(receivedError).IsEqualTo(failSource ? testException : default);
+    }
+
+    [Test]
+    public async Task ResultFailsWhenSourceFailsAfterSubscription()
+    {
+        // having
+        using var source = new Signal<IEnumerable<Person>>();
+        var testException = new Exception("Test");
+        var receivedError = default(Exception);
+        var completed = false;
+        var messages = 0;
+
+        // when
+        using var results = source.EditDiff(p => p.Id).Subscribe(_ => messages++, err => receivedError = err, () => completed = true);
+        source.OnNext(CreatePeople(0, MaxItems, "Name"));
+        var thrownOnProducer = default(Exception);
+        try
+        {
+            source.OnError(testException);
+        }
+        catch (Exception ex)
+        {
+            thrownOnProducer = ex;
+        }
+
+        source.OnNext(CreatePeople(0, MaxItems, "Update"));
+
+        // then
+        await Assert.That(thrownOnProducer).IsNull().Because("the error belongs to the subscriber, not to the producer");
+        await Assert.That(receivedError).IsSameReferenceAs(testException);
+        await Assert.That(completed).IsFalse();
+        await Assert.That(messages).IsEqualTo(1).Because("nothing follows the error");
+    }
+
+    [Test]
+    public async Task DisposingTheResultUnsubscribesFromTheSource()
+    {
+        // having
+        using var source = new Signal<IEnumerable<Person>>();
+        var messages = 0;
+
+        // when
+        var results = source.EditDiff(p => p.Id).Subscribe(_ => messages++);
+        source.OnNext(CreatePeople(0, MaxItems, "Name"));
+        results.Dispose();
+        source.OnNext(CreatePeople(0, MaxItems, "Update"));
+
+        // then
+        await Assert.That(source.HasObservers).IsFalse();
+        await Assert.That(messages).IsEqualTo(1);
     }
 
     private static Person CreatePerson(int id, string name) => new(id, name);
