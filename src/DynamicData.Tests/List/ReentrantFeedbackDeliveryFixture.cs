@@ -75,6 +75,60 @@ public sealed class ReentrantFeedbackDeliveryFixture
     }
 
     [Test]
+    public async Task MergeChangeSetsFromObservableList()
+    {
+        using var first = new SourceList<Person>();
+        using var second = new SourceList<Person>();
+        using var third = new SourceList<Person>();
+        third.Add(new Person("C", 3));
+        using var sources = new SourceList<IObservable<IChangeSet<Person>>>();
+        sources.AddRange([first.Connect(), second.Connect()]);
+        await AssertListFeedback(
+            () => sources.MergeChangeSets(),
+            () => second.Add(new Person("B", 2)),
+            () =>
+            {
+                first.Add(new Person("A", 1));
+                sources.Add(third.Connect());
+            },
+            static p => p.Name,
+            "C");
+    }
+
+    [Test]
+    public async Task MergeManyChangeSets()
+    {
+        using var owners = new Owners();
+        await AssertListFeedback(() => owners.Source.Connect().MergeManyChangeSets(static o => o.ListChildren.Connect()), owners.AddFirstChild, owners.AddSecondChild, static p => p.Name, "B1");
+    }
+
+    [Test]
+    public async Task MergeManyChangeSetsFeedbackIntoParent()
+    {
+        using var owners = new Owners();
+        await AssertListFeedback(() => owners.Source.Connect().MergeManyChangeSets(static o => o.ListChildren.Connect()), owners.AddFirstChild, owners.AddThirdOwner, static p => p.Name, "C1");
+    }
+
+    [Test]
+    public async Task MergeManyCacheChangeSets()
+    {
+        using var owners = new Owners();
+        var received = await DeliverWithFeedback(owners.Source.Connect().MergeManyChangeSets(static o => o.Children.Connect()), owners.AddFirstChild, owners.AddSecondChild);
+        var mirror = new Dictionary<string, Person>();
+        foreach (var change in received.SelectMany(static changes => changes))
+        {
+            if (change.Reason == ChangeReason.Remove)
+                mirror.Remove(change.Key);
+            else
+                mirror[change.Key] = change.Current;
+        }
+
+        using var fresh = owners.Source.Connect().MergeManyChangeSets(static o => o.Children.Connect()).AsObservableCache();
+        await Assert.That(fresh.Keys).Contains("B1");
+        await Assert.That(mirror.Keys).IsEquivalentTo(fresh.Keys);
+    }
+
+    [Test]
     public async Task FeedbackPendingWhenDisposedIsNotDelivered()
     {
         using var comparers = new ReactiveUI.Primitives.Signals.StateSignal<IComparer<Person>>(ByAge);
@@ -152,5 +206,96 @@ public sealed class ReentrantFeedbackDeliveryFixture
 
         await Assert.That(expected).Contains("Feedback");
         await Assert.That(mirror.Select(p => p.Name).ToArray()).IsEquivalentTo(expected);
+    }
+
+    /// <summary>
+    /// Subscribes, runs <paramref name="trigger"/>, and runs <paramref name="feedback"/> from inside the first
+    /// notification that follows. Asserts that no notification overlapped another and that the feedback was
+    /// delivered too, and returns every notification received.
+    /// </summary>
+    private static async Task<List<T>> DeliverWithFeedback<T>(IObservable<T> pipeline, Action trigger, Action feedback)
+    {
+        var errors = new ConcurrentQueue<Exception>();
+        var received = new List<T>();
+        var armed = false;
+        int before;
+
+        using (pipeline
+            .ValidateSynchronization()
+            .RecordErrors(errors)
+            .Subscribe(value =>
+            {
+                received.Add(value);
+                if (armed)
+                {
+                    armed = false;
+                    feedback();
+                }
+            }))
+        {
+            before = received.Count;
+            armed = true;
+            trigger();
+        }
+
+        await Assert.That(armed).IsFalse().Because("the trigger must produce a notification");
+        await Assert.That(errors).IsEmpty();
+        await Assert.That(received.Count).IsGreaterThan(before + 1).Because("the feedback must be delivered too");
+        return received;
+    }
+
+    /// <summary>
+    /// As <see cref="DeliverWithFeedback{T}"/>, and asserts that the delivered changes add up to what a fresh
+    /// subscription sees, compared by <paramref name="identity"/>, including <paramref name="feedbackIdentity"/>.
+    /// </summary>
+    private static async Task AssertListFeedback<T, TIdentity>(
+        Func<IObservable<IChangeSet<T>>> pipeline,
+        Action trigger,
+        Action feedback,
+        Func<T, TIdentity> identity,
+        TIdentity feedbackIdentity)
+        where T : notnull
+    {
+        var received = await DeliverWithFeedback(pipeline(), trigger, feedback);
+
+        var mirror = new List<T>();
+        foreach (var changes in received)
+        {
+            mirror.Clone(changes);
+        }
+
+        using var fresh = pipeline().AsObservableList();
+        var expected = fresh.Items.Select(identity).ToArray();
+
+        await Assert.That(expected).Contains(feedbackIdentity);
+        await Assert.That(mirror.Select(identity).ToArray()).IsEquivalentTo(expected);
+    }
+
+    /// <summary>A list of two owners, each with a child.</summary>
+    private sealed class Owners : IDisposable
+    {
+        public Owners() => Source.AddRange([First, Second]);
+
+        public SourceList<FeedbackOwner> Source { get; } = new();
+
+        public FeedbackOwner First { get; } = new("O1", new Person("A0", 0));
+
+        public FeedbackOwner Second { get; } = new("O2", new Person("B0", 0));
+
+        public void AddFirstChild() => First.Add(new Person("A1", 1));
+
+        public void AddSecondChild() => Second.Add(new Person("B1", 1));
+
+        public void AddThirdOwner() => Source.Add(new FeedbackOwner("O3", new Person("C1", 1)));
+
+        public void Dispose()
+        {
+            foreach (var owner in Source.Items)
+            {
+                owner.Dispose();
+            }
+
+            Source.Dispose();
+        }
     }
 }

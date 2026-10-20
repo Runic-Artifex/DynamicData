@@ -123,6 +123,97 @@ public sealed class ReentrantFeedbackDeliveryFixture
     }
 
     [Test]
+    public async Task MergeChangeSetsFromObservableList()
+    {
+        using var first = new SourceCache<Person, string>(static p => p.Name);
+        using var second = new SourceCache<Person, string>(static p => p.Name);
+        using var third = new SourceCache<Person, string>(static p => p.Name);
+        third.AddOrUpdate(new Person("C", 3));
+        using var sources = new SourceList<IObservable<IChangeSet<Person, string>>>();
+        sources.AddRange([first.Connect(), second.Connect()]);
+        await AssertCacheFeedback(
+            () => sources.MergeChangeSets(),
+            () => second.AddOrUpdate(new Person("B", 2)),
+            () =>
+            {
+                first.AddOrUpdate(new Person("A", 1));
+                sources.Add(third.Connect());
+            },
+            "C");
+    }
+
+    [Test]
+    public async Task MergeManyChangeSets()
+    {
+        using var owners = new Owners();
+        await AssertCacheFeedback(() => owners.Source.Connect().MergeManyChangeSets(static o => o.Children.Connect()), owners.AddFirstChild, owners.AddSecondChild, "B1");
+    }
+
+    [Test]
+    public async Task MergeManyChangeSetsFeedbackIntoParent()
+    {
+        using var owners = new Owners();
+        await AssertCacheFeedback(() => owners.Source.Connect().MergeManyChangeSets(static o => o.Children.Connect()), owners.AddFirstChild, owners.AddThirdOwner, "C1");
+    }
+
+    [Test]
+    public async Task MergeManyChangeSetsWithSourceComparer()
+    {
+        using var owners = new Owners();
+        await AssertCacheFeedback(
+            () => owners.Source.Connect().MergeManyChangeSets(static o => o.Children.Connect(), SortExpressionComparer<FeedbackOwner>.Ascending(static o => o.Name)),
+            owners.AddFirstChild,
+            owners.AddSecondChild,
+            "B1");
+    }
+
+    [Test]
+    public async Task MergeManyListChangeSets()
+    {
+        using var owners = new Owners();
+        var received = await DeliverWithFeedback(owners.Source.Connect().MergeManyChangeSets(static o => o.ListChildren.Connect()), owners.AddFirstChild, owners.AddSecondChild);
+        var mirror = new List<Person>();
+        foreach (var changes in received)
+        {
+            mirror.Clone(changes);
+        }
+
+        using var fresh = owners.Source.Connect().MergeManyChangeSets(static o => o.ListChildren.Connect()).AsObservableList();
+        await Assert.That(fresh.Items.Select(static p => p.Name)).Contains("B1");
+        await Assert.That(mirror).IsEquivalentTo(fresh.Items);
+    }
+
+    [Test]
+    public async Task TransformOnObservable()
+    {
+        using var owners = new Owners();
+        await AssertCacheFeedback(() => owners.Source.Connect().TransformOnObservable(static o => o.Value), () => owners.First.Value.OnNext(1), () => owners.Second.Value.OnNext(2), "O2");
+    }
+
+    [Test]
+    public async Task GroupOnObservable()
+    {
+        using var owners = new Owners();
+        await AssertCacheFeedback(
+            () => owners.Source.Connect().GroupOnObservable(static o => o.Value),
+            () => owners.First.Value.OnNext(1),
+            () => owners.Second.Value.OnNext(2),
+            2,
+            compareValues: false);
+    }
+
+    [Test]
+    public async Task TransformManyAsync()
+    {
+        using var owners = new Owners();
+        await AssertCacheFeedback(
+            () => owners.Source.Connect().TransformManyAsync(static o => Task.FromResult<IObservableCache<Person, string>>(o.Children)),
+            owners.AddFirstChild,
+            owners.AddSecondChild,
+            "B1");
+    }
+
+    [Test]
     public async Task FeedbackPendingWhenDisposedIsNotDelivered()
     {
         using var requests = new ReactiveUI.Primitives.Signals.StateSignal<IVirtualRequest>(new VirtualRequest(0, 3));
@@ -257,5 +348,116 @@ public sealed class ReentrantFeedbackDeliveryFixture
         }
 
         await Assert.That(mirror.Keys).IsEquivalentTo(expected.Keys);
+    }
+
+    /// <summary>
+    /// Subscribes, runs <paramref name="trigger"/>, and runs <paramref name="feedback"/> from inside the first
+    /// notification that follows. Asserts that no notification overlapped another and that the feedback was
+    /// delivered too, and returns every notification received.
+    /// </summary>
+    private static async Task<List<T>> DeliverWithFeedback<T>(IObservable<T> pipeline, Action trigger, Action feedback)
+    {
+        var errors = new ConcurrentQueue<Exception>();
+        var received = new List<T>();
+        var armed = false;
+        int before;
+
+        using (pipeline
+            .ValidateSynchronization()
+            .RecordErrors(errors)
+            .Subscribe(value =>
+            {
+                received.Add(value);
+                if (armed)
+                {
+                    armed = false;
+                    feedback();
+                }
+            }))
+        {
+            before = received.Count;
+            armed = true;
+            trigger();
+        }
+
+        await Assert.That(armed).IsFalse().Because("the trigger must produce a notification");
+        await Assert.That(errors).IsEmpty();
+        await Assert.That(received.Count).IsGreaterThan(before + 1).Because("the feedback must be delivered too");
+        return received;
+    }
+
+    /// <summary>
+    /// As <see cref="DeliverWithFeedback{T}"/>, and asserts that the delivered changes are consistent and add up
+    /// to what a fresh subscription sees, including <paramref name="feedbackKey"/>.
+    /// </summary>
+    private static async Task AssertCacheFeedback<TObject, TKey>(
+        Func<IObservable<IChangeSet<TObject, TKey>>> pipeline,
+        Action trigger,
+        Action feedback,
+        TKey feedbackKey,
+        bool compareValues = true)
+        where TObject : notnull
+        where TKey : notnull
+    {
+        var received = await DeliverWithFeedback(pipeline(), trigger, feedback);
+
+        var inconsistencies = new List<string>();
+        var mirror = new Dictionary<TKey, TObject>();
+        foreach (var change in received.SelectMany(static changes => changes))
+        {
+            switch (change.Reason)
+            {
+                case ChangeReason.Add when !mirror.TryAdd(change.Key, change.Current):
+                    inconsistencies.Add("duplicate add " + change.Key);
+                    break;
+                case ChangeReason.Remove when !mirror.Remove(change.Key):
+                    inconsistencies.Add("remove of missing " + change.Key);
+                    break;
+                case ChangeReason.Update:
+                    mirror[change.Key] = change.Current;
+                    break;
+            }
+        }
+
+        using var fresh = pipeline().AsObservableCache();
+
+        await Assert.That(inconsistencies).IsEmpty();
+        await Assert.That(fresh.Keys).Contains(feedbackKey);
+        await Assert.That(mirror.Keys).IsEquivalentTo(fresh.Keys);
+        if (compareValues)
+        {
+            foreach (var pair in fresh.KeyValues)
+            {
+                await Assert.That(mirror[pair.Key]).IsEqualTo(pair.Value);
+            }
+        }
+    }
+
+    /// <summary>A cache of two owners, each with a child.</summary>
+    private sealed class Owners : IDisposable
+    {
+        public Owners() => Source.AddOrUpdate([First, Second]);
+
+        public SourceCache<FeedbackOwner, string> Source { get; } = new(static o => o.Name);
+
+        public FeedbackOwner First { get; } = new("O1", new Person("A0", 0));
+
+        public FeedbackOwner Second { get; } = new("O2", new Person("B0", 0));
+
+        public void AddFirstChild() => First.Add(new Person("A1", 1));
+
+        public void AddSecondChild() => Second.Add(new Person("B1", 1));
+
+        public void AddThirdOwner() => Source.AddOrUpdate(new FeedbackOwner("O3", new Person("C1", 1)));
+
+        public void Dispose()
+        {
+            foreach (var owner in Source.Items)
+            {
+                owner.Dispose();
+            }
+
+            Source.Dispose();
+        }
     }
 }
