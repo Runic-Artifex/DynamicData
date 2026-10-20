@@ -103,7 +103,9 @@ public class GroupOnObservableFixture : IDisposable
         // Assert
         await Assert.That(_results.Data.Count).IsEqualTo(InitialCount).Because("Only replacements were made");
         await Assert.That(_results.Messages.Count).IsEqualTo(2).Because("1 for Adds and 1 for Updates");
-        foreach (var group in _groupResults.Groups.Items) { await Assert.That(group.Messages.Count).IsLessThanOrEqualTo(2); }
+
+        // A group publishes the removal of its updated items before the other changes (fork issue #29).
+        foreach (var group in _groupResults.Groups.Items) { await Assert.That(group.Messages.Count).IsLessThanOrEqualTo(3); }
         await VerifyGroupingResults();
     }
 

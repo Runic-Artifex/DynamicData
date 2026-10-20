@@ -131,8 +131,12 @@ private sealed class Grouper(Func<TObject, TGroupKey> groupSelectorKey)
         {
             var result = new List<Change<IGroup<TObject, TKey, TGroupKey>, TGroupKey>>();
 
+            var withGroups = changes.Select(u => new ChangeWithGroup(u, groupSelectorKey)).ToList();
+
+            RemoveMovedItems(withGroups);
+
             // Group all items
-            var grouped = changes.Select(u => new ChangeWithGroup(u, groupSelectorKey)).GroupBy(c => c.GroupKey);
+            var grouped = withGroups.GroupBy(c => c.GroupKey);
 
             using var suspendTracker = new SuspendTracker();
 
@@ -276,6 +280,46 @@ private sealed class Grouper(Func<TObject, TGroupKey> groupSelectorKey)
                 });
 
             return new GroupChangeSet<TObject, TKey, TGroupKey>(result);
+        }
+
+        /// <summary>
+        /// Removes the items that move to another group from their old groups and publishes the removals,
+        /// before any group publishes their additions. The groups below publish their changes when they
+        /// resume, in the order they were suspended, so a group could otherwise publish an item's addition
+        /// before the old group publishes its removal, and merging the group caches again (for example with
+        /// MergeMany) would apply the stale removal last and lose the item. The old groups are left for
+        /// <see cref="HandleUpdates"/> to remove once empty.
+        /// </summary>
+        /// <param name="changes">The changes value.</param>
+        private void RemoveMovedItems(List<ChangeWithGroup> changes)
+        {
+            HashSet<TKey>? seen = null;
+            SuspendTracker? suspendTracker = null;
+            try
+            {
+                foreach (var change in changes)
+                {
+                    // Only the first change of a key moves it out of the group it is in now.
+                    if (!(seen ??= []).Add(change.Key) || change.Reason == ChangeReason.Remove)
+                    {
+                        continue;
+                    }
+
+                    if (!_itemCache.TryGetValue(change.Key, out var previous)
+                        || EqualityComparer<TGroupKey>.Default.Equals(previous.GroupKey, change.GroupKey)
+                        || !_groupCache.TryGetValue(previous.GroupKey, out var group))
+                    {
+                        continue;
+                    }
+
+                    (suspendTracker ??= new SuspendTracker()).Add(group);
+                    group.Update(updater => updater.Remove(change.Key));
+                }
+            }
+            finally
+            {
+                suspendTracker?.Dispose();
+            }
         }
 
 /// <summary>

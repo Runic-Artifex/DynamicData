@@ -83,9 +83,16 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
             _ => _suspendTracker,
         };
 
-        foreach (var change in changeSet.ToConcreteType())
+        if (suspendTracker is null || _groupSelector is null)
         {
-            ProcessChange(change, suspendTracker);
+            foreach (var change in changeSet.ToConcreteType())
+            {
+                ProcessChange(change, suspendTracker);
+            }
+        }
+        else
+        {
+            ProcessChangeSet(changeSet.ToConcreteType(), _groupSelector, suspendTracker);
         }
 
         if (observer != null)
@@ -93,6 +100,12 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
             EmitChanges(observer);
         }
     }
+
+    /// <summary>
+    /// Publishes the changes of the suspended groups, for example the removals of items whose group
+    /// key is about to change, before the following changes add them to other groups.
+    /// </summary>
+    public void PublishSuspendedChanges() => _suspendTracker.Reset();
 
     /// <summary>
     /// Executes the ProcessChange operation.
@@ -105,12 +118,21 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
     /// </summary>
     /// <param name="change">The change value.</param>
     /// <param name="suspendTracker">The suspendTracker value.</param>
-    private void ProcessChange(Change<TObject, TKey> change, SuspendTracker? suspendTracker)
+    private void ProcessChange(Change<TObject, TKey> change, SuspendTracker? suspendTracker) =>
+        ProcessChange(change, _groupSelector is not null && IsGrouped(change) ? _groupSelector(change.Current, change.Key) : default!, suspendTracker);
+
+    /// <summary>
+    /// Executes the ProcessChange operation.
+    /// </summary>
+    /// <param name="change">The change value.</param>
+    /// <param name="groupKey">The group key the group selector returns for the change; unused without one.</param>
+    /// <param name="suspendTracker">The suspendTracker value.</param>
+    private void ProcessChange(Change<TObject, TKey> change, TGroupKey groupKey, SuspendTracker? suspendTracker)
     {
         switch (change.Reason)
         {
             case ChangeReason.Add when _groupSelector is not null:
-                PerformAddOrUpdate(change.Key, _groupSelector(change.Current, change.Key), change.Current, suspendTracker);
+                PerformAddOrUpdate(change.Key, groupKey, change.Current, suspendTracker);
                 break;
 
             case ChangeReason.Remove:
@@ -118,7 +140,7 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
                 break;
 
             case ChangeReason.Update when _groupSelector is not null:
-                PerformAddOrUpdate(change.Key, _groupSelector(change.Current, change.Key), change.Current, suspendTracker);
+                PerformAddOrUpdate(change.Key, groupKey, change.Current, suspendTracker);
                 break;
 
             case ChangeReason.Update:
@@ -126,7 +148,7 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
                 break;
 
             case ChangeReason.Refresh when _groupSelector is not null:
-                PerformRefresh(change.Key, _groupSelector(change.Current, change.Key), change.Current, suspendTracker);
+                PerformRefresh(change.Key, groupKey, change.Current, suspendTracker);
                 break;
 
             case ChangeReason.Refresh:
@@ -134,8 +156,67 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
                 break;
         }
     }
-    // Re-evaluate the GroupSelector for each item and apply the changes so that each group only emits a single changset
-    // Perform all the adds/removes for each group in a single step
+
+    /// <summary>
+    /// Processes several changes with suspended notifications. The items that move to another group are
+    /// removed from their old groups first and the removals published, so that no group publishes a moved
+    /// item's addition before its old group publishes the removal (see <see cref="SuspendTracker"/>).
+    /// </summary>
+    /// <param name="changes">The changes value.</param>
+    /// <param name="groupSelector">The groupSelector value.</param>
+    /// <param name="suspendTracker">The suspendTracker value.</param>
+    private void ProcessChangeSet(IEnumerable<Change<TObject, TKey>> changes, Func<TObject, TKey, TGroupKey> groupSelector, SuspendTracker suspendTracker)
+    {
+        var pending = new List<(Change<TObject, TKey> Change, TGroupKey GroupKey, bool Moved)>();
+        var seen = new HashSet<TKey>();
+        var anyMoved = false;
+        foreach (var change in changes)
+        {
+            var isGrouped = IsGrouped(change);
+            var groupKey = isGrouped ? groupSelector(change.Current, change.Key) : default!;
+
+            // Only the first change of a key moves it out of the group it is in now.
+            var moved = seen.Add(change.Key)
+                && isGrouped
+                && _groupKeys.TryGetValue(change.Key, out var currentGroupKey)
+                && !EqualityComparer<TGroupKey>.Default.Equals(currentGroupKey, groupKey);
+            if (moved)
+            {
+                PerformRemove(change.Key, suspendTracker);
+                anyMoved = true;
+            }
+
+            pending.Add((change, groupKey, moved));
+        }
+
+        if (anyMoved)
+        {
+            suspendTracker.Reset();
+        }
+
+        foreach (var (change, groupKey, moved) in pending)
+        {
+            if (moved)
+            {
+                PerformGroupAddOrUpdate(change.Key, groupKey, change.Current, suspendTracker);
+            }
+            else
+            {
+                ProcessChange(change, groupKey, suspendTracker);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets whether the group selector applies to the change.
+    /// </summary>
+    /// <param name="change">The change value.</param>
+    /// <returns>Whether the change is an addition, update or refresh.</returns>
+    private static bool IsGrouped(in Change<TObject, TKey> change) =>
+        change.Reason is ChangeReason.Add or ChangeReason.Update or ChangeReason.Refresh;
+
+    // Re-evaluate the GroupSelector for each item and apply the changes so that each group emits as few changesets as possible:
+    // first the removals of the moved items from their old groups, then the additions to the new ones (see SuspendTracker).
 
     /// <summary>
     /// Executes the RegroupAll operation.
@@ -158,16 +239,14 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
 
         foreach (var change in groupChanges)
         {
+            PerformRemove(change.KeyValuePair.Key, change.OldGroup.Key, _suspendTracker);
+        }
+
+        _suspendTracker.Reset();
+
+        foreach (var change in groupChanges)
+        {
             PerformGroupAddOrUpdate(change.KeyValuePair.Key, change.NewGroupKey, change.KeyValuePair.Value, _suspendTracker);
-            _suspendTracker.Add(change.OldGroup);
-            change.OldGroup.Update(updater =>
-            {
-                updater.Remove(change.KeyValuePair.Key);
-                if (updater.Count == 0)
-                {
-                    _emptyGroups.Add(change.OldGroup);
-                }
-            });
         }
 
         EmitChanges(observer);
@@ -217,6 +296,10 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
         // Verify logic doesn't capture any non-empty groups
         Debug.Assert(_emptyGroups.All(static group => group.Cache.Count == 0), "Non empty Group in Empty Group HashSet");
 
+        // Publish the suspended group changes first: a group disposed while suspended would drop the
+        // removal of its last items, which then stay in anything that merges the group caches.
+        _suspendTracker.Reset();
+
         // Dispose/Remove any empty groups
         foreach (var group in _emptyGroups)
         {
@@ -231,8 +314,6 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
 
         // Make sure no empty ones were missed
         Debug.Assert(!_groupCache.Items.Any(static group => group.Cache.Count == 0), "Not all empty Groups were removed");
-
-        _suspendTracker.Reset();
 
         // Emit any pending changes
         var changeSet = _groupCache.CaptureChanges();
@@ -346,6 +427,7 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
     private void PerformGroupAddOrUpdate(TKey key, TGroupKey groupKey, TObject item, SuspendTracker? suspendTracker = null)
     {
         var group = GetOrAddGroup(groupKey);
+        suspendTracker?.PrepareAdd(key, group);
         suspendTracker?.Add(group);
         group.Update(updater => updater.AddOrUpdate(item, key));
         _groupKeys[key] = groupKey;
@@ -423,6 +505,7 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
         {
             var currentGroup = optionalGroup.Value;
             suspendTracker?.Add(currentGroup);
+            suspendTracker?.TrackRemoval(key, groupKey);
             currentGroup.Update(updater =>
             {
                 updater.Remove(key);
@@ -448,24 +531,29 @@ internal sealed class DynamicGrouper<TObject, TKey, TGroupKey>(Func<TObject, TKe
     private void PerformUpdate(TKey key, SuspendTracker? suspendTracker = null) => PerformRemove(key, suspendTracker);
 
 /// <summary>
-/// Provides members for the SuspendTracker class.
+/// Suspends the notifications of the groups changed while processing, so each publishes its changes
+/// together. Resuming publishes the groups in the order they were suspended. When an item moves to a
+/// group suspended before the one it left, the new group would publish the addition before the old
+/// group publishes the removal, and merging the group caches again (for example with MergeMany) would
+/// apply the stale removal last and lose the item. The tracker therefore publishes what is suspended
+/// before such an addition.
 /// </summary>
 private sealed class SuspendTracker : IDisposable
     {
         /// <summary>
-        /// The _trackedKeys field.
+        /// The suspension order of each tracked group.
         /// </summary>
-        private readonly HashSet<TGroupKey> _trackedKeys = [];
+        private readonly Dictionary<TGroupKey, int> _order = [];
 
         /// <summary>
-        /// The _disposables field.
+        /// The group each key was last removed from since the groups were suspended.
         /// </summary>
-        private CompositeDisposable _disposables = [];
+        private readonly Dictionary<TKey, TGroupKey> _removedFrom = [];
 
         /// <summary>
-        /// Gets the HasItems value.
+        /// The suspensions, in the order they are resumed.
         /// </summary>
-        public bool HasItems => _disposables.Count > 0;
+        private readonly List<IDisposable> _suspensions = [];
 
         /// <summary>
         /// Executes the Add operation.
@@ -473,9 +561,33 @@ private sealed class SuspendTracker : IDisposable
         /// <param name="managedGroup">The managedGroup value.</param>
         public void Add(ManagedGroup<TObject, TKey, TGroupKey> managedGroup)
         {
-            if (_trackedKeys.Add(managedGroup.Key))
+            if (_order.TryAdd(managedGroup.Key, _suspensions.Count))
             {
-                _disposables.Add(managedGroup.SuspendNotifications());
+                _suspensions.Add(managedGroup.SuspendNotifications());
+            }
+        }
+
+        /// <summary>
+        /// Records that a key was removed from a tracked group.
+        /// </summary>
+        /// <param name="key">The key value.</param>
+        /// <param name="groupKey">The key of the group it was removed from.</param>
+        public void TrackRemoval(TKey key, TGroupKey groupKey) => _removedFrom[key] = groupKey;
+
+        /// <summary>
+        /// Publishes the suspended changes if adding the key to the group would otherwise be published
+        /// before its removal from another group.
+        /// </summary>
+        /// <param name="key">The key value.</param>
+        /// <param name="managedGroup">The group the key is added to.</param>
+        public void PrepareAdd(TKey key, ManagedGroup<TObject, TKey, TGroupKey> managedGroup)
+        {
+            if (_removedFrom.TryGetValue(key, out var removedFrom)
+                && _order.TryGetValue(managedGroup.Key, out var addOrder)
+                && _order.TryGetValue(removedFrom, out var removeOrder)
+                && removeOrder > addOrder)
+            {
+                Reset();
             }
         }
 
@@ -484,17 +596,24 @@ private sealed class SuspendTracker : IDisposable
         /// </summary>
         public void Reset()
         {
-            if (_disposables.Count > 0)
+            if (_suspensions.Count == 0)
             {
-                _disposables.Dispose();
-                _disposables = [];
-                _trackedKeys.Clear();
+                return;
+            }
+
+            var suspensions = _suspensions.ToArray();
+            _suspensions.Clear();
+            _order.Clear();
+            _removedFrom.Clear();
+            foreach (var suspension in suspensions)
+            {
+                suspension.Dispose();
             }
         }
 
         /// <summary>
         /// Executes the Dispose operation.
         /// </summary>
-        public void Dispose() => _disposables.Dispose();
+        public void Dispose() => Reset();
     }
 }
