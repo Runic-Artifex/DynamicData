@@ -395,6 +395,11 @@ internal static class ObservableExtensions
             var inFlightNotification = null as Notification<T>;
             var synchronizationGate = new object();
 
+            // Like an Rx observer, forward at most one terminal notification. A failure raised
+            // while delivering (for example the first detection, rethrown by a subscriber without an
+            // error handler) must not be followed by a second OnError to the same observer.
+            var terminated = 0;
+
             // Not using .Do() so we can track the *entire* in-flight period of a notification, including all synchronous downstream processing.
             return source.SubscribeSafe(RawAnonymousObserver.Create<T>(
                 onNext: value => ProcessIncomingNotification(Notification.CreateOnNext(value)),
@@ -418,24 +423,30 @@ internal static class ObservableExtensions
                         switch (incomingNotification.Kind)
                         {
                             case NotificationKind.OnNext:
-                                observer.OnNext(incomingNotification.Value);
+                                if (Volatile.Read(ref terminated) == 0)
+                                    observer.OnNext(incomingNotification.Value);
                                 break;
 
                             case NotificationKind.OnError:
-                                observer.OnError(incomingNotification.Exception!);
+                                if (Interlocked.Exchange(ref terminated, 1) == 0)
+                                    observer.OnError(incomingNotification.Exception!);
                                 break;
 
                             case NotificationKind.OnCompleted:
-                                observer.OnCompleted();
+                                if (Interlocked.Exchange(ref terminated, 1) == 0)
+                                    observer.OnCompleted();
                                 break;
                         }
                     }
                 }
                 catch (Exception ex)
                 {
-                    lock (synchronizationGate)
+                    if (Interlocked.Exchange(ref terminated, 1) == 0)
                     {
-                        observer.OnError(ex);
+                        lock (synchronizationGate)
+                        {
+                            observer.OnError(ex);
+                        }
                     }
                 }
                 finally
