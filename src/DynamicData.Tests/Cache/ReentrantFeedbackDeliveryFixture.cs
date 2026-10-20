@@ -211,6 +211,18 @@ public sealed class ReentrantFeedbackDeliveryFixture
     }
 
     [Test]
+    public async Task MergeChangeSets()
+    {
+        using var first = new SourceCache<Person, string>(static p => p.Name);
+        using var second = new SourceCache<Person, string>(static p => p.Name);
+        await AssertCacheFeedback(
+            () => new[] { first.Connect(), second.Connect() }.MergeChangeSets(),
+            () => second.AddOrUpdate(new Person("B", 2)),
+            () => first.AddOrUpdate(new Person("A", 1)),
+            "A");
+    }
+
+    [Test]
     public async Task MergeChangeSetsFromObservableList()
     {
         using var first = new SourceCache<Person, string>(static p => p.Name);
@@ -228,6 +240,16 @@ public sealed class ReentrantFeedbackDeliveryFixture
                 sources.Add(third.Connect());
             },
             "C");
+    }
+
+    [Test]
+    public async Task MergeMany()
+    {
+        using var owners = new Owners();
+        var received = await DeliverWithFeedback(owners.Source.Connect().MergeMany(static o => o.Value), () => owners.First.Value.OnNext(1), () => owners.Second.Value.OnNext(2));
+
+        await Assert.That(received).Contains(1);
+        await Assert.That(received[^1]).IsEqualTo(2);
     }
 
     [Test]

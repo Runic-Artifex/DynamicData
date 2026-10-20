@@ -39,6 +39,10 @@ internal sealed class MergeChangeSets<TObject>(IObservable<IObservable<IChangeSe
         {
             var queue = new SharedDeliveryQueue();
 
+            // Runic (DD-045): deliver through the queue too, so a change an observer causes through another
+            // source while it is being delivered to arrives after it returns, not re-entrantly.
+            var output = queue.CreateQueue(observer);
+
             // This is manages all of the changes
             var changeTracker = new ChangeSetMergeTracker<TObject>();
 
@@ -47,9 +51,9 @@ internal sealed class MergeChangeSets<TObject>(IObservable<IObservable<IChangeSe
                 .SynchronizeSafe(queue)
                 .MergeMany(clonedList => clonedList.Source.RemoveIndex())
                 .Subscribe(
-                    changes => changeTracker.ProcessChangeSet(changes, observer),
-                    observer.OnError,
-                    observer.OnCompleted);
+                    changes => changeTracker.ProcessChangeSet(changes, output),
+                    output.OnError,
+                    output.OnCompleted);
             return new CompositeDisposable(Disposable.Create(queue.Terminate), publisher);
         });
 

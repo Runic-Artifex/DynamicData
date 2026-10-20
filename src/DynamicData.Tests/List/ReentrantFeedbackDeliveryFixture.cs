@@ -111,6 +111,19 @@ public sealed class ReentrantFeedbackDeliveryFixture
     }
 
     [Test]
+    public async Task MergeChangeSets()
+    {
+        using var first = new SourceList<Person>();
+        using var second = new SourceList<Person>();
+        await AssertListFeedback(
+            () => new[] { first.Connect(), second.Connect() }.MergeChangeSets(),
+            () => second.Add(new Person("B", 2)),
+            () => first.Add(new Person("A", 1)),
+            static p => p.Name,
+            "A");
+    }
+
+    [Test]
     public async Task MergeChangeSetsFromObservableList()
     {
         using var first = new SourceList<Person>();
@@ -129,6 +142,28 @@ public sealed class ReentrantFeedbackDeliveryFixture
             },
             static p => p.Name,
             "C");
+    }
+
+    [Test]
+    public async Task MergeMany()
+    {
+        using var owners = new Owners();
+        var received = await DeliverWithFeedback(owners.Source.Connect().MergeMany(static o => o.Value), () => owners.First.Value.OnNext(1), () => owners.Second.Value.OnNext(2));
+
+        await Assert.That(received).Contains(1);
+        await Assert.That(received[^1]).IsEqualTo(2);
+    }
+
+    [Test]
+    public async Task MergeManyFeedbackIntoSource()
+    {
+        using var owners = new Owners();
+        var third = new FeedbackOwner("O3");
+        third.Value.OnNext(3);
+        var received = await DeliverWithFeedback(owners.Source.Connect().MergeMany(static o => o.Value), () => owners.First.Value.OnNext(1), () => owners.Source.Add(third));
+
+        await Assert.That(received).Contains(1);
+        await Assert.That(received[^1]).IsEqualTo(3);
     }
 
     [Test]
