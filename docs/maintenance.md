@@ -104,7 +104,8 @@ to an hour until nuget.org lists both versions. Versions come from NBGV
 gives `10.0.0-runic.N`, and a stable release sets an exact version such as
 `10.0.0` for the one release commit; the next commit moves `main` to the next
 prerelease line (`10.1-runic.{height}` after `10.0.0`), so later pushes never
-produce the released version again. `10.0.0` was the first stable release. Earlier previews were GitHub
+produce the released version again. `10.0.0` was the first stable release;
+`main` now produces `10.1.0-runic.N`. Earlier previews were GitHub
 release assets only, under the IDs `Runic.DynamicData` and
 `Runic.DynamicData.Reactive`.
 

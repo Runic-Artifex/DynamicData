@@ -1,5 +1,5 @@
 {
-    "version": "10.0.0",
+    "version": "10.1-runic.{height}",
     "publicReleaseRefSpec": [
         "^refs/heads/main$", // main publishes the version above: a -runic.{height} line or a stable release
         "^refs/heads/release/\\d+\\.x$" // release/<major>.x branches publish stable packages
