@@ -27,8 +27,9 @@ fail() {
 write_nuspec() {
   local fixture="$1"
   local output="$2"
+  local nuspec_version="${3:-$version}"
   sed \
-    -e "s/@VERSION@/$version/g" \
+    -e "s/@VERSION@/$nuspec_version/g" \
     -e "s|@REPOSITORY@|$repository|g" \
     -e "s/@SHA@/$sha/g" \
     "$fixture" >"$output"
@@ -41,7 +42,7 @@ make_package() {
   local fixture="$4"
   local stage="$scratch/stage-$RANDOM-$RANDOM"
   mkdir -p "$stage"
-  write_nuspec "$fixture" "$stage/$package_id.nuspec"
+  write_nuspec "$fixture" "$stage/$package_id.nuspec" "${NUSPEC_VERSION:-$version}"
   PACKAGE_ID="$package_id" PACKAGE_VERSION="$package_version" STAGE="$stage" DESTINATION="$destination" REPOSITORY_ROOT="$root" \
     python3 - <<'PY'
 import os
@@ -206,8 +207,23 @@ run_publish "$published" bash "$helper" publish "$valid"
 [[ "$(cat "$published/tag")" == "$sha" ]] || fail 'publish did not create the tag at GITHUB_SHA'
 [[ "$(find "$published/assets" -maxdepth 1 -type f -name '*.nupkg' | wc -l)" == '2' ]] ||
   fail 'publish did not upload the exact package pair'
+[[ "$(cat "$published/prerelease")" == 'true' ]] || fail 'prerelease version was not published as a GitHub prerelease'
 
-for malformed_draft in wrong-target missing-assets; do
+# A stable version (no prerelease label) becomes a regular GitHub release.
+stable_valid="$scratch/stable-valid"
+mkdir -p "$stable_valid"
+NUSPEC_VERSION='10.0.0' make_package "$stable_valid" 'RunicArtifex.DynamicData' '10.0.0' "$fixtures/RunicArtifex.DynamicData.nuspec"
+NUSPEC_VERSION='10.0.0' make_package "$stable_valid" 'RunicArtifex.DynamicData.Reactive' '10.0.0' "$fixtures/RunicArtifex.DynamicData.Reactive.nuspec"
+stable_published="$scratch/stable-published"
+mkdir -p "$stable_published"
+run_publish "$stable_published" bash "$helper" publish "$stable_valid"
+[[ -f "$stable_published/published" ]] || fail 'stable draft was not published'
+[[ "$(cat "$stable_published/prerelease")" == 'false' ]] || fail 'stable version was published as a GitHub prerelease'
+run_publish "$scratch/stable-check" bash "$helper" check "$stable_valid" >"$scratch/output" 2>&1 ||
+  { cat "$scratch/output" >&2; fail 'stable GitHub dry-run check failed'; }
+grep -qF 'v10.0.0 (prerelease false)' "$scratch/output" || fail 'stable dry-run check did not report a regular release'
+
+for malformed_draft in wrong-target missing-assets flipped-prerelease; do
   draft_failure="$scratch/draft-$malformed_draft"
   mkdir -p "$draft_failure"
   expect_failure "draft $malformed_draft" run_publish "$draft_failure" env MOCK_GH_DRAFT_STATE="$malformed_draft" bash "$helper" publish "$valid"

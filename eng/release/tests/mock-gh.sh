@@ -97,7 +97,11 @@ for index, name in enumerate(sorted(os.listdir(os.path.join(state, 'assets'))), 
         continue
     path = os.path.join(state, 'assets', name)
     assets.append({'id': index, 'name': name, 'size': os.path.getsize(path)})
-print(json.dumps({'draft': True, 'prerelease': True, 'target_commitish': target, 'assets': assets}))
+with open(os.path.join(state, 'prerelease'), encoding='utf-8') as source:
+    prerelease = source.read().strip() == 'true'
+if os.environ.get('MOCK_GH_DRAFT_STATE') == 'flipped-prerelease':
+    prerelease = not prerelease
+print(json.dumps({'draft': True, 'prerelease': prerelease, 'target_commitish': target, 'assets': assets}))
 PY
     exit 0
   fi
@@ -124,14 +128,20 @@ PY
   fi
   if [[ "$endpoint" == *'/releases' && " $* " == *' --method POST '* ]]; then
     target=''
+    prerelease=''
     for argument in "$@"; do
       if [[ "$argument" == target_commitish=* ]]; then
         target="${argument#target_commitish=}"
       fi
+      if [[ "$argument" == prerelease=* ]]; then
+        prerelease="${argument#prerelease=}"
+      fi
     done
     [[ -n "$target" ]] || exit 1
+    [[ "$prerelease" == 'true' || "$prerelease" == 'false' ]] || exit 1
     printf '%s\n' "$target" >"$state_dir/release"
-    printf '{"id":1,"draft":true,"prerelease":true,"target_commitish":"%s"}\n' "$target"
+    printf '%s\n' "$prerelease" >"$state_dir/prerelease"
+    printf '{"id":1,"draft":true,"prerelease":%s,"target_commitish":"%s"}\n' "$prerelease" "$target"
     exit 0
   fi
   if [[ "$endpoint" == *'/releases/1/assets?name='* ]]; then

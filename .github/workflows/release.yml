@@ -96,7 +96,7 @@ jobs:
         run: |
           test -n "$PACKAGES_SHA256"
           printf '%s\n' "$PACKAGES_SHA256" | sha256sum --check --strict
-      - name: Validate and create the GitHub prerelease
+      - name: Validate and create the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash

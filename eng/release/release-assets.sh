@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Validates the two branded packages and, only when requested by the manual
-# GitHub workflow, creates an immutable prerelease from those exact bytes and
+# GitHub workflow, creates an immutable GitHub release (a prerelease for
+# prerelease versions) from those exact bytes and
 # pushes them to nuget.org (eng/release/README.md).
 set -euo pipefail
 
@@ -37,7 +38,8 @@ Usage: eng/release/release-assets.sh <command> <package-directory>
 validate      verifies the exact branded pair and its package metadata.
 check         also runs the read-only GitHub checks of publish (source, Build
               run, absent tag and release) without creating anything.
-publish       additionally creates a draft GitHub prerelease, uploads and
+publish       additionally creates a draft GitHub release (a prerelease for
+              prerelease versions), uploads and
               downloads the assets byte-for-byte, then publishes that draft.
 nuget-check   validates, then checks nuget.org with keyless lookups: package
               globs, ID ownership and already published versions. Pushes nothing.
@@ -176,6 +178,8 @@ PY
 }
 
 PACKAGE_VERSION=''
+# 'true' for a SemVer prerelease (a '-' before any build metadata), else 'false'.
+RELEASE_PRERELEASE=''
 PACKAGE_FILES=()
 
 validate_packages() {
@@ -207,6 +211,11 @@ validate_packages() {
   PACKAGE_VERSION="${PACKAGE_VERSION%.nupkg}"
   [[ "$PACKAGE_VERSION" =~ $VERSION_PATTERN ]] ||
     die "invalid package version in $base_package."
+  if [[ "${PACKAGE_VERSION%%+*}" == *-* ]]; then
+    RELEASE_PRERELEASE='true'
+  else
+    RELEASE_PRERELEASE='false'
+  fi
 
   local expected_base="$PACKAGE_ID.$PACKAGE_VERSION.nupkg"
   local expected_reactive="$REACTIVE_PACKAGE_ID.$PACKAGE_VERSION.nupkg"
@@ -430,19 +439,19 @@ read_release_assets() {
   local package_two="$3"
   local expected_sha="$4"
 
-  python3 - "$release_json" "$package_one" "$package_two" "$expected_sha" <<'PY'
+  python3 - "$release_json" "$package_one" "$package_two" "$expected_sha" "$RELEASE_PRERELEASE" <<'PY'
 import json
 import os
 import sys
 
-path, package_one, package_two, expected_sha = sys.argv[1:]
+path, package_one, package_two, expected_sha, prerelease = sys.argv[1:]
 with open(path, encoding='utf-8') as source:
     release = json.load(source)
 
 if release.get('draft') is not True:
     raise SystemExit('release is not still a draft during asset verification')
-if release.get('prerelease') is not True:
-    raise SystemExit('release is not marked prerelease')
+if release.get('prerelease') is not (prerelease == 'true'):
+    raise SystemExit(f'release prerelease flag is not {prerelease}')
 if release.get('target_commitish') != expected_sha:
     raise SystemExit('draft release target does not match GITHUB_SHA')
 
@@ -477,20 +486,20 @@ create_draft() {
     -f "target_commitish=$GITHUB_SHA" \
     -f "name=$PACKAGE_VERSION" \
     -F draft=true \
-    -F prerelease=true \
+    -F "prerelease=$RELEASE_PRERELEASE" \
     -F generate_release_notes=true >"$draft_json"
 
-  python3 - "$draft_json" "$GITHUB_SHA" <<'PY'
+  python3 - "$draft_json" "$GITHUB_SHA" "$RELEASE_PRERELEASE" <<'PY'
 import json
 import sys
 
-path, expected_sha = sys.argv[1:]
+path, expected_sha, prerelease = sys.argv[1:]
 with open(path, encoding='utf-8') as source:
     draft = json.load(source)
 if not isinstance(draft.get('id'), int):
     raise SystemExit('GitHub did not return a draft release id')
-if draft.get('draft') is not True or draft.get('prerelease') is not True:
-    raise SystemExit('GitHub did not create the expected prerelease draft')
+if draft.get('draft') is not True or draft.get('prerelease') is not (prerelease == 'true'):
+    raise SystemExit(f'GitHub did not create the expected draft (prerelease {prerelease})')
 if draft.get('target_commitish') != expected_sha:
     raise SystemExit('draft release target does not match GITHUB_SHA')
 print(draft['id'])
@@ -524,7 +533,7 @@ check_release() {
   validate_packages "$1"
   require_actions check
   github_preflight
-  printf 'release-assets: GitHub prerelease v%s can be created.\n' "$PACKAGE_VERSION"
+  printf 'release-assets: GitHub release v%s (prerelease %s) can be created.\n' "$PACKAGE_VERSION" "$RELEASE_PRERELEASE"
 }
 
 publish_packages() {

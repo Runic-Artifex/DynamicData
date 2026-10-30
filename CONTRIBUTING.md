@@ -32,6 +32,7 @@ The manual release workflow publishes the branded packages to nuget.org, as
 and [RunicArtifex.DynamicData.Reactive](https://www.nuget.org/packages/RunicArtifex.DynamicData.Reactive),
 and records release notes in a [GitHub release](https://github.com/Runic-Artifex/DynamicData/releases);
 it does not publish under upstream package names. Consume the fork from nuget.org,
-for example `dotnet add package RunicArtifex.DynamicData --prerelease`. Earlier
+for example `dotnet add package RunicArtifex.DynamicData` (add `--prerelease` for
+a `-runic.N` build of `main`). Earlier
 previews were only GitHub release assets, under the IDs `Runic.DynamicData` and
 `Runic.DynamicData.Reactive`. This fork will not be proposed upstream.
