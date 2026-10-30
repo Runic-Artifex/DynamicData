@@ -1,7 +1,7 @@
 {
-    "version": "10.0-runic.{height}",
+    "version": "10.0.0",
     "publicReleaseRefSpec": [
-        "^refs/heads/main$", // main publishes pre-release packages
+        "^refs/heads/main$", // main publishes the version above: a -runic.{height} line or a stable release
         "^refs/heads/release/\\d+\\.x$" // release/<major>.x branches publish stable packages
     ],
     "nugetPackageVersion": {

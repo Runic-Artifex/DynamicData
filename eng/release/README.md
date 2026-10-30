@@ -26,6 +26,10 @@ DynamicData for .NET 10.
 
 ## GitHub release
 
+A prerelease version (one with a `-` label, such as `10.0.0-runic.118`) becomes
+a GitHub prerelease; a stable version (such as `10.0.0`) becomes a regular
+release. The draft's prerelease flag is checked before and after the upload.
+
 The publish command refuses every existing tag or release,
 creates a draft targeted at that SHA, uploads the exact two assets, downloads
 them for byte comparison, creates and resolves a new non-force tag at that SHA,
