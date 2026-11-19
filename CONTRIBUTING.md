@@ -5,7 +5,7 @@ monthly upstream review, validation and releases, and update the
 [fork difference register](docs/fork-differences.md) when changing an
 intentional adaptation. Agent instructions are in [AGENTS.md](AGENTS.md).
 
-Install the .NET SDK pinned in `global.json` (10.0.401). Both libraries and all
+Install the .NET SDK pinned in `global.json` (10.0.403). Both libraries and all
 tests target .NET 10 only. On the Runic development desktop, reuse the SDK
 workspace's locked shell: `direnv exec <path-to>/runic-sdk dotnet ...`.
 
