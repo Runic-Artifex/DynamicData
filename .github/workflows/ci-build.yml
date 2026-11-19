@@ -30,6 +30,9 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        env:
+          # A job-owned root, so `dotnet` is the locked .NET 10 host rather than a newer one the image preinstalls.
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
         with:
           global-json-file: global.json
       - name: Test upstream maintenance fixtures
@@ -127,6 +130,9 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        env:
+          # A job-owned root, so `dotnet` is the locked .NET 10 host rather than a newer one the image preinstalls.
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
         with:
           global-json-file: global.json
       - name: Download the matching 9.0 package pair
@@ -177,6 +183,9 @@ jobs:
         with:
           fetch-depth: 0
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        env:
+          # A job-owned root, so `dotnet` is the locked .NET 10 host rather than a newer one the image preinstalls.
+          DOTNET_INSTALL_DIR: ${{ runner.temp }}/dotnet
         with:
           global-json-file: global.json
       - name: Check native toolchain and space
