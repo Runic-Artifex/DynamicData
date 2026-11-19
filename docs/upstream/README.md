@@ -41,6 +41,8 @@ never committed.
 | #1066 | DD-034 |
 | #1142, #1147 (list `AutoRefreshOnObservable` child errors) | DD-041 |
 | #1073 (`ExpireAfter`, `ToObservableChangeSet` and list predicate-state `Filter` gates) | DD-043 |
+| #1208 (parallel `SubscribeMany` source errors, fork issue #47) | DD-047 |
+| #1209 (specialised `AsAggregator` source errors, fork issue #48) | DD-048 |
 | #1099 | Existing behavior kept; concurrency tests enabled |
 
 ## Open gaps
