@@ -50,6 +50,8 @@ Outcome of each `Upstream review YYYY-MM` issue. The tables below include its it
 | #1066 | DD-034 |
 | #1142, #1147 (list `AutoRefreshOnObservable` child errors) | DD-041 |
 | #1073 (`ExpireAfter`, `ToObservableChangeSet` and list predicate-state `Filter` gates) | DD-043 |
+| #1208 (parallel `SubscribeMany` source errors, fork issue #47) | DD-047 |
+| #1209 (specialised `AsAggregator` source errors, fork issue #48) | DD-048 |
 | #1099 | Existing behavior kept; concurrency tests enabled |
 | #896, #1196 (fork issue #4) | DD-007, DD-030 |
 | #1142, #1205, #1207 (fork issue #5) | DD-039 |
@@ -59,12 +61,7 @@ Outcome of each `Upstream review YYYY-MM` issue. The tables below include its it
 
 ## Open gaps
 
-Verified against `main` in the 2026-11 review (the October gaps #4, #5, #6 and #8 are closed; see Adopted):
-
-| Gap | Upstream | Fork issue |
-| --- | --- | --- |
-| Parallel `SubscribeMany` rethrows source errors | #1208, #1142 | [#47](https://github.com/Runic-Artifex/DynamicData/issues/47) |
-| Sorted, paged and distinct `AsAggregator` rethrow source errors | #1209, #1142 | [#48](https://github.com/Runic-Artifex/DynamicData/issues/48) |
+None after the 2026-11 review: its two new gaps, #47 (#1208) and #48 (#1209), are adopted as DD-047 and DD-048.
 
 ## Deferred
 

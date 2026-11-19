@@ -42,7 +42,7 @@ internal sealed class PSubscribeMany<TObject, TKey>(IObservable<IChangeSet<TObje
                 observer =>
                     {
                         var published = _source.Publish();
-                        var subscriptions = published.Transform((t, k) => _subscriptionFactory(t, k), parallelisationOptions).DisposeMany().Subscribe();
+                        var subscriptions = published.Transform((t, k) => _subscriptionFactory(t, k), parallelisationOptions).DisposeMany().Subscribe(static _ => { }, static _ => { });
 
                         return new CompositeDisposable(subscriptions, published.SubscribeSafe(observer), published.Connect());
                     });

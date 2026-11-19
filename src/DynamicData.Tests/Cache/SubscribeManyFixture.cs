@@ -1,3 +1,9 @@
+#if REACTIVE_TESTS
+using DynamicData.Reactive.PLinq;
+#else
+using DynamicData.PLinq;
+#endif
+
 namespace DynamicData.Tests.Cache;
 
 public class SubscribeManyFixture : IDisposable
@@ -53,6 +59,20 @@ public class SubscribeManyFixture : IDisposable
         await Assert.That(_results.Messages.Count).IsEqualTo(2).Because("Should be 2 updates");
         await Assert.That(_results.Data.Count).IsEqualTo(0).Because("Should be 0 items in the cache");
         await Assert.That(_results.Messages[1].First().Current.IsSubscribed).IsFalse().Because("Should be be unsubscribed");
+    }
+
+    // DD-047 (fork issue #47, upstream #1208): the internal DisposeMany subscription of the parallelised overload
+    // ignores terminal events, so a source error reaches the subscriber instead of being rethrown to the producer.
+    [Test]
+    public async Task ParallelisedSubscribeManyFailsWhenTheSourceFails()
+    {
+        using var source = new TestSourceCache<SubscribeableObject, int>(p => p.Id);
+        using var results = source.Connect().SubscribeMany(_ => Disposable.Empty, ParallelisationOptions.Default).AsAggregator();
+
+        var expectedError = new Exception("Test Exception");
+        source.SetError(expectedError);
+
+        await Assert.That(results.Error).IsSameReferenceAs(expectedError).Because("the failure should reach the subscriber rather than be rethrown");
     }
 
     // DD-044 (fork issue #39): a subscription the factory makes while the SubscribeMany subscription is disposed
