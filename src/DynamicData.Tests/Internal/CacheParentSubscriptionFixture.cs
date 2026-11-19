@@ -215,66 +215,73 @@ public sealed class CacheParentSubscriptionFixture
     }
 
     /// <summary>
-    /// Proves CPS delivery runs without holding the lock. Two TestSubscription instances
-    /// whose EmitChanges callbacks write into each other's source cache — creating a
-    /// cross-cache cycle. Deadlocks on unfixed code, passes after the fix.
+    /// Two subscriptions whose emissions feed each other, both through the other's child observable and through
+    /// the other's source cache. Each writer thread is parked inside its own subscription's delivery until the
+    /// other is too, and only then feeds the other, so the cycle is exercised on every run. If either the
+    /// subscription or the cache held its lock while delivering, each writer would block on the lock the other
+    /// holds. Ported from upstream #1213.
     /// </summary>
     [Test]
-    public async Task DeadlockProof_CrossFeedingSubscriptions()
+    [Timeout(10_000)]
+    public async Task CrossFeedingSubscriptions_FeedEachOtherDuringDelivery_DoNotDeadlock(CancellationToken cancellationToken)
     {
-        var iterations = _rand.Number(50, 150);
+        // Arrange
+        var keys = _rand.Shuffle(Enumerable.Range(1, 1_000)).Take(4).ToArray();
+        var (seedA, seedB) = (new TestItem(keys[0], _rand.String2(8)), new TestItem(keys[1], _rand.String2(8)));
+        var (crossFromA, crossFromB) = (new TestItem(keys[2], _rand.String2(8)), new TestItem(keys[3], _rand.String2(8)));
+        var (childValueFromA, childValueFromB) = (_rand.String2(8), _rand.String2(8));
 
         using var sourceA = new SourceCache<TestItem, int>(x => x.Key);
         using var sourceB = new SourceCache<TestItem, int>(x => x.Key);
+        using var childOfA = new ReactiveUI.Primitives.Signals.Signal<string>();
+        using var childOfB = new ReactiveUI.Primitives.Signals.Signal<string>();
+        using var rendezvous = new Barrier(2);
 
-        // Each TestSubscription's EmitChanges writes into the OTHER source (limited to prevent infinite loops)
-        var observerA = new CrossFeedObserver(sourceB, 100_001, iterations);
-        using var subA = new TestSubscription(observerA);
+        // The child is fed before the cache, so it only reaches the subscription made for the seed.
+        var observerA = new CrossFeedObserver(rendezvous, () => { childOfB.OnNext(childValueFromA); sourceB.AddOrUpdate(crossFromA); });
+        using var subA = new TestSubscription(observerA, _ => childOfA);
         subA.ExposeCreateParent(sourceA.Connect());
 
-        var observerB = new CrossFeedObserver(sourceA, 200_001, iterations);
-        using var subB = new TestSubscription(observerB);
+        var observerB = new CrossFeedObserver(rendezvous, () => { childOfA.OnNext(childValueFromB); sourceA.AddOrUpdate(crossFromB); });
+        using var subB = new TestSubscription(observerB, _ => childOfB);
         subB.ExposeCreateParent(sourceB.Connect());
 
-        using var barrier = new Barrier(2);
+        // Act: the writers get threads of their own, so they never wait on a starved thread pool.
+        var writerA = Task.Factory.StartNew(() => sourceA.AddOrUpdate(seedA), cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        var writerB = Task.Factory.StartNew(() => sourceB.AddOrUpdate(seedB), cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        await Task.WhenAll(writerA, writerB);
 
-        var taskA = Task.Run(() =>
-        {
-            var tRand = new Randomizer(56);
-            barrier.SignalAndWait();
-            for (var i = 0; i < iterations; i++)
-                sourceA.AddOrUpdate(new TestItem(tRand.Number(1, 50_000), tRand.String2(5)));
-        });
-
-        var taskB = Task.Run(() =>
-        {
-            var tRand = new Randomizer(57);
-            barrier.SignalAndWait();
-            for (var i = 0; i < iterations; i++)
-                sourceB.AddOrUpdate(new TestItem(tRand.Number(50_001, 100_000), tRand.String2(5)));
-        });
-
-        var completed = Task.WhenAll(taskA, taskB);
-        var finished = await Task.WhenAny(completed, Task.Delay(TimeSpan.FromSeconds(30)));
-        await Assert.That(finished).IsSameReferenceAs(completed);
+        // Assert
+        await Assert.That(sourceA.Items).IsEquivalentTo(new[] { seedA, crossFromB });
+        await Assert.That(sourceB.Items).IsEquivalentTo(new[] { seedB, crossFromA });
+        await Assert.That(observerA.Received).IsEquivalentTo(new[] { seedA, seedA with { Value = childValueFromB }, crossFromB });
+        await Assert.That(observerB.Received).IsEquivalentTo(new[] { seedB, seedB with { Value = childValueFromA }, crossFromA });
     }
 
     // ═══════════════════════════════════════════════════════════════
     // Test Infrastructure
     // ═══════════════════════════════════════════════════════════════
 
-    /// <summary>Observer that writes into another cache on every emission — creates cross-cache cycle.</summary>
-    private sealed class CrossFeedObserver(SourceCache<TestItem, int> target, int idBase, int maxCrossWrites) : IObserver<IChangeSet<TestItem, int>>
+    /// <summary>
+    /// Records every item it receives. On its first emission it waits at <paramref name="rendezvous"/> for the
+    /// other writer, then runs <paramref name="crossFeed"/>.
+    /// </summary>
+    private sealed class CrossFeedObserver(Barrier rendezvous, Action crossFeed) : IObserver<IChangeSet<TestItem, int>>
     {
-        private int _counter;
+        private bool _hasCrossFed;
+
+        public List<TestItem> Received { get; } = [];
 
         public void OnNext(IChangeSet<TestItem, int> value)
         {
-            // Limit cross-writes to prevent infinite feedback loops
-            if (Interlocked.Increment(ref _counter) <= maxCrossWrites)
-            {
-                target.AddOrUpdate(new TestItem(idBase + _counter, "cross"));
-            }
+            Received.AddRange(value.Select(change => change.Current));
+
+            if (_hasCrossFed)
+                return;
+
+            _hasCrossFed = true;
+            rendezvous.SignalAndWait();
+            crossFeed();
         }
 
         public void OnError(Exception error) { }
