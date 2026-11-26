@@ -1,5 +1,5 @@
 {
   "owner": "runic-artifex",
-  "packageGlobs": ["RunicArtifex.*"],
+  "packageGlobs": ["RunicArtifex.DynamicData*"],
   "pushNewPackages": true
 }
