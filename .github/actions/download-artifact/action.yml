@@ -1,0 +1,63 @@
+name: Download an artifact of this run
+description: >-
+  actions/download-artifact with two more attempts after pauses, adopted from runic-sdk's action of the same name.
+  The artifact service sometimes lists an artifact that a job uploaded moments before and then fails to serve it
+  ("No artifacts found for ID" or "Artifact not found for name", seen in both Runic forks on 2026-11-26).
+  download-artifact's own retries come within seconds of each other, and one failure recurred on a re-run with a
+  fresh upload, so this waits 30 seconds and then 90 more before giving up.
+inputs:
+  name:
+    description: The artifact's name (or use artifact-ids)
+    default: ""
+  artifact-ids:
+    description: The artifact's ID from upload-artifact's artifact-id output (or use name)
+    default: ""
+  path:
+    description: The directory to extract into
+    required: true
+  digest-mismatch:
+    description: What a digest mismatch does (ignore, info, warn or error)
+    default: error
+runs:
+  using: composite
+  steps:
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      id: first
+      continue-on-error: true
+      with:
+        name: ${{ inputs.name }}
+        artifact-ids: ${{ inputs.artifact-ids }}
+        path: ${{ inputs.path }}
+        digest-mismatch: ${{ inputs.digest-mismatch }}
+    - name: Wait before downloading again
+      if: steps.first.outcome == 'failure'
+      shell: bash
+      env:
+        ARTIFACT: ${{ inputs.name || inputs.artifact-ids }}
+      run: |
+        echo "::warning title=Infrastructure retry::Downloading the artifact $ARTIFACT failed; trying again in 30 s."
+        sleep 30
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      id: second
+      if: steps.first.outcome == 'failure'
+      continue-on-error: true
+      with:
+        name: ${{ inputs.name }}
+        artifact-ids: ${{ inputs.artifact-ids }}
+        path: ${{ inputs.path }}
+        digest-mismatch: ${{ inputs.digest-mismatch }}
+    - name: Wait longer before the last download
+      if: steps.second.outcome == 'failure'
+      shell: bash
+      env:
+        ARTIFACT: ${{ inputs.name || inputs.artifact-ids }}
+      run: |
+        echo "::warning title=Infrastructure retry::Downloading the artifact $ARTIFACT failed twice; trying a last time in 90 s."
+        sleep 90
+    - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+      if: steps.second.outcome == 'failure'
+      with:
+        name: ${{ inputs.name }}
+        artifact-ids: ${{ inputs.artifact-ids }}
+        path: ${{ inputs.path }}
+        digest-mismatch: ${{ inputs.digest-mismatch }}
